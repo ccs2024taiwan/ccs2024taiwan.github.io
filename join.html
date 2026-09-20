@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>線上入會申請｜寓委聯</title>
+    <meta name="description" content="線上申請加入全國公寓大廈管理委員聯誼會：個人會員與團體會員入會申請。" />
+    <link rel="icon" href="assets/favicon.png" type="image/png" />
+    <link rel="apple-touch-icon" href="assets/apple-touch-icon.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Chiron+GoRound+TC:wght@400;500;700;900&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="container nav-wrap">
+        <a class="brand" href="index.html">
+          <img src="assets/logo-small.png" alt="全國公寓大廈管理委員聯誼會" width="1640" height="160" />
+        </a>
+        <button class="menu-toggle" type="button" aria-label="開啟選單"><span></span><span></span><span></span></button>
+        <nav class="main-nav" aria-label="主選單">
+          <a href="index.html">首頁</a>
+          <a href="about.html">關於我們</a>
+          <a href="services.html">服務項目</a>
+          <a href="activities.html">活動成果</a>
+          <a href="members.html">會員名單</a>
+          <a href="publications.html">出版品</a>
+          <a href="volunteer.html">志工專區</a>
+          <a href="portal.html">會員專區</a>
+          <a href="contact.html" class="nav-cta">聯絡我們</a>
+        </nav>
+      </div>
+    </header>
+
+    <main>
+      <section class="page-header">
+        <div class="container">
+          <p class="eyebrow">線上入會申請</p>
+          <h1>加入寓委聯</h1>
+          <p><span class="nb">填寫以下資料即完成申請。</span><span class="nb">理事會審查通過後，</span><span class="nb">我們會用 LINE 通知繳費方式；</span><span class="nb">完成繳費即成為正式會員，</span><span class="nb">並收到會員編號。</span></p>
+        </div>
+      </section>
+
+      <section class="page-content">
+        <div class="container join-layout">
+          <form class="join-form" data-join novalidate>
+            <fieldset class="join-section">
+              <legend><span></span>申請類別</legend>
+              <div class="choice-grid choice-grid-2">
+                <label class="choice"><input type="radio" name="type" value="個人會員" checked /><span>個人會員<small>現任或曾任社區管理委員，或有投入熱誠者｜入會費 500 元＋常年會費 500 元</small></span></label>
+                <label class="choice"><input type="radio" name="type" value="團體會員" /><span>團體會員<small>贊同本會宗旨之機構或團體，推派代表行使會員權利｜入會費 1,000 元＋常年會費 3,000 元</small></span></label>
+              </div>
+              <p class="form-note">年中入會者，常年會費會依入會月份遞減，實際金額以審核通過後的繳費通知為準。永久會員（個人會員一次繳納 10,000 元）自 116 年 11 月 1 日起開放。贊助會員請加 <a class="text-link-inline" href="https://lin.ee/wWnh9Vb" target="_blank" rel="noopener">LINE「寓委聯小幫手」</a>洽詢。</p>
+            </fieldset>
+
+            <fieldset class="join-section" data-for="個人會員">
+              <legend><span></span>申請人資料</legend>
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="required" for="j-name">申請人姓名</label>
+                  <input id="j-name" name="name" type="text" autocomplete="name" required />
+                </div>
+                <div class="form-group">
+                  <label class="required" for="j-birthday">出生年月日</label>
+                  <input id="j-birthday" name="birthday" type="date" max="2015-12-31" required />
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="required" for="j-gender">性別</label>
+                  <select id="j-gender" name="gender" required><option value="">請選擇</option><option>男</option><option>女</option><option>其他／不願揭露</option></select>
+                </div>
+                
+              </div>
+              <div class="form-group">
+                  <label class="required" for="j-job">現職（服務單位與職稱）</label>
+                  <input id="j-job" name="job" type="text" placeholder="例：○○公司 工程師" required />
+                </div>
+              <div class="form-group">
+                  <label class="required" for="j-address">戶籍或聯絡地址</label>
+                  <input id="j-address" name="address" type="text" autocomplete="street-address" required />
+                </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="required" for="j-mobile">行動電話</label>
+                  <input id="j-mobile" name="mobile" type="tel" inputmode="numeric" placeholder="例：0912345678" autocomplete="tel" required />
+                </div>
+                <div class="form-group">
+                  <label for="j-tel">室內電話</label>
+                  <input id="j-tel" name="tel" type="tel" />
+                </div>
+              </div>
+              <div class="form-group">
+                  <label class="required" for="j-email">電子信箱</label>
+                  <input id="j-email" name="email" type="email" placeholder="請盡量填寫 Gmail 信箱" autocomplete="email" required />
+                </div>
+              <p class="form-note">本會大部分的會員共享資料是用 Google 雲端分享，提供 Gmail 信箱能方便設定你的存取權限。行動電話的末三碼，日後就是你登入會員專區的密碼，請填常用號碼。</p>
+            </fieldset>
+
+            <fieldset class="join-section" data-for="個人會員">
+              <legend><span></span>居住社區與委員經歷</legend>
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="required" for="j-community">居住的社區名稱</label>
+                  <input id="j-community" name="community" type="text" placeholder="例：○○社區" required />
+                </div>
+                <div class="form-group">
+                  <label class="required" for="j-city">社區所在縣市</label>
+                  <select id="j-city" name="city" required><option value="">請選擇</option><option>臺北市</option><option>新北市</option><option>基隆市</option><option>桃園市</option><option>新竹市</option><option>新竹縣</option><option>苗栗縣</option><option>臺中市</option><option>彰化縣</option><option>南投縣</option><option>雲林縣</option><option>嘉義市</option><option>嘉義縣</option><option>臺南市</option><option>高雄市</option><option>屏東縣</option><option>宜蘭縣</option><option>花蓮縣</option><option>臺東縣</option><option>澎湖縣</option><option>金門縣</option><option>連江縣</option></select>
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="required" for="j-district">鄉鎮市區</label>
+                <input id="j-district" name="district" type="text" placeholder="例：北屯區" required />
+              </div>
+              <p class="form-note" style="margin-top: -8px">請填你<strong>自己居住</strong>的社區，不是工作上服務的社區。如居住處沒有管委會，可填寫「透天」或其他房屋型態。</p>
+              <div class="form-group">
+                <label class="required" for="j-experience">社區管理委員擔任經歷</label>
+                <input id="j-experience" name="experience" type="text" placeholder="職稱、屆數、在職或曾任；無經驗者填「無」" required />
+              </div>
+            </fieldset>
+
+            <fieldset class="join-section" data-for="團體會員" hidden>
+              <legend><span></span>團體資料</legend>
+              <div class="form-group">
+                  <label class="required" for="j-groupName">團體／公司／商業名稱</label>
+                  <input id="j-groupName" name="groupName" type="text" autocomplete="organization" required />
+                </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="required" for="j-groupFounded">成立日期</label>
+                  <input id="j-groupFounded" name="groupFounded" type="date" required />
+                </div>
+                <div class="form-group">
+                  <label class="required" for="j-groupIssuer">發證單位</label>
+                  <input id="j-groupIssuer" name="groupIssuer" type="text" placeholder="例：內政部、經濟部" required />
+                </div>
+              </div>
+              <div class="form-group">
+                  <label class="required" for="j-groupRegNo">團體立案／公司登記／商業登記字號</label>
+                  <input id="j-groupRegNo" name="groupRegNo" type="text" required />
+                </div>
+              <div class="form-group">
+                  <label class="required" for="j-groupAddress">團體地址</label>
+                  <input id="j-groupAddress" name="groupAddress" type="text" placeholder="請從縣市開始填寫，例：臺中市北屯區…" required />
+                </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="required" for="j-groupMobile">聯絡行動電話</label>
+                  <input id="j-groupMobile" name="groupMobile" type="tel" inputmode="numeric" placeholder="例：0912345678" required />
+                </div>
+                <div class="form-group">
+                  <label for="j-groupTel">聯絡市內電話</label>
+                  <input id="j-groupTel" name="groupTel" type="tel" />
+                </div>
+              </div>
+              <div class="form-group">
+                  <label class="required" for="j-groupEmail">聯絡電子信箱</label>
+                  <input id="j-groupEmail" name="groupEmail" type="email" placeholder="系統確認信會寄到這裡" required />
+                </div>
+              <div class="form-group">
+                  <label class="required" for="j-groupOwner">負責人姓名與電話</label>
+                  <input id="j-groupOwner" name="groupOwner" type="text" placeholder="例：王大明 0912345678" required />
+                </div>
+              <p class="form-note">聯絡行動電話的末三碼，日後就是登入會員專區的密碼。團體會員的名稱會公告在官網會員名單上。</p>
+            </fieldset>
+
+            <fieldset class="join-section" data-for="團體會員" hidden>
+              <legend><span></span>推（選）派代表</legend>
+              <p class="form-note" style="margin-top: 0">代表一為必填；代表二若無可跳過。</p>
+              <h3 class="join-subhead">推（選）派代表一</h3>
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="required" for="j-repName">代表姓名</label>
+                  <input id="j-repName" name="repName" type="text" required />
+                </div>
+                <div class="form-group">
+                  <label class="required" for="j-repTitle">職稱</label>
+                  <input id="j-repTitle" name="repTitle" type="text" required />
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="required" for="j-repGender">性別</label>
+                  <select id="j-repGender" name="repGender" required><option value="">請選擇</option><option>男</option><option>女</option><option>其他／不願揭露</option></select>
+                </div>
+                <div class="form-group">
+                  <label class="required" for="j-repBirthday">出生年月日</label>
+                  <input id="j-repBirthday" name="repBirthday" type="date" max="2015-12-31" required />
+                </div>
+              </div>
+              <div class="form-row">
+                
+                <div class="form-group">
+                  <label class="required" for="j-repAddress">戶籍或聯絡地址</label>
+                  <input id="j-repAddress" name="repAddress" type="text" required />
+                </div>
+              </div>
+              <div class="form-group">
+                <span class="label required">代表 1 簽名或蓋章</span>
+                <div class="signature-pad" data-signature="repSignature">
+                  <canvas width="900" height="300" aria-label="代表 1 簽名或蓋章：請用手指或滑鼠簽名"></canvas>
+                  <button class="small-btn" type="button" data-clear>清除重簽</button>
+                </div>
+              </div>
+              <h3 class="join-subhead">推（選）派代表二（若無可跳過）</h3>
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="j-rep2Name">代表姓名</label>
+                  <input id="j-rep2Name" name="rep2Name" type="text" />
+                </div>
+                <div class="form-group">
+                  <label for="j-rep2Title">職稱</label>
+                  <input id="j-rep2Title" name="rep2Title" type="text" />
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="j-rep2Gender">性別</label>
+                  <select id="j-rep2Gender" name="rep2Gender"><option value="">請選擇</option><option>男</option><option>女</option><option>其他／不願揭露</option></select>
+                </div>
+                <div class="form-group">
+                  <label for="j-rep2Birthday">出生年月日</label>
+                  <input id="j-rep2Birthday" name="rep2Birthday" type="date" max="2015-12-31" />
+                </div>
+              </div>
+              <div class="form-row">
+                
+                <div class="form-group">
+                  <label for="j-rep2Address">戶籍或聯絡地址</label>
+                  <input id="j-rep2Address" name="rep2Address" type="text" />
+                </div>
+              </div>
+              <div class="form-group">
+                <span class="label">代表 2 簽名或蓋章</span>
+                <div class="signature-pad" data-signature="rep2Signature">
+                  <canvas width="900" height="300" aria-label="代表 2 簽名或蓋章：請用手指或滑鼠簽名"></canvas>
+                  <button class="small-btn" type="button" data-clear>清除重簽</button>
+                </div>
+              </div>
+            </fieldset>
+
+            <fieldset class="join-section">
+              <legend><span></span>想多認識你</legend>
+              <div class="form-group">
+                  <label class="required" for="j-source">請問您是從哪裡得知本會資訊的？</label>
+                  <input id="j-source" name="source" type="text" placeholder="推薦人是誰？或是從哪個平台、媒介得知我們的呢？" required />
+                </div>
+              <fieldset class="choice-group" data-required-group><legend class="required" data-field="請問您加入本會的主要目的是什麼呢？">請問您加入本會的主要目的是什麼呢？<small>可複選</small></legend>
+                <div class="chip-row"><label class="chip"><input type="checkbox" name="purpose" value="認同本會宗旨" /><span>認同本會宗旨</span></label><label class="chip"><input type="checkbox" name="purpose" value="與其他人交流心得" /><span>與其他人交流心得</span></label><label class="chip"><input type="checkbox" name="purpose" value="了解社區管理實務技巧" /><span>了解社區管理實務技巧</span></label><label class="chip"><input type="checkbox" name="purpose" value="了解相關法規與應用" /><span>了解相關法規與應用</span></label><label class="chip"><input type="checkbox" name="purpose" value="獲得免費課程" /><span>獲得免費課程</span></label><label class="chip"><input type="checkbox" name="purpose" value="觀摩房市或社區管理樣貌" /><span>觀摩房市或社區管理樣貌</span></label><label class="chip"><input type="checkbox" name="purpose" value="得到廠商名單" /><span>得到廠商名單</span></label><label class="chip"><input type="checkbox" name="purpose" value="取得社區活動舉辦資源" /><span>取得社區活動舉辦資源</span></label><label class="chip"><input type="checkbox" name="purpose" value="想要幫助社區得獎" /><span>想要幫助社區得獎</span></label></div>
+              </fieldset>
+              <div class="form-group">
+                  <label for="j-purposeOther">其他</label>
+                  <input id="j-purposeOther" name="purposeOther" type="text" placeholder="上面沒有的，請寫在這裡" />
+                </div>
+            </fieldset>
+
+            <fieldset class="join-section" data-for="個人會員">
+              <legend><span></span>會員名單公開方式</legend>
+              <p class="form-note" style="margin-top: 0">本會基於會員榮譽與組織識別之目的，得於官方網站公開會員編號、姓名及代表社區名稱；如不同意公開姓名，請選擇「匿名」。</p>
+              <div class="choice-grid choice-grid-2">
+                <label class="choice"><input type="radio" name="listing" value="公開姓名" checked /><span>公開姓名<small>顯示：編號、姓名、社區</small></span></label>
+                <label class="choice"><input type="radio" name="listing" value="匿名" /><span>匿名<small>顯示：編號、「匿名」、社區</small></span></label>
+              </div>
+            </fieldset>
+
+            <fieldset class="join-section">
+              <legend><span></span>審查結果怎麼通知你</legend>
+              <p class="form-note" style="margin-top: 0">審查結果、繳費通知與會員編號，我們都用 <strong>LINE 官方帳號「寓委聯小幫手」</strong>傳給你。請先加好友，並填寫你的 LINE 名稱，我們才對得到人。</p>
+              <p><a class="btn btn-secondary" href="https://lin.ee/wWnh9Vb" target="_blank" rel="noopener">加 LINE「寓委聯小幫手」好友</a></p>
+              <div class="form-group">
+                  <label class="required" for="j-lineName">你的 LINE 顯示名稱</label>
+                  <input id="j-lineName" name="lineName" type="text" placeholder="加好友後，你在 LINE 上顯示的名字" required />
+                </div>
+            </fieldset>
+
+            <fieldset class="join-section">
+              <legend><span></span>簽名確認</legend>
+              <div data-for="個人會員">
+              <div class="form-group">
+                <span class="label required">申請人簽名</span>
+                <div class="signature-pad" data-signature="signature">
+                  <canvas width="900" height="300" aria-label="申請人簽名：請用手指或滑鼠簽名"></canvas>
+                  <button class="small-btn" type="button" data-clear>清除重簽</button>
+                </div>
+              </div>
+              </div>
+              <div data-for="團體會員" hidden>
+              <div class="form-group">
+                <span class="label required">申請單位負責人簽名</span>
+                <div class="signature-pad" data-signature="ownerSignature">
+                  <canvas width="900" height="300" aria-label="申請單位負責人簽名：請用手指或滑鼠簽名"></canvas>
+                  <button class="small-btn" type="button" data-clear>清除重簽</button>
+                </div>
+              </div>
+              <div class="form-group">
+                <label for="j-groupStamp">公司大章（組織戳章）圖檔</label>
+                <input id="j-groupStamp" type="file" accept="image/png,image/jpeg" data-upload="groupStamp" />
+                <p class="form-note">請把公司或團體的大章蓋在白紙上，用手機拍照上傳（JPG 或 PNG）。</p>
+              </div>
+              </div>
+              <p class="form-note">請用手指（手機）或滑鼠在框內簽名。</p>
+              <label class="consent">
+                <input name="consent" type="checkbox" required />
+                <span>我已閱讀<a class="text-link-inline" href="assets/docs/charter.pdf" target="_blank" rel="noopener">本會章程</a>並贊同本會宗旨；同意全國公寓大廈管理委員聯誼會為辦理入會審查、會籍管理與會務聯繫之目的，蒐集、處理及利用以上個人資料，並於官網公告會員名單。詳見<a class="text-link-inline" href="privacy.html" target="_blank">個人資料蒐集告知</a>。</span>
+              </label>
+            </fieldset>
+
+            <div class="hp-field" aria-hidden="true"><label>請勿填寫<input type="text" name="website" tabindex="-1" autocomplete="off" /></label></div>
+            <p class="form-error" role="alert" data-join-error hidden></p>
+            <button class="btn btn-primary" type="submit">送出入會申請</button>
+          </form>
+
+          <div class="join-done panel" data-join-done hidden>
+            <h2>申請已送出，謝謝你！</h2>
+            <p>還差最後一步：請到 LINE「寓委聯小幫手」傳一句「<strong>我是○○○，已送出入會申請</strong>」，我們才能把審查結果傳給你。</p>
+            <p><a class="btn btn-primary" href="https://lin.ee/wWnh9Vb" target="_blank" rel="noopener">打開 LINE「寓委聯小幫手」</a></p>
+            <p class="form-note">理事會審查通過後，我們會用 LINE 通知繳費方式；完成繳費後你會收到會員編號，就能登入會員專區。</p>
+          </div>
+
+          <aside class="join-aside">
+            <div class="panel">
+              <h3>入會流程</h3>
+              <ol class="flow">
+                <li><strong>線上填寫申請</strong>約 5 分鐘</li>
+                <li><strong>理事會審查</strong>結果用 LINE 通知你</li>
+                <li><strong>繳納會費</strong>入會費＋常年會費</li>
+                <li><strong>取得會員編號</strong>登入會員專區、名單公告</li>
+              </ol>
+            </div>
+            <div class="panel">
+              <h3>你的資料怎麼保管</h3>
+              <p>申請資料直接寫入本會的會籍資料表，僅供審查與會務聯繫使用。官網名單只會公告編號、姓名（或匿名）與社區。</p>
+            </div>
+            <div class="panel">
+              <h3>填寫上有問題？</h3>
+              <p>加 <a class="text-link-inline" href="https://lin.ee/wWnh9Vb" target="_blank" rel="noopener">LINE 官方帳號「寓委聯小幫手」</a>，由專人協助你。</p>
+            </div>
+            <div class="panel">
+              <h3>想用紙本？</h3>
+              <p><a class="text-link-inline" href="assets/docs/membership-application.pdf" target="_blank" rel="noopener">下載入會申請書 PDF</a>，填寫後寄至本會信箱。</p>
+            </div>
+          </aside>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-grid">
+        <div>
+          <img class="footer-logo" src="assets/logo-horizontal.png" alt="全國公寓大廈管理委員聯誼會" width="858" height="240" loading="lazy" />
+          <p>內政部立案全國性社會團體（台內團字第 11202282971 號）<br />統一編號 80049965</p>
+        </div>
+        <div>
+          <h4>聯絡我們</h4>
+          <ul>
+            <li><span class="fi fi-mail" aria-hidden="true"></span><a href="mailto:ccs2024taiwan@gmail.com">ccs2024taiwan@gmail.com</a></li>
+            <li><span class="fi fi-line" aria-hidden="true"></span><a href="https://lin.ee/wWnh9Vb" target="_blank" rel="noopener">LINE 官方帳號「寓委聯小幫手」</a></li>
+            <li><span class="fi fi-fb" aria-hidden="true"></span><a href="https://www.facebook.com/profile.php?id=61552728203973" target="_blank" rel="noopener">Facebook 粉絲專頁（最新活動）</a></li>
+            <li><span class="fi fi-yt" aria-hidden="true"></span><a href="https://www.youtube.com/channel/UCMrTfWJXAXtiOwPrQSGtv8A" target="_blank" rel="noopener">YouTube 頻道</a></li>
+            <li><span class="fi fi-pin" aria-hidden="true"></span>406 臺中市北屯區太順路 60 號 4 樓之 3</li>
+          </ul>
+        </div>
+        <div>
+          <h4>網站導覽</h4>
+          <ul class="footer-nav">
+            <li><a href="index.html">首頁</a></li>
+            <li><a href="about.html">關於我們</a></li>
+            <li><a href="services.html">服務項目</a></li>
+            <li><a href="activities.html">活動成果</a></li>
+            <li><a href="members.html">會員名單</a></li>
+            <li><a href="publications.html">出版品</a></li>
+            <li><a href="order.html">訂購教戰手冊</a></li>
+            <li><a href="join.html">線上入會申請</a></li>
+            <li><a href="portal.html">會員專區</a></li>
+            <li><a href="volunteer.html">志工專區</a></li>
+            <li><a href="volunteer-join.html">加入志工</a></li>
+            <li><a href="vendors.html">廠商自薦</a></li>
+            <li><a href="contact.html">聯絡我們</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="copyright">© <span id="year"></span> 全國公寓大廈管理委員聯誼會　·　<a href="privacy.html">個人資料蒐集告知</a></div>
+    </footer>
+
+    <script src="script.js"></script>
+  </body>
+</html>

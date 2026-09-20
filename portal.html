@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>會員專區｜寓委聯</title>
+    <meta name="description" content="寓委聯會員專區：會員共享資源、推薦廠商查詢與推薦。" />
+    <link rel="icon" href="assets/favicon.png" type="image/png" />
+    <link rel="apple-touch-icon" href="assets/apple-touch-icon.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Chiron+GoRound+TC:wght@400;500;700;900&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body class="zone-member">
+    <header class="topbar">
+      <div class="container nav-wrap">
+        <a class="brand" href="index.html">
+          <img src="assets/logo-small.png" alt="全國公寓大廈管理委員聯誼會" width="1640" height="160" />
+        </a>
+        <button class="menu-toggle" type="button" aria-label="開啟選單"><span></span><span></span><span></span></button>
+        <nav class="main-nav" aria-label="主選單">
+          <a href="index.html">首頁</a>
+          <a href="about.html">關於我們</a>
+          <a href="services.html">服務項目</a>
+          <a href="activities.html">活動成果</a>
+          <a href="members.html">會員名單</a>
+          <a href="publications.html">出版品</a>
+          <a href="volunteer.html">志工專區</a>
+          <a href="portal.html" aria-current="page">會員專區</a>
+          <a href="contact.html" class="nav-cta">聯絡我們</a>
+        </nav>
+      </div>
+    </header>
+
+    <main>
+      <section class="page-header">
+        <div class="container">
+          <p class="eyebrow"><span class="zone-badge">會員專用</span>會員專區</p>
+          <h1>會員專屬資源與推薦廠商</h1>
+          <p><span class="nb">以會員編號與手機號碼登入後，</span><span class="nb">可查看會員共享資源、查詢推薦廠商，</span><span class="nb">以及提交廠商推薦。</span></p>
+        </div>
+      </section>
+
+      <section class="page-content" id="loginSection">
+        <div class="container login-shell">
+          <div class="form-card zone-card">
+            <h3>會員登入</h3>
+            <form id="loginForm">
+              <div class="form-group">
+                <label for="memberId">會員編號</label>
+                <input id="memberId" type="text" placeholder="例：B00012" autocomplete="username" required />
+              </div>
+              <div class="form-group">
+                <label for="memberPhone">手機末三碼</label>
+                <input id="memberPhone" type="password" inputmode="numeric" maxlength="3" pattern="\d{3}" placeholder="例：678" autocomplete="off" required />
+              </div>
+              <button class="btn btn-primary" type="submit">登入</button>
+            </form>
+            <p id="loginError" class="form-error" role="alert" hidden></p>
+            <p class="form-note">請輸入入會時登記的手機號碼末三碼。若忘記會員編號或已更換手機，請加 <a class="text-link-inline" href="https://lin.ee/wWnh9Vb" target="_blank" rel="noopener">LINE 官方帳號「寓委聯小幫手」</a>，由專人協助。</p>
+            <p class="form-note zone-switch">你是志工？志工作業請到 <a class="text-link-inline" href="volunteer.html">志工專區</a>。</p>
+          </div>
+
+          <div class="panel">
+            <h3>登入後可使用</h3>
+            <ul>
+              <li>會員共享資料：管理表單、各社區管理辦法、課程簡報</li>
+              <li>推薦廠商查詢，也可以推薦你合作過的廠商</li>
+              <li>道具器材租借與出借登記</li>
+              <li>申請「社區坐一坐」到你的社區</li>
+            </ul>
+            <p style="margin-top: 18px">還不是會員？<a class="text-link-inline" href="join.html">了解如何加入</a></p>
+          </div>
+        </div>
+      </section>
+
+      <div id="memberDashboard" hidden>
+        <section class="page-content">
+          <div class="container">
+            <div class="member-bar">
+              <p id="memberGreeting">歡迎回來</p>
+              <button id="logoutBtn" class="small-btn" type="button">登出</button>
+            </div>
+
+            <div id="membershipCard" class="membership-card" hidden>
+              <div><span>會員類別</span><strong id="msType">—</strong></div>
+              <div><span>會員資格</span><strong id="msStatus">—</strong></div>
+              <div><span>入會日期</span><strong id="msSince">—</strong></div>
+              <div><span>會籍到期日</span><strong id="msUntil">—</strong></div>
+              <p id="msHint" class="membership-hint"></p>
+            </div>
+
+            <div id="serviceMenu">
+              <h2 class="service-title">今天想用哪一項服務？</h2>
+              <div class="service-grid">
+                <button class="service-tile" type="button" data-service="resources"><span class="service-no">01</span><strong>會員共享資料</strong><small>管理表單、各社區管理辦法、公告範例、課程簡報</small></button>
+                <button class="service-tile" type="button" data-service="vendors"><span class="service-no">02</span><strong>廠商資料庫查詢</strong><small>各社區合作過的廠商、費用與評價</small></button>
+                <button class="service-tile" type="button" data-service="recommend"><span class="service-no">03</span><strong>分享合作廠商</strong><small>好的推薦、不好的提醒，都很有價值</small></button>
+                <button class="service-tile" type="button" data-service="borrow"><span class="service-no">04</span><strong>租借道具器材</strong><small>活動要用的佈置、設備，向夥伴借</small></button>
+                <button class="service-tile" type="button" data-service="lend"><span class="service-no">05</span><strong>出借道具器材</strong><small>社區閒置的道具，登記讓大家借</small></button>
+                <button class="service-tile" type="button" data-service="visit"><span class="service-no">06</span><strong>申請「社區坐一坐」來我家</strong><small>邀請大家到你的社區走走聊聊</small></button>
+              </div>
+              <p class="form-note">找不到你要的？加 <a class="text-link-inline" href="https://lin.ee/wWnh9Vb" target="_blank" rel="noopener">LINE 官方帳號「寓委聯小幫手」</a>，由專人協助。</p>
+            </div>
+
+            <div class="service-panel" data-panel="resources" hidden>
+              <button class="text-link service-back" type="button" data-service-back>回服務選單</button>
+              <div class="panel">
+                <h3>會員共享資料</h3>
+                <p>會員們分享的實務資料，僅供會員參考使用，請勿外流。</p>
+                <ul id="resourceLinks" class="resource-links"></ul>
+                <p id="resourceEmpty" class="form-note" hidden>連結整理中，請先到會員 LINE 社群的記事本查看，或洽 LINE「寓委聯小幫手」。</p>
+              </div>
+            </div>
+
+            <div class="service-panel" data-panel="vendors" hidden>
+              <button class="text-link service-back" type="button" data-service-back>回服務選單</button>
+              <div class="panel">
+                <h3>廠商資料庫查詢</h3>
+                <p>以下為會員自主分享的合作經驗與評價，供訪價參考，並非本會推薦之廠商名單；合作結果本會不負責。採用星級評等前的舊資料一律預設為 3 顆星。資料僅供會員參考，請勿外流。</p>
+                <div class="search-box-wrap"><input id="vendorSearch" type="search" placeholder="搜尋：電梯、台中、清潔…（可輸入多個關鍵字）" aria-label="搜尋推薦廠商" /></div>
+                <!-- 廠商名錄於登入驗證後由後端回傳，不寫在頁面原始碼中 -->
+                <div class="vendor-list" id="vendorResults"></div>
+              </div>
+            </div>
+
+            <div class="service-panel" data-panel="recommend" hidden>
+              <button class="text-link service-back" type="button" data-service-back>回服務選單</button>
+              <div class="form-card zone-card">
+                <h3>分享合作過的廠商</h3>
+                <p class="form-note" style="margin-top: 0">好的、不好的都歡迎分享，評等 1～2 分就是提醒大家避開。推薦人會自動記為你的會員編號，不會顯示在名錄上。</p>
+                <form data-form-type="vendor-recommendation">
+                  <div class="form-row">
+                    <div class="form-group"><label class="required" for="vCity">請問您的所在地</label><select id="vCity" required><option value="">請選擇</option><option>台北市</option><option>新北市</option><option>台中市</option><option>高雄市</option><option>桃園市</option><option>台南市</option><option>彰化縣</option><option>屏東縣</option><option>雲林縣</option><option>新竹縣</option><option>苗栗縣</option><option>嘉義縣</option><option>南投縣</option><option>新竹市</option><option>宜蘭縣</option><option>基隆市</option><option>花蓮縣</option><option>嘉義市</option><option>台東縣</option><option>金門縣</option><option>澎湖縣</option><option>連江縣</option></select></div>
+                    <div class="form-group"><label class="required" for="vName">廠商公司名稱</label><input id="vName" type="text" required /></div>
+                  </div>
+                  <fieldset class="choice-group" data-required-group><legend class="required" data-field="廠商類別">廠商類別<small>可複選廠商有服務的項目</small></legend><div class="chip-row"><label class="chip"><input type="checkbox" name="vCat" value="物管" /><span>物管</span></label><label class="chip"><input type="checkbox" name="vCat" value="垃圾清運" /><span>垃圾清運</span></label><label class="chip"><input type="checkbox" name="vCat" value="機電" /><span>機電</span></label><label class="chip"><input type="checkbox" name="vCat" value="弱電" /><span>弱電</span></label><label class="chip"><input type="checkbox" name="vCat" value="消防" /><span>消防</span></label><label class="chip"><input type="checkbox" name="vCat" value="園藝" /><span>園藝</span></label><label class="chip"><input type="checkbox" name="vCat" value="水電" /><span>水電</span></label><label class="chip"><input type="checkbox" name="vCat" value="電梯" /><span>電梯</span></label><label class="chip"><input type="checkbox" name="vCat" value="泥作" /><span>泥作</span></label><label class="chip"><input type="checkbox" name="vCat" value="通管" /><span>通管</span></label><label class="chip"><input type="checkbox" name="vCat" value="防水" /><span>防水</span></label><label class="chip"><input type="checkbox" name="vCat" value="清潔" /><span>清潔</span></label><label class="chip"><input type="checkbox" name="vCat" value="抓漏" /><span>抓漏</span></label><label class="chip"><input type="checkbox" name="vCat" value="木工" /><span>木工</span></label><label class="chip"><input type="checkbox" name="vCat" value="油漆" /><span>油漆</span></label><label class="chip"><input type="checkbox" name="vCat" value="洗水塔" /><span>洗水塔</span></label><label class="chip"><input type="checkbox" name="vCat" value="污水" /><span>污水</span></label><label class="chip"><input type="checkbox" name="vCat" value="影印機" /><span>影印機</span></label><label class="chip"><input type="checkbox" name="vCat" value="其他" /><span>其他</span></label></div></fieldset>
+                  <div class="form-group"><label for="vContact">廠商聯絡人與聯絡方式</label><input id="vContact" type="text" placeholder="電話、LINE 或網站" /></div>
+                  <fieldset class="choice-group"><legend class="required" data-field="是否要付費">是否要付費</legend><div class="chip-row"><label class="chip"><input type="radio" name="vPaid" value="需付費" checked /><span>需付費</span></label><label class="chip"><input type="radio" name="vPaid" value="不需付費（廠商給回饋金）" /><span>不需付費（廠商給回饋金）</span></label><label class="chip"><input type="radio" name="vPaid" value="其他" /><span>其他</span></label></div></fieldset>
+                  <div class="form-row">
+                    <div class="form-group"><label class="required" for="vHouseholds">社區戶數</label><input id="vHouseholds" type="text" inputmode="numeric" placeholder="例：320" required /></div>
+                    <div class="form-group"><label class="required" for="vFee">費用計算</label><input id="vFee" type="text" placeholder="價格／時間或其他單位，例：每月 3.5 萬" required /></div>
+                  </div>
+                  <fieldset class="choice-group"><legend class="required" data-field="廠商評等">廠商評等<small>1 分最不推薦，5 分最推薦</small></legend><div class="chip-row rating-row"><label class="chip"><input type="radio" name="vRating" value="5" checked /><span>5</span></label><label class="chip"><input type="radio" name="vRating" value="4" /><span>4</span></label><label class="chip"><input type="radio" name="vRating" value="3" /><span>3</span></label><label class="chip"><input type="radio" name="vRating" value="2" /><span>2</span></label><label class="chip"><input type="radio" name="vRating" value="1" /><span>1</span></label></div></fieldset>
+                  <fieldset class="choice-group" data-required-group><legend class="required" data-field="評分原因">評分原因</legend><div class="chip-row"><label class="chip"><input type="checkbox" name="vReason" value="服務" /><span>服務</span></label><label class="chip"><input type="checkbox" name="vReason" value="價格" /><span>價格</span></label><label class="chip"><input type="checkbox" name="vReason" value="技術" /><span>技術</span></label><label class="chip"><input type="checkbox" name="vReason" value="誠信" /><span>誠信</span></label><label class="chip"><input type="checkbox" name="vReason" value="品質" /><span>品質</span></label><label class="chip"><input type="checkbox" name="vReason" value="其他" /><span>其他</span></label></div></fieldset>
+                  <div class="form-group"><label for="vNote">其他補充說明</label><textarea id="vNote" placeholder="合作經驗、要注意的地方；不推薦的原因也歡迎寫"></textarea></div>
+                  <div class="hp-field" aria-hidden="true"><label>請勿填寫<input type="text" name="website" tabindex="-1" autocomplete="off" /></label></div>
+                  <button class="btn btn-primary" type="submit">送出</button>
+                </form>
+                <div class="form-success" role="status">已送出，文書組整理後會加入名錄。謝謝你的分享！</div>
+              </div>
+            </div>
+
+            <div class="service-panel" data-panel="borrow" hidden>
+              <button class="text-link service-back" type="button" data-service-back>回服務選單</button>
+              <div class="grid-two">
+                <div class="panel">
+                  <h3>聯誼會的器材</h3>
+                  <div class="vendor-list" id="assetList"></div>
+                  <p id="assetEmpty" class="form-note" hidden>清單整理中。</p>
+                  <h3 style="margin-top: 28px">會員社區提供出借的道具</h3>
+                  <div class="vendor-list" id="equipmentList"></div>
+                  <p id="equipmentEmpty" class="form-note" hidden>目前還沒有會員登記。你的社區有閒置的道具嗎？歡迎到「出借道具器材」登記。</p>
+                  <p class="form-note">想借的東西不在清單上，也可以填申請，我們幫你問問看。</p>
+                </div>
+                <div class="form-card zone-card">
+                  <h3>租借申請</h3>
+                  <form data-form-type="equipment-borrow">
+                    <div class="form-group"><label class="required" for="borrowItems">想借的品項與數量</label><textarea id="borrowItems" placeholder="例：萬聖節集章印章 1 組、關東旗 4 支" required></textarea></div>
+                    <div class="form-group"><label class="required" for="borrowEvent">用途（活動名稱）</label><input id="borrowEvent" type="text" placeholder="例：○○社區中秋晚會" required /></div>
+                    <div class="form-row">
+                      <div class="form-group"><label class="required" for="borrowFrom">取用日期</label><input id="borrowFrom" type="date" required /></div>
+                      <div class="form-group"><label class="required" for="borrowTo">歸還日期</label><input id="borrowTo" type="date" required /></div>
+                    </div>
+                    <div class="form-group"><label class="required" for="borrowCommunity">借用社區</label><input id="borrowCommunity" type="text" required /></div>
+                    <div class="form-group"><label for="borrowNote">備註</label><input id="borrowNote" type="text" placeholder="取用方式、其他需求" /></div>
+                    <div class="hp-field" aria-hidden="true"><label>請勿填寫<input type="text" name="website" tabindex="-1" autocomplete="off" /></label></div>
+                    <button class="btn btn-primary" type="submit">送出申請</button>
+                  </form>
+                  <div class="form-success" role="status">已送出，我們會幫你跟出借的夥伴確認，再回覆你取用方式。</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="service-panel" data-panel="lend" hidden>
+              <button class="text-link service-back" type="button" data-service-back>回服務選單</button>
+              <div class="form-card zone-card">
+                <h3>出借道具器材登記</h3>
+                <p class="form-note" style="margin-top: 0">社區辦完活動閒置的佈置、道具、設備，登記後讓其他會員社區也能用。</p>
+                <form data-form-type="equipment-lend">
+                  <div class="form-row">
+                    <div class="form-group"><label class="required" for="lendItem">品項名稱</label><input id="lendItem" type="text" placeholder="例：聖誕樹 180cm" required /></div>
+                    <div class="form-group"><label class="required" for="lendQty">數量</label><input id="lendQty" type="text" placeholder="例：2 組" required /></div>
+                  </div>
+                  <div class="form-group"><label for="lendDesc">品項說明與狀況</label><textarea id="lendDesc" placeholder="尺寸、新舊、配件、使用注意事項"></textarea></div>
+                  <div class="form-row">
+                    <div class="form-group"><label class="required" for="lendPlace">存放地點（社區／縣市）</label><input id="lendPlace" type="text" required /></div>
+                    <div class="form-group"><label class="required" for="lendPickup">取用方式</label><input id="lendPickup" type="text" placeholder="例：自取、可寄送（運費自付）" required /></div>
+                  </div>
+                  <div class="form-group"><label for="lendTerms">借用條件</label><input id="lendTerms" type="text" placeholder="例：免費、需押金、限借 7 天" /></div>
+                  <div class="hp-field" aria-hidden="true"><label>請勿填寫<input type="text" name="website" tabindex="-1" autocomplete="off" /></label></div>
+                  <button class="btn btn-primary" type="submit">送出登記</button>
+                </form>
+                <div class="form-success" role="status">謝謝你的分享！確認後會列入可租借清單。</div>
+              </div>
+            </div>
+
+            <div class="service-panel" data-panel="visit" hidden>
+              <button class="text-link service-back" type="button" data-service-back>回服務選單</button>
+              <div class="form-card zone-card">
+                <h3>申請「社區坐一坐」來我家</h3>
+                <p class="form-note" style="margin-top: 0">沒有制式議程：找一個舒服的地方坐下來，認識彼此，聊聊社區，也聊聊生活。歡迎邀請大家到你的社區。</p>
+                <form data-form-type="visit-request">
+                  <div class="form-row">
+                    <div class="form-group"><label class="required" for="visitCommunity">社區名稱</label><input id="visitCommunity" type="text" required /></div>
+                    <div class="form-group"><label class="required" for="visitAddress">社區所在地（縣市、區）</label><input id="visitAddress" type="text" placeholder="例：臺中市北屯區" required /></div>
+                  </div>
+                  <div class="form-row">
+                    <div class="form-group"><label class="required" for="visitVenue">可使用的場地</label><input id="visitVenue" type="text" placeholder="例：交誼廳、會議室" required /></div>
+                    <div class="form-group"><label class="required" for="visitCapacity">大約可容納人數</label><input id="visitCapacity" type="text" placeholder="例：30 人" required /></div>
+                  </div>
+                  <div class="form-group"><label class="required" for="visitWhen">希望的時間</label><input id="visitWhen" type="text" placeholder="例：11 月的週六下午" required /></div>
+                  <div class="form-group"><label for="visitHighlight">想讓大家看看的社區特色</label><textarea id="visitHighlight" placeholder="公設、管理做法、辦過的活動…"></textarea></div>
+                  <div class="form-group"><label for="visitNote">其他（停車、交通、可否搭配講座）</label><input id="visitNote" type="text" /></div>
+                  <div class="hp-field" aria-hidden="true"><label>請勿填寫<input type="text" name="website" tabindex="-1" autocomplete="off" /></label></div>
+                  <button class="btn btn-primary" type="submit">送出申請</button>
+                </form>
+                <div class="form-success" role="status">已送出！活動組會與你聯繫，討論時間與安排。</div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-grid">
+        <div>
+          <img class="footer-logo" src="assets/logo-horizontal.png" alt="全國公寓大廈管理委員聯誼會" width="858" height="240" loading="lazy" />
+          <p>內政部立案全國性社會團體（台內團字第 11202282971 號）<br />統一編號 80049965</p>
+        </div>
+        <div>
+          <h4>聯絡我們</h4>
+          <ul>
+            <li><span class="fi fi-mail" aria-hidden="true"></span><a href="mailto:ccs2024taiwan@gmail.com">ccs2024taiwan@gmail.com</a></li>
+            <li><span class="fi fi-line" aria-hidden="true"></span><a href="https://lin.ee/wWnh9Vb" target="_blank" rel="noopener">LINE 官方帳號「寓委聯小幫手」</a></li>
+            <li><span class="fi fi-fb" aria-hidden="true"></span><a href="https://www.facebook.com/profile.php?id=61552728203973" target="_blank" rel="noopener">Facebook 粉絲專頁（最新活動）</a></li>
+            <li><span class="fi fi-yt" aria-hidden="true"></span><a href="https://www.youtube.com/channel/UCMrTfWJXAXtiOwPrQSGtv8A" target="_blank" rel="noopener">YouTube 頻道</a></li>
+            <li><span class="fi fi-pin" aria-hidden="true"></span>406 臺中市北屯區太順路 60 號 4 樓之 3</li>
+          </ul>
+        </div>
+        <div>
+          <h4>網站導覽</h4>
+          <ul class="footer-nav">
+            <li><a href="index.html">首頁</a></li>
+            <li><a href="about.html">關於我們</a></li>
+            <li><a href="services.html">服務項目</a></li>
+            <li><a href="activities.html">活動成果</a></li>
+            <li><a href="members.html">會員名單</a></li>
+            <li><a href="publications.html">出版品</a></li>
+            <li><a href="order.html">訂購教戰手冊</a></li>
+            <li><a href="join.html">線上入會申請</a></li>
+            <li><a href="portal.html">會員專區</a></li>
+            <li><a href="volunteer.html">志工專區</a></li>
+            <li><a href="volunteer-join.html">加入志工</a></li>
+            <li><a href="vendors.html">廠商自薦</a></li>
+            <li><a href="contact.html">聯絡我們</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="copyright">© <span id="year"></span> 全國公寓大廈管理委員聯誼會　·　<a href="privacy.html">個人資料蒐集告知</a></div>
+    </footer>
+
+    <script src="script.js"></script>
+  </body>
+</html>

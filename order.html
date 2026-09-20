@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>訂購《新手委員教戰手冊》｜寓委聯</title>
+    <meta name="description" content="線上訂購《新手委員教戰手冊》：定價 180 元、會員價 100 元，郵局或 7-11 店到店寄送。" />
+    <link rel="icon" href="assets/favicon.png" type="image/png" />
+    <link rel="apple-touch-icon" href="assets/apple-touch-icon.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Chiron+GoRound+TC:wght@400;500;700;900&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="container nav-wrap">
+        <a class="brand" href="index.html">
+          <img src="assets/logo-small.png" alt="全國公寓大廈管理委員聯誼會" width="1640" height="160" />
+        </a>
+        <button class="menu-toggle" type="button" aria-label="開啟選單"><span></span><span></span><span></span></button>
+        <nav class="main-nav" aria-label="主選單">
+          <a href="index.html">首頁</a>
+          <a href="about.html">關於我們</a>
+          <a href="services.html">服務項目</a>
+          <a href="activities.html">活動成果</a>
+          <a href="members.html">會員名單</a>
+          <a href="publications.html" aria-current="page">出版品</a>
+          <a href="volunteer.html">志工專區</a>
+          <a href="portal.html">會員專區</a>
+          <a href="contact.html" class="nav-cta">聯絡我們</a>
+        </nav>
+      </div>
+    </header>
+
+    <main>
+      <section class="page-header">
+        <div class="container">
+          <p class="eyebrow">出版品訂購</p>
+          <h1>訂購《新手委員教戰手冊》</h1>
+          <p><span class="nb">填寫訂購資料 → 匯款 → 回報帳號後五碼，</span><span class="nb">我們對帳後就出貨。</span><span class="nb">全程約 3 分鐘。</span></p>
+        </div>
+      </section>
+
+      <section class="page-content">
+        <div class="container join-layout" data-order-layout>
+          <form class="join-form" data-order novalidate>
+            <fieldset class="join-section">
+              <legend><span>1</span>數量與身分</legend>
+              <div class="order-item">
+                <img src="assets/book-cover.jpg" alt="" width="640" height="1001" loading="lazy" />
+                <div>
+                  <strong>新手委員教戰手冊（第二版）</strong>
+                  <p>定價 <span data-price="price">180</span> 元・會員價 <span data-price="memberPrice">100</span> 元</p>
+                  <div class="stepper">
+                    <button type="button" data-step="-1" aria-label="減少一本">−</button>
+                    <input name="quantity" type="number" min="1" max="50" value="1" inputmode="numeric" aria-label="數量" required />
+                    <button type="button" data-step="1" aria-label="增加一本">＋</button>
+                    <span>本</span>
+                  </div>
+                </div>
+              </div>
+              <div class="choice-grid choice-grid-2">
+                <label class="choice"><input type="radio" name="buyer" value="general" checked /><span>一般訂購<small>每本 <b data-price="price">180</b> 元</small></span></label>
+                <label class="choice"><input type="radio" name="buyer" value="member" /><span>我是會員<small>每本 <b data-price="memberPrice">100</b> 元，需驗證會員編號</small></span></label>
+              </div>
+              <div class="form-row" data-show="buyer=member" hidden>
+                <div class="form-group"><label class="required" for="o-memberId">會員編號</label><input id="o-memberId" name="memberId" type="text" placeholder="例：B00012" required /></div>
+                <div class="form-group"><label class="required" for="o-memberPhone">入會登記手機的末三碼</label><input id="o-memberPhone" name="memberPhone" type="password" inputmode="numeric" maxlength="3" placeholder="例：678" autocomplete="off" required /></div>
+              </div>
+              <p class="form-note">郵局與 7-11 寄送每張訂單最多 <span data-max="post">20</span> 本；需要更多請分開下單、改選面交，或加 <a class="text-link-inline" href="https://lin.ee/wWnh9Vb" target="_blank" rel="noopener">LINE「寓委聯小幫手」</a>洽詢。</p>
+            </fieldset>
+
+            <fieldset class="join-section">
+              <legend><span>2</span>寄送方式</legend>
+              <div class="choice-grid">
+                <label class="choice"><input type="radio" name="shipping" value="post" checked /><span>郵局寄送<small>運費 <b data-fee="post">50</b> 元</small></span></label>
+                <label class="choice"><input type="radio" name="shipping" value="cvs" /><span>7-11 店到店<small>運費 <b data-fee="cvs">60</b> 元，到店簡訊通知</small></span></label>
+                <label class="choice"><input type="radio" name="shipping" value="meet" /><span>面交<small>運費 <b data-fee="meet">0</b> 元，臺中市西屯區國安國小附近</small></span></label>
+              </div>
+              <div data-show="shipping=post">
+                <div class="form-row">
+                  <div class="form-group"><label class="required" for="o-city">縣市</label><select id="o-city" name="city" required><option value="">請選擇</option><option>臺北市</option><option>新北市</option><option>基隆市</option><option>桃園市</option><option>新竹市</option><option>新竹縣</option><option>苗栗縣</option><option>臺中市</option><option>彰化縣</option><option>南投縣</option><option>雲林縣</option><option>嘉義市</option><option>嘉義縣</option><option>臺南市</option><option>高雄市</option><option>屏東縣</option><option>宜蘭縣</option><option>花蓮縣</option><option>臺東縣</option><option>澎湖縣</option><option>金門縣</option><option>連江縣</option></select></div>
+                  <div class="form-group"><label for="o-zip">郵遞區號</label><input id="o-zip" name="zip" type="text" inputmode="numeric" maxlength="6" /></div>
+                </div>
+                <div class="form-group"><label class="required" for="o-address">地址</label><input id="o-address" name="address" type="text" autocomplete="street-address" placeholder="區、路、號、樓" required /></div>
+              </div>
+              <div data-show="shipping=meet" hidden>
+                <div class="receipt-note">
+                  <strong>面交地點：臺中市西屯區國安國小附近</strong>
+                  <p>下單後請加 <a class="text-link-inline" href="https://lin.ee/wWnh9Vb" target="_blank" rel="noopener">LINE 官方帳號「寓委聯小幫手」</a>，跟小幫手約面交的時間與確切地點。</p>
+                </div>
+              </div>
+              <div data-show="shipping=cvs" hidden>
+                <div class="form-group"><label class="required" for="o-store">取件門市（店名或店號）</label><input id="o-store" name="store" type="text" placeholder="例：豐展門市 或 123456" required /></div>
+                <p class="form-note">不確定店名？到 <a class="text-link-inline" href="https://emap.pcsc.com.tw/" target="_blank" rel="noopener">7-11 門市查詢</a>找離你最近的門市。取件時需出示與「收件人姓名」相同的證件。</p>
+              </div>
+            </fieldset>
+
+            <fieldset class="join-section">
+              <legend><span>3</span>收件人</legend>
+              <div class="form-row">
+                <div class="form-group"><label class="required" for="o-name">收件人姓名</label><input id="o-name" name="name" type="text" autocomplete="name" placeholder="7-11 取件請填證件上的姓名" required /></div>
+                <div class="form-group"><label class="required" for="o-phone">手機</label><input id="o-phone" name="phone" type="tel" inputmode="numeric" autocomplete="tel" placeholder="例：0912345678" required /></div>
+              </div>
+              <div class="form-group"><label class="required" for="o-email">電子信箱</label><input id="o-email" name="email" type="email" autocomplete="email" placeholder="訂單確認與出貨通知會寄到這裡" required /></div>
+              <div class="form-group"><label for="o-receiptTitle">收據抬頭</label><input id="o-receiptTitle" name="receiptTitle" type="text" placeholder="不填就開立收件人姓名；也可指定，例：○○社區管理委員會" /></div>
+              <p class="form-note" style="margin-top: -8px">收據會隨書一起寄出。本會收據無法登載統一編號，但可以指定抬頭。</p>
+              <div class="form-group"><label for="o-note">備註</label><input id="o-note" name="note" type="text" /></div>
+            </fieldset>
+
+            <fieldset class="join-section">
+              <legend><span>4</span>付款方式</legend>
+              <div class="choice-grid choice-grid-2">
+                <label class="choice" data-payment="transfer"><input type="radio" name="payment" value="transfer" checked /><span>銀行轉帳<small>下單後顯示匯款帳號，匯款後回報帳號後五碼</small></span></label>
+                <label class="choice" data-payment="card" hidden><input type="radio" name="payment" value="card" /><span>信用卡<small>線上刷卡，付款完成即確認</small></span></label>
+                <label class="choice" data-payment="linepay" hidden><input type="radio" name="payment" value="linepay" /><span>LINE Pay<small>付款完成即確認</small></span></label>
+              </div>
+              <label class="consent">
+                <input name="consent" type="checkbox" required />
+                <span>我同意全國公寓大廈管理委員聯誼會為處理本次訂單與寄送之目的，蒐集並使用以上個人資料。詳見<a class="text-link-inline" href="privacy.html" target="_blank">個人資料蒐集告知</a>。</span>
+              </label>
+            </fieldset>
+
+            <div class="hp-field" aria-hidden="true"><label>請勿填寫<input type="text" name="website" tabindex="-1" autocomplete="off" /></label></div>
+            <p class="form-error" role="alert" data-order-error hidden></p>
+            <button class="btn btn-primary" type="submit">送出訂單</button>
+          </form>
+
+          <aside class="join-aside">
+            <div class="panel order-summary">
+              <h3>訂單金額</h3>
+              <dl>
+                <dt>書籍</dt><dd id="sumBooks">—</dd>
+                <dt>運費</dt><dd id="sumShipping">—</dd>
+              </dl>
+              <p class="order-total"><span>應付總金額</span><strong id="sumTotal">—</strong></p>
+            </div>
+            <div class="panel">
+              <h3>訂購流程</h3>
+              <ol class="flow">
+                <li><strong>送出訂單</strong>收到確認信與匯款帳號</li>
+                <li><strong>匯款</strong>請於 7 日內完成</li>
+                <li><strong>回報後五碼</strong>在本頁下方回報</li>
+                <li><strong>出貨</strong>對帳後寄出（面交請加 LINE 約時間），出貨時寄信通知</li>
+              </ol>
+            </div>
+            <div class="panel">
+              <h3>需要幫忙？</h3>
+              <p>加 <a class="text-link-inline" href="https://lin.ee/wWnh9Vb" target="_blank" rel="noopener">LINE 官方帳號「寓委聯小幫手」</a>，由專人協助。</p>
+            </div>
+          </aside>
+        </div>
+
+        <div class="container" id="orderDone" hidden>
+          <div class="panel order-done">
+            <span class="badge badge-teal">訂單已成立</span>
+            <h2>謝謝你的訂購！</h2>
+            <dl class="org-facts">
+              <dt>訂單編號</dt><dd id="doneOrderId"></dd>
+              <dt>應付總金額</dt><dd id="doneTotal"></dd>
+              <dt>匯款資訊</dt><dd id="doneBank"></dd>
+            </dl>
+            <p>確認信已寄到你的信箱。請於 7 日內完成匯款，然後在下方回報帳號後五碼。</p>
+            <p id="doneMeet" class="receipt-note" hidden><strong>你選的是面交。</strong>請加 <a class="text-link-inline" href="https://lin.ee/wWnh9Vb" target="_blank" rel="noopener">LINE 官方帳號「寓委聯小幫手」</a>，告訴小幫手你的訂單編號，約時間與地點。</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="section section-alt" id="reportSection">
+        <div class="container">
+          <div class="section-heading">
+            <p class="eyebrow">已經下單了？</p>
+            <h2>回報匯款</h2>
+            <p><span class="nb">匯款後填寫帳號後五碼，</span><span class="nb">我們對帳後就會出貨。</span></p>
+          </div>
+          <div class="form-card report-card">
+            <form id="reportForm">
+              <div class="form-row">
+                <div class="form-group"><label class="required" for="reportOrderId">訂單編號</label><input id="reportOrderId" type="text" placeholder="例：B260919001" required /></div>
+                <div class="form-group"><label class="required" for="reportPhone">下單時填的手機</label><input id="reportPhone" type="tel" inputmode="numeric" required /></div>
+              </div>
+              <div class="form-group"><label class="required" for="reportLast5">匯款帳號後五碼</label><input id="reportLast5" type="text" inputmode="numeric" maxlength="5" pattern="\d{5}" placeholder="例：12345" required /></div>
+              <button class="btn btn-primary" type="submit">送出回報</button>
+            </form>
+            <p class="form-error" role="alert" hidden></p>
+            <div class="form-success" role="status"></div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-grid">
+        <div>
+          <img class="footer-logo" src="assets/logo-horizontal.png" alt="全國公寓大廈管理委員聯誼會" width="858" height="240" loading="lazy" />
+          <p>內政部立案全國性社會團體（台內團字第 11202282971 號）<br />統一編號 80049965</p>
+        </div>
+        <div>
+          <h4>聯絡我們</h4>
+          <ul>
+            <li><span class="fi fi-mail" aria-hidden="true"></span><a href="mailto:ccs2024taiwan@gmail.com">ccs2024taiwan@gmail.com</a></li>
+            <li><span class="fi fi-line" aria-hidden="true"></span><a href="https://lin.ee/wWnh9Vb" target="_blank" rel="noopener">LINE 官方帳號「寓委聯小幫手」</a></li>
+            <li><span class="fi fi-fb" aria-hidden="true"></span><a href="https://www.facebook.com/profile.php?id=61552728203973" target="_blank" rel="noopener">Facebook 粉絲專頁（最新活動）</a></li>
+            <li><span class="fi fi-yt" aria-hidden="true"></span><a href="https://www.youtube.com/channel/UCMrTfWJXAXtiOwPrQSGtv8A" target="_blank" rel="noopener">YouTube 頻道</a></li>
+            <li><span class="fi fi-pin" aria-hidden="true"></span>406 臺中市北屯區太順路 60 號 4 樓之 3</li>
+          </ul>
+        </div>
+        <div>
+          <h4>網站導覽</h4>
+          <ul class="footer-nav">
+            <li><a href="index.html">首頁</a></li>
+            <li><a href="about.html">關於我們</a></li>
+            <li><a href="services.html">服務項目</a></li>
+            <li><a href="activities.html">活動成果</a></li>
+            <li><a href="members.html">會員名單</a></li>
+            <li><a href="publications.html">出版品</a></li>
+            <li><a href="order.html">訂購教戰手冊</a></li>
+            <li><a href="join.html">線上入會申請</a></li>
+            <li><a href="portal.html">會員專區</a></li>
+            <li><a href="volunteer.html">志工專區</a></li>
+            <li><a href="volunteer-join.html">加入志工</a></li>
+            <li><a href="vendors.html">廠商自薦</a></li>
+            <li><a href="contact.html">聯絡我們</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="copyright">© <span id="year"></span> 全國公寓大廈管理委員聯誼會　·　<a href="privacy.html">個人資料蒐集告知</a></div>
+    </footer>
+
+    <script src="script.js"></script>
+  </body>
+</html>

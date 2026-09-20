@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>會員名單｜寓委聯</title>
+    <meta name="description" content="全國公寓大廈管理委員聯誼會會員名單，依會員類型公告。" />
+    <link rel="icon" href="assets/favicon.png" type="image/png" />
+    <link rel="apple-touch-icon" href="assets/apple-touch-icon.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Chiron+GoRound+TC:wght@400;500;700;900&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="container nav-wrap">
+        <a class="brand" href="index.html">
+          <img src="assets/logo-small.png" alt="全國公寓大廈管理委員聯誼會" width="1640" height="160" />
+        </a>
+        <button class="menu-toggle" type="button" aria-label="開啟選單"><span></span><span></span><span></span></button>
+        <nav class="main-nav" aria-label="主選單">
+          <a href="index.html">首頁</a>
+          <a href="about.html">關於我們</a>
+          <a href="services.html">服務項目</a>
+          <a href="activities.html">活動成果</a>
+          <a href="members.html" aria-current="page">會員名單</a>
+          <a href="publications.html">出版品</a>
+          <a href="volunteer.html">志工專區</a>
+          <a href="portal.html">會員專區</a>
+          <a href="contact.html" class="nav-cta">聯絡我們</a>
+        </nav>
+      </div>
+    </header>
+
+    <main>
+      <section class="page-header">
+        <div class="container">
+          <p class="eyebrow">會員名單</p>
+          <h1>本會會員</h1>
+          <p><span class="nb">依會員類型公告會員編號、姓名與社區。</span><span class="nb">不願公開者以「匿名」顯示。</span></p>
+        </div>
+      </section>
+
+      <section class="page-content">
+        <div class="container">
+          <div class="member-tabs" role="group" aria-label="依會員類型篩選">
+            <button class="tab-button active" type="button" data-tab="all">全部</button>
+            <button class="tab-button" type="button" data-tab="榮譽會員">榮譽會員</button>
+            <button class="tab-button" type="button" data-tab="個人會員">個人會員</button>
+            <button class="tab-button" type="button" data-tab="團體會員">團體會員</button>
+            <button class="tab-button" type="button" data-tab="贊助會員">贊助會員</button>
+          </div>
+
+          <div class="member-table-wrap">
+            <table class="member-table">
+              <thead>
+                <tr><th>類型</th><th>會員編號</th><th>姓名／名稱</th><th>社區／抬頭</th></tr>
+              </thead>
+              <tbody id="memberTableBody">
+                <!-- MEMBER_ROWS：接上後端後由 script.js 以最新名單取代 -->
+                <tr data-type="榮譽會員"><td>榮譽會員</td><td>榮001</td><td>郭紀子</td><td>社團法人台灣物業管理學會理事長、景文物業管理機構擔任董事長、國立台灣大學土木工程博士</td></tr>
+                <tr data-type="榮譽會員"><td>榮譽會員</td><td>榮002</td><td>黃啓昶</td><td>宜蘭縣政府爭議事件調處委員</td></tr>
+                <tr data-type="個人會員"><td>個人會員</td><td>B00001</td><td>莊晴全</td><td>裕國豐展</td></tr>
+                <tr data-type="個人會員"><td>個人會員</td><td>B00003</td><td>陳玠妤</td><td>總太聚作</td></tr>
+                <tr data-type="個人會員"><td>個人會員</td><td>B00005</td><td>楊小宜</td><td>總太悅來</td></tr>
+                <tr data-type="個人會員"><td>個人會員</td><td>B00007</td><td>劉冠廷</td><td>八月小確幸</td></tr>
+                <tr data-type="個人會員"><td>個人會員</td><td>B00008</td><td>林冠伍</td><td>築願景</td></tr>
+                <tr data-type="個人會員"><td>個人會員</td><td>B00010</td><td>林冠宇</td><td>鴻邑璞臻</td></tr>
+                <tr data-type="個人會員"><td>個人會員</td><td>B00011</td><td>王智謙</td><td>喬立Qcity</td></tr>
+                <tr data-type="個人會員"><td>個人會員</td><td>B00012</td><td>楊書僕</td><td>水岸岩</td></tr>
+                <tr data-type="個人會員"><td>個人會員</td><td>B00013</td><td>吳婉伶</td><td>國安社區</td></tr>
+                <tr data-type="個人會員"><td>個人會員</td><td>B00014</td><td>李祐華</td><td>國安社區</td></tr>
+                <tr data-type="個人會員"><td>個人會員</td><td>B00015</td><td>張薰雅</td><td>夢幻誠</td></tr>
+                <tr data-type="個人會員"><td>個人會員</td><td>B00016</td><td>吳政億</td><td>鴻邑璞臻</td></tr>
+                <tr data-type="個人會員"><td>個人會員</td><td>B00017</td><td>傅任淇</td><td>總太美樂地</td></tr>
+                <tr data-type="個人會員"><td>個人會員</td><td>B00018</td><td>蘇柏丞</td><td>透天</td></tr>
+                <tr data-type="個人會員"><td>個人會員</td><td>B00020</td><td>詹婉菱</td><td>長虹天擎</td></tr>
+                <tr data-type="個人會員"><td>個人會員</td><td>B00022</td><td>洪健銘</td><td>太子欣世界</td></tr>
+                <tr data-type="個人會員"><td>個人會員</td><td>B00023</td><td>張吟茜</td><td>鴻邑璞臻</td></tr>
+                <tr data-type="個人會員"><td>個人會員</td><td>B00025</td><td>林高祺</td><td>情定水蓮13</td></tr>
+                <tr data-type="個人會員"><td>個人會員</td><td>B00026</td><td>葉俊麟</td><td>佳福山晴</td></tr>
+                <tr data-type="個人會員"><td>個人會員</td><td>B00027</td><td>楊寶宸</td><td>登陽溪上月</td></tr>
+                <tr data-type="個人會員"><td>個人會員</td><td>H00001</td><td>方穆瑩</td><td>龍歡喜社區</td></tr>
+                <tr data-type="個人會員"><td>個人會員</td><td>U00001</td><td>傅緯豪</td><td>花蓮縣青年安心成家住宅</td></tr>
+                <tr data-type="個人會員"><td>個人會員</td><td>B00028</td><td>蔡純瑋</td><td>大毅熊幸福</td></tr>
+                <tr data-type="個人會員"><td>個人會員</td><td>B00035</td><td>廖仁倫</td><td>由鉅AZ學生活</td></tr>
+                <tr data-type="個人會員"><td>個人會員</td><td>B00036</td><td>曾學俊</td><td>大城香榭</td></tr>
+                <tr data-type="個人會員"><td>個人會員</td><td>B00039</td><td>林長弘</td><td>浩瀚MVP</td></tr>
+                <tr data-type="個人會員"><td>個人會員</td><td>B00040</td><td>韋昕瞳</td><td>富宇山河滙</td></tr>
+                <tr data-type="個人會員"><td>個人會員</td><td>B00042</td><td>謝永川</td><td>總太悅來</td></tr>
+                <tr data-type="個人會員"><td>個人會員</td><td>B00043</td><td>呂若豪</td><td>六月微風</td></tr>
+                <tr data-type="個人會員"><td>個人會員</td><td>B00049</td><td>張晉銘</td><td>總太美樂地</td></tr>
+                <tr data-type="個人會員"><td>個人會員</td><td>B00050</td><td>吳美玉</td><td>全友溫布頓</td></tr>
+                <tr data-type="個人會員"><td>個人會員</td><td>B00051</td><td>洪泳森</td><td>遠雄之星6</td></tr>
+                <tr data-type="個人會員"><td>個人會員</td><td>B00054</td><td>陳宥宣</td><td>中港世紀虹</td></tr>
+                <tr data-type="個人會員"><td>個人會員</td><td>B00055</td><td>何國華</td><td>廣三甲天廈</td></tr>
+                <tr data-type="個人會員"><td>個人會員</td><td>B00056</td><td>簡日信</td><td>透天</td></tr>
+                <tr data-type="個人會員"><td>個人會員</td><td>B00057</td><td>蔡忠龍</td><td>儂特綠</td></tr>
+                <tr data-type="個人會員"><td>個人會員</td><td>B00058</td><td>陳靜玟</td><td>三月花見</td></tr>
+                <tr data-type="個人會員"><td>個人會員</td><td>F00004</td><td>林勤益</td><td>公寓</td></tr>
+                <tr data-type="個人會員"><td>個人會員</td><td>B00059</td><td>林韋安</td><td>親家福星道</td></tr>
+                <tr data-type="個人會員"><td>個人會員</td><td>B00061</td><td>蔡淑韻</td><td>新業自由居</td></tr>
+                <tr data-type="個人會員"><td>個人會員</td><td>B00062</td><td>鄧景全</td><td>龍邦皇家別墅</td></tr>
+                <tr data-type="個人會員"><td>個人會員</td><td>B00063</td><td>林芳綺</td><td>惠宇開朗</td></tr>
+                <tr data-type="個人會員"><td>個人會員</td><td>B00064</td><td>詹益堯</td><td>鉅虹Hoki</td></tr>
+                <tr data-type="個人會員"><td>個人會員</td><td>B00065</td><td>曾傑琳</td><td>大里市遠見大樓</td></tr>
+                <tr data-type="個人會員"><td>個人會員</td><td>B00066</td><td>謝宜蓉</td><td>櫻花巨人</td></tr>
+                <tr data-type="個人會員"><td>個人會員</td><td>B00067</td><td>陳敏潔</td><td>櫻花獨綻</td></tr>
+                <tr data-type="個人會員"><td>個人會員</td><td>B00068</td><td>林佩君</td><td>晴光花園</td></tr>
+                <tr data-type="個人會員"><td>個人會員</td><td>B00069</td><td>連耿煌</td><td>國聚之悅</td></tr>
+                <tr data-type="個人會員"><td>個人會員</td><td>B00070</td><td>徐偉婷</td><td>興大之櫻</td></tr>
+                <tr data-type="個人會員"><td>個人會員</td><td>B00071</td><td>江隆傑</td><td>F1社區</td></tr>
+                <tr data-type="個人會員"><td>個人會員</td><td>P00001</td><td>廖凱宏</td><td>璞映良品</td></tr>
+                <tr data-type="個人會員"><td>個人會員</td><td>B00072</td><td>宋允文</td><td>洲際W</td></tr>
+                <tr data-type="個人會員"><td>個人會員</td><td>B00073</td><td>楊雪宜</td><td>美麗大墅</td></tr>
+                <tr data-type="個人會員"><td>個人會員</td><td>B00074</td><td>鄭惠雅</td><td>透天</td></tr>
+                <tr data-type="個人會員"><td>個人會員</td><td>B00075</td><td>廖嘉慈</td><td>新業築願景</td></tr>
+                <tr data-type="個人會員"><td>個人會員</td><td>H00003</td><td>陸悅銘</td><td>麗寶麗池</td></tr>
+                <tr data-type="個人會員"><td>個人會員</td><td>R00001</td><td>蔡易諺</td><td>百慶林森苑</td></tr>
+                <tr data-type="個人會員"><td>個人會員</td><td>B00076</td><td>陳肜呈</td><td>大毅日日幸福</td></tr>
+                <tr data-type="個人會員"><td>個人會員</td><td>H00002</td><td>陳柏晨</td><td>昕和一瑀</td></tr>
+                <tr data-type="個人會員"><td>個人會員</td><td>B00077</td><td>郭丞晉</td><td>孩子國</td></tr>
+                <tr data-type="個人會員"><td>個人會員</td><td>J00001</td><td>鄭秋榮</td><td>豐藝社區</td></tr>
+                <tr data-type="個人會員"><td>個人會員</td><td>E00001</td><td class="anonymous">(匿名)</td><td>港心大樓</td></tr>
+                <tr data-type="個人會員"><td>個人會員</td><td>B00078</td><td>王瀚霆</td><td>藍圖講義</td></tr>
+                <tr data-type="個人會員"><td>個人會員</td><td>B00079</td><td>詹家騏</td><td>豐謙森立方</td></tr>
+                <tr data-type="個人會員"><td>個人會員</td><td>B00080</td><td>張詩庭</td><td>雲品特區＆皇普莊園</td></tr>
+                <tr data-type="個人會員"><td>個人會員</td><td>B00081</td><td>謝千紅</td><td>羅馬假期二期</td></tr>
+                <tr data-type="個人會員"><td>個人會員</td><td>B00082</td><td>沈岱成</td><td>總太聚作</td></tr>
+                <tr data-type="個人會員"><td>個人會員</td><td>B00083</td><td>吳盛源</td><td>勝興豐境</td></tr>
+                <tr data-type="個人會員"><td>個人會員</td><td>B00084</td><td>楊壹婷</td><td>富宇領袖</td></tr>
+                <tr data-type="個人會員"><td>個人會員</td><td>B00085</td><td>陳天陽</td><td>總太觀闊</td></tr>
+                <tr data-type="個人會員"><td>個人會員</td><td>B00086</td><td>黃霞</td><td>新杜拜</td></tr>
+                <tr data-type="個人會員"><td>個人會員</td><td>B00087</td><td>張立昇</td><td>國聚之幸</td></tr>
+                <tr data-type="個人會員"><td>個人會員</td><td>B00088</td><td class="anonymous">(匿名)</td><td>璞悅社區</td></tr>
+                <tr data-type="個人會員"><td>個人會員</td><td>B00089</td><td>柯盛璟</td><td>TOP1</td></tr>
+                <tr data-type="個人會員"><td>個人會員</td><td>B00090</td><td>李珮君</td><td>寶輝公園尊邸</td></tr>
+                <tr data-type="個人會員"><td>個人會員</td><td>B00091</td><td>陳宜婷</td><td>透天</td></tr>
+                <tr data-type="個人會員"><td>個人會員</td><td>B00092</td><td>張混智</td><td>大毅讚幸福</td></tr>
+                <tr data-type="個人會員"><td>個人會員</td><td>B00093</td><td>蔡孟谷</td><td>邁阿密大樓</td></tr>
+                <tr data-type="個人會員"><td>個人會員</td><td>B00094</td><td>陳庭妮</td><td>長虹天韻</td></tr>
+                <tr data-type="個人會員"><td>個人會員</td><td>B00095</td><td>何原昕</td><td>國聚之悅</td></tr>
+                <tr data-type="團體會員"><td>團體會員</td><td>GB00004</td><td>劉岳明建築師事務所</td><td>—</td></tr>
+                <tr data-type="團體會員"><td>團體會員</td><td>GB00005</td><td>皇霖保全股份有限公司</td><td>—</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section class="section section-alt">
+        <div class="container">
+          <div class="section-heading">
+            <p class="eyebrow">會員類別</p>
+            <h2>五種會員身分</h2>
+          </div>
+          <div class="member-status-box">
+            <div class="member-status-item">
+              <strong>個人會員</strong>
+              <span>贊同本會宗旨，現任或曾任社區管理委員，或有投入熱誠者。</span>
+              <span class="fee">入會費 500 元・常年會費 500 元</span>
+            </div>
+            <div class="member-status-item">
+              <strong>團體會員</strong>
+              <span>贊同本會宗旨之機構或團體，推派代表 1 人行使會員權利。</span>
+              <span class="fee">入會費 1,000 元・常年會費 3,000 元</span>
+            </div>
+            <div class="member-status-item">
+              <strong>永久會員</strong>
+              <span>個人會員一次繳納 10,000 元常年會費，永久保留會員身分。自 116 年 11 月 1 日起開放。</span>
+              <span class="fee">一次繳納 10,000 元</span>
+            </div>
+            <div class="member-status-item">
+              <strong>贊助會員</strong>
+              <span>贊同本會宗旨，且贊助本會經費、資源之個人或團體。</span>
+              <span class="fee">無表決權與選舉權</span>
+            </div>
+            <div class="member-status-item">
+              <strong>榮譽會員</strong>
+              <span>於主管機關或相關產業服務，於專業領域學有專精、聲譽卓著者，經理事會審查通過。</span>
+              <span class="fee">無表決權與選舉權</span>
+            </div>
+          </div>
+          <p style="text-align: center; margin-top: 32px"><a class="btn btn-primary" href="join.html">線上入會申請</a></p>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-grid">
+        <div>
+          <img class="footer-logo" src="assets/logo-horizontal.png" alt="全國公寓大廈管理委員聯誼會" width="858" height="240" loading="lazy" />
+          <p>內政部立案全國性社會團體（台內團字第 11202282971 號）<br />統一編號 80049965</p>
+        </div>
+        <div>
+          <h4>聯絡我們</h4>
+          <ul>
+            <li><span class="fi fi-mail" aria-hidden="true"></span><a href="mailto:ccs2024taiwan@gmail.com">ccs2024taiwan@gmail.com</a></li>
+            <li><span class="fi fi-line" aria-hidden="true"></span><a href="https://lin.ee/wWnh9Vb" target="_blank" rel="noopener">LINE 官方帳號「寓委聯小幫手」</a></li>
+            <li><span class="fi fi-fb" aria-hidden="true"></span><a href="https://www.facebook.com/profile.php?id=61552728203973" target="_blank" rel="noopener">Facebook 粉絲專頁（最新活動）</a></li>
+            <li><span class="fi fi-yt" aria-hidden="true"></span><a href="https://www.youtube.com/channel/UCMrTfWJXAXtiOwPrQSGtv8A" target="_blank" rel="noopener">YouTube 頻道</a></li>
+            <li><span class="fi fi-pin" aria-hidden="true"></span>406 臺中市北屯區太順路 60 號 4 樓之 3</li>
+          </ul>
+        </div>
+        <div>
+          <h4>網站導覽</h4>
+          <ul class="footer-nav">
+            <li><a href="index.html">首頁</a></li>
+            <li><a href="about.html">關於我們</a></li>
+            <li><a href="services.html">服務項目</a></li>
+            <li><a href="activities.html">活動成果</a></li>
+            <li><a href="members.html">會員名單</a></li>
+            <li><a href="publications.html">出版品</a></li>
+            <li><a href="order.html">訂購教戰手冊</a></li>
+            <li><a href="join.html">線上入會申請</a></li>
+            <li><a href="portal.html">會員專區</a></li>
+            <li><a href="volunteer.html">志工專區</a></li>
+            <li><a href="volunteer-join.html">加入志工</a></li>
+            <li><a href="vendors.html">廠商自薦</a></li>
+            <li><a href="contact.html">聯絡我們</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="copyright">© <span id="year"></span> 全國公寓大廈管理委員聯誼會　·　<a href="privacy.html">個人資料蒐集告知</a></div>
+    </footer>
+
+    <script src="script.js"></script>
+  </body>
+</html>

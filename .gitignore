@@ -1,0 +1,17 @@
+# 內部資料：含會員個資、簽名、印章、銀行對帳單，絕對不可上傳
+雲端資料素材/
+
+desktop.ini
+Thumbs.db
+.DS_Store
+node_modules/
+
+# FB 匯出檔：可能含私訊與管理資訊，不可上傳
+facebook-*.zip
+facebook-*/
+
+# 行政備忘（可能含帳戶、聯絡方式），不可上傳
+行政用keep*
+
+# 後端程式與匯入檔：貼到 Google Apps Script 使用，不需要放上公開網站
+backend/
