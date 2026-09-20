@@ -34,7 +34,7 @@ const DEMO_VOLUNTEER = {
       { date: '2026-03-29', task: '會員講座', role: '場佈', hours: 3, presence: '出席' },
     ],
     tasks: [
-      { name: '管委會交流日', type: '活動', start: '2026-11-29', end: '', lead: '示範召集人', description: '年度大型委員交流活動，需要報到、場佈、攝影、主持等人力。', needed: '8', requirement: '當天全程可到', reward: '積分 3 點＋任務津貼', joined: 3, mine: '通過' },
+      { name: '管委會交流日', type: '活動', start: '2026-11-29', end: '', lead: '示範召集人', description: '年度大型委員交流活動，需要報到、場佈、攝影、主持等人力。', needed: '8', requirement: '當天全程可到', reward: '積分 3 點＋志工津貼', joined: 3, mine: '通過' },
       { name: '北屯鬧起來萬聖節', type: '活動', start: '2026-10-25', end: '', lead: '', description: '跨社區聯辦，需要集章點關主與遊行隨隊。', needed: '12', requirement: '', reward: '積分 2 點', joined: 5, mine: '待審核' },
       { name: '會員講座文宣製作', type: '文書', start: '', end: '', lead: '', description: '每場講座的宣傳圖卡與活動後貼文。', needed: '2', requirement: '會用 Canva 或繪圖軟體', reward: '積分 1 點／件', joined: 0, mine: '' },
     ],
