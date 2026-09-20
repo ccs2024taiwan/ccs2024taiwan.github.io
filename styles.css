@@ -3505,3 +3505,84 @@ blockquote {
 .panel h3.shared-more {
   margin-top: 32px;
 }
+
+/* 續會繳費 */
+.dues-card {
+  margin: 18px 0 30px;
+  padding: 24px 26px;
+  border: 1.5px solid var(--border);
+  border-left: 6px solid var(--red);
+  border-radius: 22px;
+  background: #fff;
+}
+
+.dues-head h3 {
+  margin: 0 0 4px;
+}
+
+.dues-head p {
+  margin: 0 0 16px;
+  color: var(--muted);
+}
+
+.dues-body {
+  display: grid;
+  grid-template-columns: minmax(240px, 0.8fr) 1.2fr;
+  gap: 26px;
+  align-items: start;
+}
+
+.dues-body[hidden] {
+  display: none;
+}
+
+.dues-bank {
+  display: grid;
+  gap: 4px;
+  padding: 18px 20px;
+  border-radius: 16px;
+  background: var(--yellow-soft);
+}
+
+.dues-bank > span {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.dues-account {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin: 2px 0;
+}
+
+.dues-account b {
+  font-size: 1.45rem;
+  letter-spacing: 0.04em;
+  color: var(--brown);
+}
+
+.dues-rule {
+  margin: 10px 0 0;
+  padding-top: 10px;
+  border-top: 1.5px dashed var(--border);
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--red-deep);
+}
+
+.vendor-meta {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+@media (max-width: 760px) {
+  .dues-body {
+    grid-template-columns: 1fr;
+  }
+}
+
+#duesForm .btn {
+  margin-top: 14px;
+}

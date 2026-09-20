@@ -92,6 +92,33 @@
               <p id="msHint" class="membership-hint"></p>
             </div>
 
+            <div id="duesCard" class="dues-card" hidden>
+              <div class="dues-head">
+                <h3>續會繳費</h3>
+                <p id="duesIntro"></p>
+              </div>
+              <div id="duesPending" class="form-success" role="status">已收到你的回報，秘書處對帳後會通知你，會籍到期日也會自動更新。謝謝！</div>
+              <div id="duesBody" class="dues-body">
+                <div class="dues-bank">
+                  <span>匯款帳戶</span>
+                  <strong id="duesBankName"></strong>
+                  <p class="dues-account"><b id="duesAccount"></b><button id="duesCopy" class="small-btn" type="button">複製帳號</button></p>
+                  <small id="duesHolder"></small>
+                  <p class="dues-rule">會費請一律匯入本會帳戶，<span class="nb">秘書處不代收現金或 LINE Pay。</span></p>
+                </div>
+                <form id="duesForm">
+                  <fieldset id="duesPlans" class="choice-group" hidden><legend>繳費方案</legend><div class="choice-grid choice-grid-2" id="duesPlanList"></div></fieldset>
+                  <div class="form-row">
+                    <div class="form-group"><label class="required" for="duesLast5">你的匯款帳號後五碼</label><input id="duesLast5" type="text" inputmode="numeric" maxlength="5" pattern="\d{5}" placeholder="例：12345" autocomplete="off" required /></div>
+                    <div class="form-group"><label for="duesPaidOn">匯款日期</label><input id="duesPaidOn" type="date" /></div>
+                  </div>
+                  <div class="form-group"><label for="duesNote">備註</label><input id="duesNote" type="text" placeholder="例：由家人帳戶匯款、需要收據（抬頭）" /></div>
+                  <button class="btn btn-primary" type="submit">我已匯款，送出回報</button>
+                </form>
+                <p id="duesError" class="form-error" role="alert" hidden></p>
+              </div>
+            </div>
+
             <div id="serviceMenu">
               <h2 class="service-title">今天想用哪一項服務？</h2>
               <div class="service-grid">

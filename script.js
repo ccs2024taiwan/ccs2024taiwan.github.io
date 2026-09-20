@@ -9,7 +9,8 @@ const DEMO_VENDORS = [
   { name: '示範機電行', services: '機電、消防', area: '新北市', contact: '', paid: '需付費', households: '500', fee: '年約 36 萬', rating: 2, reasons: '誠信', note: '報價與實際請款落差大，建議合約寫清楚。（示範資料）' },
 ];
 const DEMO_SERVICES = {
-  membership: { type: '個人會員', status: '續會', since: '2024-01-01', until: '2026-12-31', daysLeft: 103, nextPayment: '2027-01-01' },
+  membership: { type: '個人會員', status: '續會', since: '2024-01-01', until: '2026-12-31', daysLeft: 103, nextPayment: '2027-01-01',
+    dues: { year: 116, pending: false, plans: [{ key: 'annual', label: '116 年度常年會費', amount: 500 }], bank: { name: '第一銀行 北屯分行', code: '007', account: '40510062331', holder: '全國公寓大廈管理委員聯誼會' } } },
   vendors: DEMO_VENDORS,
   equipment: {
     assets: [
@@ -58,6 +59,9 @@ const ERROR_MESSAGES = {
   invalid_email: '電子信箱格式不正確。',
   invalid_city: '請選擇社區所在縣市。',
   missing_consent: '請勾選同意事項。',
+  invalid_last5: '請輸入匯款帳號的後五碼（5 個數字）。',
+  dues_not_open: '目前不是繳費期間，或你的會費已經入帳了。',
+  dues_already_reported: '你已經回報過了，秘書處對帳後會通知你。',
   shared_not_ready: '共享資料整理中，請洽 LINE「寓委聯小幫手」。',
   not_found: '找不到這個檔案，可能已經被移除了。請重新整理後再試。',
   file_too_large: '這個檔案太大，無法直接下載。請洽 LINE「寓委聯小幫手」索取。',
@@ -113,6 +117,7 @@ const demoApi = async (payload) => {
     return { ok: true, orderId: 'B000000001', total: unit * Number(f.quantity) + fee, bank: { name: '（示範模式）', account: '000-000-000000' } };
   }
   if (payload.action === 'vendors') return { ok: true, ...DEMO_SERVICES };
+  if (payload.action === 'duesReport') return { ok: true, membership: { ...DEMO_SERVICES.membership, dues: { ...DEMO_SERVICES.membership.dues, pending: true } } };
   if (payload.action === 'sharedList') {
     return payload.folder
       ? { ok: true, root: 'root', path: [{ id: 'demo-folder', name: '公告參考' }], folders: [], files: [{ id: 'demo-2', name: '防火門公告（示範）.pdf', size: 1258291, mime: 'application/pdf' }] }
@@ -188,7 +193,7 @@ const renderVendors = (vendors) => {
       if (vendor.against) head.append(line('span', '會員不推薦', 'vendor-against'));
       if (vendor.reasons) item.append(line('p', `${against ? '不推薦的原因' : '評分原因'}：${vendor.reasons}`, against ? 'warn' : ''));
       if (vendor.note) item.append(line('p', vendor.note));
-      if (vendor.referrer) item.append(line('p', `推薦人：${vendor.referrer}`));
+      item.append(line('p', [`推薦人：${vendor.referrer || '未提供'}`, vendor.when && `推薦時間：${vendor.when}`].filter(Boolean).join('｜'), 'vendor-meta'));
       if (vendor.contact) item.append(line('span', `聯絡：${vendor.contact}`));
       return item;
     })
@@ -241,6 +246,60 @@ const renderServices = (data) => {
     document.getElementById('resourceEmpty').hidden = entries.length > 0;
   }
 };
+
+// 續會繳費：每年 11 月起（或會籍快到期時）出現在「我的會籍」下方
+const renderDues = (dues) => {
+  const card = document.getElementById('duesCard');
+  if (!card) return;
+  card.hidden = !dues;
+  if (!dues) return;
+  const money = (n) => `NT$ ${Number(n).toLocaleString('en-US')}`;
+  document.getElementById('duesIntro').textContent = `${dues.plans[0].label} ${money(dues.plans[0].amount)}，匯款後在這裡回報後五碼就完成了。`;
+  document.getElementById('duesPending').classList.toggle('visible', Boolean(dues.pending));
+  document.getElementById('duesBody').hidden = Boolean(dues.pending);
+  document.getElementById('duesBankName').textContent = `${dues.bank.name}（${dues.bank.code}）`;
+  document.getElementById('duesAccount').textContent = dues.bank.account;
+  document.getElementById('duesHolder').textContent = `戶名：${dues.bank.holder}`;
+  const plans = document.getElementById('duesPlans');
+  plans.hidden = dues.plans.length < 2;
+  document.getElementById('duesPlanList').replaceChildren(...dues.plans.map((plan, i) => {
+    const label = document.createElement('label');
+    label.className = 'choice';
+    const input = Object.assign(document.createElement('input'), { type: 'radio', name: 'duesPlan', value: plan.key, checked: i === 0 });
+    const text = document.createElement('span');
+    text.textContent = plan.label;
+    const small = document.createElement('small');
+    small.textContent = money(plan.amount);
+    text.append(small);
+    label.append(input, text);
+    return label;
+  }));
+};
+document.getElementById('duesCopy')?.addEventListener('click', async (event) => {
+  const account = document.getElementById('duesAccount').textContent;
+  try { await navigator.clipboard.writeText(account); event.target.textContent = '已複製'; } catch { event.target.textContent = '請長按帳號複製'; }
+  setTimeout(() => (event.target.textContent = '複製帳號'), 2500);
+});
+document.getElementById('duesForm')?.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const errorBox = document.getElementById('duesError');
+  errorBox.hidden = true;
+  const last5 = document.getElementById('duesLast5').value.replace(/\D/g, '');
+  const show = (code) => { errorBox.textContent = errorMessage(code); errorBox.hidden = false; };
+  if (last5.length !== 5) return show('invalid_last5');
+  const button = event.target.querySelector('[type="submit"]');
+  button.disabled = true;
+  const result = await api({
+    action: 'duesReport', token: getSession()?.token, last5,
+    plan: event.target.querySelector('[name="duesPlan"]:checked')?.value || 'annual',
+    paidOn: document.getElementById('duesPaidOn').value, note: document.getElementById('duesNote').value,
+  });
+  button.disabled = false;
+  if (result.ok) return renderDues(result.membership?.dues);
+  if (result.error === 'unauthorized') return logout('unauthorized');
+  if (result.error === 'dues_already_reported') { document.getElementById('duesPending').classList.add('visible'); document.getElementById('duesBody').hidden = true; return; }
+  show(result.error);
+});
 
 // 服務選單：點一項只顯示那一項，隨時可以回選單
 const openService = (key) => {
@@ -386,6 +445,7 @@ const showDashboard = (member, vendors, data = {}) => {
         : `下次繳費：下一期常年會費請於 ${ms.until} 前繳交（每年 11 月起開放繳交下一年度會費）。`;
     }
   }
+  renderDues(ms && ms.dues);
   openService(null);
 };
 
