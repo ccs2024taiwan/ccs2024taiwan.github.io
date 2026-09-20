@@ -66,7 +66,7 @@
           <div class="panel">
             <h3>登入後可使用</h3>
             <ul>
-              <li>會員共享資料：管理表單、各社區管理辦法、課程簡報</li>
+              <li>會員共享資料下載：管理表單、各社區管理辦法、課程簡報</li>
               <li>推薦廠商查詢，也可以推薦你合作過的廠商</li>
               <li>道具器材租借與出借登記</li>
               <li>申請「社區坐一坐」到你的社區</li>
@@ -95,7 +95,7 @@
             <div id="serviceMenu">
               <h2 class="service-title">今天想用哪一項服務？</h2>
               <div class="service-grid">
-                <button class="service-tile" type="button" data-service="resources"><span class="service-no">01</span><strong>會員共享資料</strong><small>管理表單、各社區管理辦法、公告範例、課程簡報</small></button>
+                <button class="service-tile" type="button" data-service="resources"><span class="service-no">01</span><strong>會員共享資料下載</strong><small>管理表單、各社區管理辦法、公告範例、課程簡報</small></button>
                 <button class="service-tile" type="button" data-service="vendors"><span class="service-no">02</span><strong>廠商資料庫查詢</strong><small>各社區合作過的廠商、費用與評價</small></button>
                 <button class="service-tile" type="button" data-service="recommend"><span class="service-no">03</span><strong>分享合作廠商</strong><small>好的推薦、不好的提醒，都很有價值</small></button>
                 <button class="service-tile" type="button" data-service="borrow"><span class="service-no">04</span><strong>租借道具器材</strong><small>活動要用的佈置、設備，向夥伴借</small></button>
@@ -108,10 +108,17 @@
             <div class="service-panel" data-panel="resources" hidden>
               <button class="text-link service-back" type="button" data-service-back>回服務選單</button>
               <div class="panel">
-                <h3>會員共享資料</h3>
-                <p>會員們分享的實務資料，僅供會員參考使用，請勿外流。</p>
+                <h3>會員共享資料下載</h3>
+                <p>會員們分享的實務資料，點一下就能下載。僅供會員參考使用，請勿外流。</p>
+                <div id="sharedBrowser" class="shared-browser">
+                  <nav id="sharedPath" class="shared-path" aria-label="目前位置"></nav>
+                  <p id="sharedStatus" class="form-note" role="status">載入中…</p>
+                  <div id="sharedFolders" class="shared-folders"></div>
+                  <div id="sharedFiles" class="shared-files"></div>
+                </div>
+                <h3 class="shared-more">會員社群與其他連結</h3>
                 <ul id="resourceLinks" class="resource-links"></ul>
-                <p id="resourceEmpty" class="form-note" hidden>連結整理中，請先到會員 LINE 社群的記事本查看，或洽 LINE「寓委聯小幫手」。</p>
+                <p id="resourceEmpty" class="form-note" hidden>連結整理中，請洽 LINE「寓委聯小幫手」。</p>
               </div>
             </div>
 
@@ -119,7 +126,7 @@
               <button class="text-link service-back" type="button" data-service-back>回服務選單</button>
               <div class="panel">
                 <h3>廠商資料庫查詢</h3>
-                <p>以下為會員自主分享的合作經驗與評價，供訪價參考，並非本會推薦之廠商名單；合作結果本會不負責。採用星級評等前的舊資料一律預設為 3 顆星。資料僅供會員參考，請勿外流。</p>
+                <p>以下為會員自主分享的合作經驗與評價，供訪價參考，並非本會推薦之廠商名單；合作結果本會不負責。採用星級評等前的舊資料一律預設為 3 顆星。資料僅供會員參考，請勿外流。如需修改已推薦的資料，請私訊<a class="text-link-inline" href="https://lin.ee/wWnh9Vb" target="_blank" rel="noopener">LINE「寓委聯小幫手」</a>。</p>
                 <div class="search-box-wrap"><input id="vendorSearch" type="search" placeholder="搜尋：電梯、台中、清潔…（可輸入多個關鍵字）" aria-label="搜尋推薦廠商" /></div>
                 <!-- 廠商名錄於登入驗證後由後端回傳，不寫在頁面原始碼中 -->
                 <div class="vendor-list" id="vendorResults"></div>
@@ -130,7 +137,7 @@
               <button class="text-link service-back" type="button" data-service-back>回服務選單</button>
               <div class="form-card zone-card">
                 <h3>分享合作過的廠商</h3>
-                <p class="form-note" style="margin-top: 0">好的、不好的都歡迎分享，評等 1～2 分就是提醒大家避開。推薦人會自動記為你的會員編號，不會顯示在名錄上。</p>
+                <p class="form-note" style="margin-top: 0">好的、不好的都歡迎分享，評等 1～2 分就是提醒大家避開。推薦人會自動記為你的姓名，並顯示在廠商資料庫上，方便其他會員向你請教。如需修改已推薦的資料，請私訊<a class="text-link-inline" href="https://lin.ee/wWnh9Vb" target="_blank" rel="noopener">LINE「寓委聯小幫手」</a>。</p>
                 <form data-form-type="vendor-recommendation">
                   <div class="form-row">
                     <div class="form-group"><label class="required" for="vCity">請問您的所在地</label><select id="vCity" required><option value="">請選擇</option><option>台北市</option><option>新北市</option><option>台中市</option><option>高雄市</option><option>桃園市</option><option>台南市</option><option>彰化縣</option><option>屏東縣</option><option>雲林縣</option><option>新竹縣</option><option>苗栗縣</option><option>嘉義縣</option><option>南投縣</option><option>新竹市</option><option>宜蘭縣</option><option>基隆市</option><option>花蓮縣</option><option>嘉義市</option><option>台東縣</option><option>金門縣</option><option>澎湖縣</option><option>連江縣</option></select></div>

@@ -18,7 +18,7 @@ const DEMO_SERVICES = {
     ],
     shared: [{ name: '聖誕樹 180cm', quantity: '2 棵', place: '臺中市北屯區', note: '含燈飾；示範資料', owner: '示範社區' }],
   },
-  links: [{ label: '會員共享資料夾（示範連結）', url: 'https://example.org/' }],
+  links: [{ label: '會員 LINE 社群（示範連結）', url: 'https://example.org/' }],
 };
 
 const DEMO_VOLUNTEER = {
@@ -58,6 +58,10 @@ const ERROR_MESSAGES = {
   invalid_email: '電子信箱格式不正確。',
   invalid_city: '請選擇社區所在縣市。',
   missing_consent: '請勾選同意事項。',
+  shared_not_ready: '共享資料整理中，請洽 LINE「寓委聯小幫手」。',
+  not_found: '找不到這個檔案，可能已經被移除了。請重新整理後再試。',
+  file_too_large: '這個檔案太大，無法直接下載。請洽 LINE「寓委聯小幫手」索取。',
+  download_failed: '下載失敗，請稍後再試，或洽 LINE「寓委聯小幫手」。',
   missing_goals: '「你想要獲得的是」請至少選一項，或填寫「其他」。',
   already_volunteer: '你已經在志工名單裡了，請直接到志工專區登入；登入不了請加 LINE「寓委聯小幫手」。',
   missing_purpose: '「加入本會的主要目的」請至少選一項，或填寫「其他」。',
@@ -109,6 +113,13 @@ const demoApi = async (payload) => {
     return { ok: true, orderId: 'B000000001', total: unit * Number(f.quantity) + fee, bank: { name: '（示範模式）', account: '000-000-000000' } };
   }
   if (payload.action === 'vendors') return { ok: true, ...DEMO_SERVICES };
+  if (payload.action === 'sharedList') {
+    return payload.folder
+      ? { ok: true, root: 'root', path: [{ id: 'demo-folder', name: '公告參考' }], folders: [], files: [{ id: 'demo-2', name: '防火門公告（示範）.pdf', size: 1258291, mime: 'application/pdf' }] }
+      : { ok: true, root: 'root', path: [], folders: [{ id: 'demo-folder', name: '公告參考' }], files: [{ id: 'demo-1', name: '社區規約簡報（示範）.pptx', size: 1468006, mime: 'application/vnd.openxmlformats-officedocument.presentationml.presentation' }, { id: 'demo-3', name: '垃圾分類（示範）.jpg', size: 314572, mime: 'image/jpeg' }] };
+  }
+  if (payload.action === 'sharedThumbs') return { ok: true, thumbs: {} };
+  if (payload.action === 'sharedDownload') return { ok: true, name: '示範檔案.txt', mime: 'text/plain', data: btoa('This is a demo file.') };
   if (payload.action === 'members' || payload.action === 'honorRoll') return { ok: false };
   return { ok: true };
 };
@@ -177,7 +188,7 @@ const renderVendors = (vendors) => {
       if (vendor.against) head.append(line('span', '會員不推薦', 'vendor-against'));
       if (vendor.reasons) item.append(line('p', `${against ? '不推薦的原因' : '評分原因'}：${vendor.reasons}`, against ? 'warn' : ''));
       if (vendor.note) item.append(line('p', vendor.note));
-      if (vendor.referrer) item.append(line('p', `分享人：${vendor.referrer}`));
+      if (vendor.referrer) item.append(line('p', `推薦人：${vendor.referrer}`));
       if (vendor.contact) item.append(line('span', `聯絡：${vendor.contact}`));
       return item;
     })
@@ -240,6 +251,113 @@ const openService = (key) => {
   if (key) document.querySelector(`[data-panel="${key}"]`)?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
 };
 document.querySelectorAll('[data-service]').forEach((tile) => tile.addEventListener('click', () => openService(tile.dataset.service)));
+
+// ── 會員共享資料下載：資料夾瀏覽、縮圖、點一下就下載 ──
+const sharedBrowser = document.getElementById('sharedBrowser');
+let sharedVisit = 0; // 換資料夾時，讓上一個資料夾還沒回來的縮圖請求作廢
+const fileKind = (file) => {
+  const ext = (/\.([a-z0-9]+)$/i.exec(file.name) || [])[1] || '';
+  if (/google-apps\.document/.test(file.mime)) return 'DOC';
+  if (/google-apps\.spreadsheet/.test(file.mime)) return 'XLS';
+  if (/google-apps\.presentation/.test(file.mime)) return 'PPT';
+  return ext.toUpperCase().slice(0, 4) || 'FILE';
+};
+const fileSize = (bytes) => (!bytes ? '' : bytes < 1048576 ? `${Math.max(1, Math.round(bytes / 1024))} KB` : `${(bytes / 1048576).toFixed(1)} MB`);
+
+const downloadShared = async (file, tile) => {
+  if (tile.classList.contains('busy')) return;
+  const status = document.getElementById('sharedStatus');
+  tile.classList.add('busy');
+  status.hidden = false;
+  status.textContent = `正在下載「${file.name}」…檔案較大時需要十幾秒，請稍候。`;
+  const result = await api({ action: 'sharedDownload', id: file.id, token: getSession()?.token });
+  tile.classList.remove('busy');
+  if (!result.ok) {
+    if (result.error === 'unauthorized') return logout('unauthorized');
+    status.textContent = errorMessage(result.error);
+    return;
+  }
+  const bytes = Uint8Array.from(atob(result.data), (ch) => ch.charCodeAt(0));
+  const url = URL.createObjectURL(new Blob([bytes], { type: result.mime }));
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = result.name;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+  status.textContent = `「${result.name}」已下載。`;
+};
+
+const loadShared = async (folderId) => {
+  if (!sharedBrowser) return;
+  const visit = ++sharedVisit;
+  const status = document.getElementById('sharedStatus');
+  const pathBox = document.getElementById('sharedPath');
+  const folderBox = document.getElementById('sharedFolders');
+  const fileBox = document.getElementById('sharedFiles');
+  status.hidden = false;
+  status.textContent = '載入中…';
+  const result = await api({ action: 'sharedList', folder: folderId || '', token: getSession()?.token });
+  if (visit !== sharedVisit) return;
+  if (!result.ok) {
+    if (result.error === 'unauthorized') return logout('unauthorized');
+    status.textContent = errorMessage(result.error);
+    return;
+  }
+  const crumb = (label, id, current) => {
+    const el = document.createElement(current ? 'span' : 'button');
+    el.textContent = label;
+    if (!current) { el.type = 'button'; el.addEventListener('click', () => loadShared(id)); }
+    return el;
+  };
+  pathBox.replaceChildren(crumb('全部資料', '', !result.path.length), ...result.path.map((p, i) => crumb(p.name, p.id, i === result.path.length - 1)));
+  folderBox.replaceChildren(...result.folders.map((folder) => {
+    const tile = document.createElement('button');
+    tile.type = 'button';
+    tile.className = 'shared-folder';
+    tile.textContent = folder.name;
+    tile.addEventListener('click', () => loadShared(folder.id));
+    return tile;
+  }));
+  const tiles = {};
+  fileBox.replaceChildren(...result.files.map((file) => {
+    const tile = document.createElement('button');
+    tile.type = 'button';
+    tile.className = 'shared-file';
+    tile.title = `下載 ${file.name}`;
+    const thumb = document.createElement('span');
+    thumb.className = 'shared-thumb';
+    const kind = document.createElement('b');
+    kind.textContent = fileKind(file);
+    thumb.append(kind);
+    const name = document.createElement('strong');
+    name.textContent = file.name;
+    const meta = document.createElement('small');
+    meta.textContent = [fileSize(file.size), '點一下下載'].filter(Boolean).join('｜');
+    tile.append(thumb, name, meta);
+    tile.addEventListener('click', () => downloadShared(file, tile));
+    tiles[file.id] = thumb;
+    return tile;
+  }));
+  status.hidden = result.folders.length + result.files.length > 0;
+  status.textContent = '這個資料夾目前沒有檔案。';
+
+  const ids = result.files.map((file) => file.id);
+  for (let i = 0; i < ids.length && visit === sharedVisit; i += 8) {
+    const batch = await api({ action: 'sharedThumbs', ids: ids.slice(i, i + 8), token: getSession()?.token });
+    if (visit !== sharedVisit || !batch.ok) return;
+    Object.entries(batch.thumbs || {}).forEach(([id, data]) => {
+      if (!data || !tiles[id]) return;
+      const img = document.createElement('img');
+      img.src = data;
+      img.alt = '';
+      tiles[id].prepend(img);
+      tiles[id].classList.add('has-image');
+    });
+  }
+};
+document.querySelector('[data-service="resources"]')?.addEventListener('click', () => loadShared(''));
 document.querySelectorAll('[data-service-back]').forEach((button) => button.addEventListener('click', () => openService(null)));
 
 const showDashboard = (member, vendors, data = {}) => {
@@ -265,7 +383,7 @@ const showDashboard = (member, vendors, data = {}) => {
         : !ms.until ? '會籍到期日尚未登錄，如有疑問請洽 LINE「寓委聯小幫手」。'
         : ms.daysLeft < 0 ? `會籍已於 ${ms.until} 到期，請儘快繳交常年會費以維持會員資格。`
         : ms.daysLeft <= 60 ? `會籍將在 ${ms.daysLeft} 天後到期。下一期常年會費請於 ${ms.until} 前繳交，繳費通知會另行寄給你。`
-        : `下次繳費：下一期常年會費請於 ${ms.until} 前繳交。`;
+        : `下次繳費：下一期常年會費請於 ${ms.until} 前繳交（每年 11 月起開放繳交下一年度會費）。`;
     }
   }
   openService(null);
