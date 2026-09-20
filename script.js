@@ -682,7 +682,9 @@ if (joinForm) {
   // 依申請類別切換區塊；隱藏區塊的欄位停用，才不會被當成必填
   const syncType = () => {
     joinForm.querySelectorAll('[data-for]').forEach((section) => {
-      const active = section.dataset.for === currentType();
+      // data-open-from：這個區塊從哪一天起才開放（永久會員自 115/11/1 起）
+      const opened = !section.dataset.openFrom || new Date() >= new Date(section.dataset.openFrom + 'T00:00:00+08:00');
+      const active = section.dataset.for === currentType() && opened;
       section.hidden = !active;
       section.querySelectorAll('input, select').forEach((el) => (el.disabled = !active));
     });
