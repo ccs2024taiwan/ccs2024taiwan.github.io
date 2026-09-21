@@ -70,15 +70,21 @@
                   <legend class="required">我要報名的環節<small>可複選</small></legend>
                   <div id="evSessions" class="event-sessions"></div>
                 </fieldset>
-                <div class="form-row">
-                  <div class="form-group"><label class="required" for="evName">姓名</label><input id="evName" type="text" autocomplete="name" required /></div>
-                  <div class="form-group"><label class="required" for="evPhone">行動電話</label><input id="evPhone" type="tel" inputmode="numeric" placeholder="09xxxxxxxx" autocomplete="tel" required /></div>
+                <div id="evMemberBox" class="event-member">
+                  <div class="form-row">
+                    <div class="form-group"><label for="evMemberId">會員編號<small>會員才需要填</small></label><input id="evMemberId" type="text" placeholder="例：B00012" autocomplete="off" /></div>
+                    <div class="form-group"><label class="required" for="evPhone">行動電話</label><input id="evPhone" type="tel" inputmode="numeric" placeholder="09xxxxxxxx" autocomplete="tel" required /></div>
+                  </div>
+                  <p id="evMemberHint" class="form-note" style="margin: 4px 0 0">會員填「會員編號」和<strong>入會時登記的手機</strong>就好，姓名和信箱系統會自動帶入。</p>
                 </div>
-                <div class="form-row">
-                  <div class="form-group"><label class="required" for="evEmail">電子信箱</label><input id="evEmail" type="email" placeholder="確認信會寄到這裡" autocomplete="email" required /></div>
-                  <div class="form-group"><label for="evMemberId">會員編號</label><input id="evMemberId" type="text" placeholder="會員請填，例：B00012" autocomplete="off" /></div>
+                <div id="evGuestFields">
+                  <div class="form-row">
+                    <div class="form-group"><label class="required" for="evName">姓名</label><input id="evName" type="text" autocomplete="name" /></div>
+                    <div class="form-group"><label class="required" for="evEmail" id="evEmailLabel">電子信箱</label><input id="evEmail" type="email" placeholder="確認信會寄到這裡" autocomplete="email" /></div>
+                  </div>
+                  <p class="form-note" style="margin-top: 4px">志工請填志工資料表上的姓名或綽號，系統會認得你。</p>
                 </div>
-                <p class="form-note" style="margin-top: -8px">會員請填會員編號，並使用<strong>入會時登記的手機</strong>，系統才認得你。志工請填志工資料表上的姓名或綽號。</p>
+                <div id="evMemberEmail" class="form-group" hidden><label for="evEmail2">確認信要寄到別的信箱嗎？<small>選填</small></label><input id="evEmail2" type="email" placeholder="不填就寄到入會時登記的信箱" autocomplete="email" /></div>
                 <div class="form-group"><label for="evNote">備註</label><input id="evNote" type="text" placeholder="例：朋友的姓名、吃素、需要停車位" /></div>
                 <p class="order-total"><span>預估費用</span><strong id="evTotal">NT$ 0</strong></p>
                 <p class="form-note" style="margin-top: -6px">實際金額以送出後系統核對身分的結果為準。</p>

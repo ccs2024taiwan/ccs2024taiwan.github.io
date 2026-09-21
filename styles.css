@@ -3749,3 +3749,21 @@ blockquote {
     grid-template-columns: 1fr;
   }
 }
+
+.event-member {
+  margin-bottom: 18px;
+  padding: 18px 20px 16px;
+  border-radius: 16px;
+  background: var(--teal-soft);
+}
+
+.event-member label small {
+  margin-left: 8px;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.event-member .is-member {
+  color: var(--teal-deep);
+  font-weight: 700;
+}

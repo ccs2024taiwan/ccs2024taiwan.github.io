@@ -64,6 +64,7 @@ const ERROR_MESSAGES = {
   member_only: '你勾選的環節只開放會員或志工報名。會員請填會員編號，並使用入會時登記的手機。',
   member_mismatch: '會員編號和手機對不起來。請確認會員編號，並使用入會時登記的手機；需要協助請洽 LINE「寓委聯小幫手」。',
   already_signed_up: '這支手機已經報名過這個環節了。要更改請洽 LINE「寓委聯小幫手」。',
+  member_no_email: '你的會員資料裡沒有可用的信箱，請在下方填一個信箱，確認信才寄得到。',
   signup_not_found: '找不到待繳費的報名。請確認報名編號與報名時填的手機。',
   invalid_last5: '請輸入匯款帳號的後五碼（5 個數字）。',
   dues_not_open: '目前不是繳費期間，或你的會費已經入帳了。',
@@ -135,7 +136,7 @@ const demoApi = async (payload) => {
     const insider = Boolean(payload.fields.memberId);
     const rows = payload.fields.sessions.map((p) => ({ session: p.name, seats: 1 + p.friends, fee: insider ? Math.max(0, p.friends - 1) * 500 : /講座/.test(p.name) ? (1 + p.friends) * 500 : 0 }))
       .map((r) => ({ ...r, status: /坐一坐/.test(r.session) ? '候補' : r.fee ? '待繳費' : '報名成功' }));
-    return { ok: true, id: 'E260921120000', identity: insider ? '會員' : '非會員', rows, total: rows.filter((r) => r.status === '待繳費').reduce((n, r) => n + r.fee, 0) };
+    return { ok: true, id: 'E260921120000', identity: insider ? '會員' : '非會員', name: insider ? '示範會員' : payload.fields.name, email: insider ? 'de***@example.com' : '', rows, total: rows.filter((r) => r.status === '待繳費').reduce((n, r) => n + r.fee, 0) };
   }
   if (payload.action === 'eventReport') return { ok: true };
   if (payload.action === 'duesReport') return { ok: true, membership: { ...DEMO_SERVICES.membership, dues: { ...DEMO_SERVICES.membership.dues, pending: true } } };
@@ -1456,7 +1457,14 @@ if (eventList) {
     if (scroll) $('eventSignup').scrollIntoView?.({ behavior: 'smooth', block: 'start' });
   };
   $('evBack').addEventListener('click', showList);
-  $('evMemberId').addEventListener('input', updateTotal);
+  const syncMember = () => {
+    const asMember = Boolean($('evMemberId').value.trim());
+    $('evGuestFields').hidden = asMember;
+    $('evMemberEmail').hidden = !asMember;
+    $('evMemberHint').classList.toggle('is-member', asMember);
+    updateTotal();
+  };
+  $('evMemberId').addEventListener('input', syncMember);
   $('evSessions').addEventListener('change', updateTotal);
 
   $('eventForm').addEventListener('submit', async (event) => {
@@ -1467,7 +1475,8 @@ if (eventList) {
     const sessions = Array.from($('evSessions').querySelectorAll('[data-session]')).filter((box) => box.querySelector('input[type="checkbox"]').checked)
       .map((box) => ({ name: current.sessions[Number(box.dataset.session)].name, friends: Number(box.querySelector('select')?.value || 0) }));
     if (!sessions.length) return fail('no_session_selected', $('evSessions').querySelector('input'));
-    const missing = [$('evName'), $('evPhone'), $('evEmail')].find((el) => !el.value.trim());
+    const asMember = Boolean($('evMemberId').value.trim());
+    const missing = (asMember ? [$('evPhone')] : [$('evPhone'), $('evName'), $('evEmail')]).find((el) => !el.value.trim());
     if (missing) return fail('missing_fields', missing);
     if (!/^09\d{8}$/.test($('evPhone').value.replace(/\D/g, ''))) return fail('invalid_phone', $('evPhone'));
     if (!$('evConsent').checked) return fail('missing_consent', $('evConsent'));
@@ -1476,16 +1485,16 @@ if (eventList) {
     button.disabled = true;
     const result = await api({
       action: 'eventSignup', website: event.target.querySelector('[name="website"]').value,
-      fields: { eventId: current.id, sessions, name: $('evName').value, phone: $('evPhone').value, email: $('evEmail').value, memberId: $('evMemberId').value, note: $('evNote').value, consent: true },
+      fields: { eventId: current.id, sessions, name: asMember ? '' : $('evName').value, phone: $('evPhone').value, email: asMember ? $('evEmail2').value : $('evEmail').value, memberId: $('evMemberId').value, note: $('evNote').value, consent: true },
     });
     button.disabled = false;
-    if (!result.ok) return fail(result.error);
+    if (!result.ok) return fail(result.error, result.error === 'member_no_email' ? $('evEmail2') : null);
 
     $('eventForm').hidden = true;
     $('eventDone').hidden = false;
     const waiting = result.rows.some((row) => row.status === '候補');
     $('doneTitle').textContent = result.total ? '已收到報名，請完成繳費' : waiting && result.rows.every((row) => row.status === '候補') ? '已登記候補' : '報名成功！';
-    $('doneId').textContent = `報名編號 ${result.id}｜身分：${result.identity}`;
+    $('doneId').textContent = [`報名編號 ${result.id}`, result.name && `${result.name}（${result.identity}）`, result.email && `確認信寄到 ${result.email}`].filter(Boolean).join('｜');
     $('doneRows').replaceChildren(...result.rows.map((row) => {
       const li = document.createElement('li');
       li.textContent = `${row.session}：${row.seats} 人${row.fee ? '，' + money(row.fee) : ''}`;
