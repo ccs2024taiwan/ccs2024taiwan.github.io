@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>課程與活動報名｜寓委聯</title>
+    <meta name="description" content="寓委聯會員講座、社區坐一坐與各項活動的線上報名入口。" />
+    <link rel="icon" href="assets/favicon.png" type="image/png" />
+    <link rel="apple-touch-icon" href="assets/apple-touch-icon.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Chiron+GoRound+TC:wght@400;500;700;900&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="container nav-wrap">
+        <a class="brand" href="index.html" aria-label="回首頁">
+          <img src="assets/logo-small.png" alt="全國公寓大廈管理委員聯誼會" width="1640" height="160" />
+        </a>
+        <button class="menu-toggle" type="button" aria-label="開啟選單"><span></span><span></span><span></span></button>
+        <nav class="main-nav" aria-label="主選單">
+          <a href="about.html">關於我們</a>
+          <a href="services.html">服務項目</a>
+          <a href="events.html" aria-current="page">課程報名</a>
+          <a href="activities.html">活動成果</a>
+          <a href="members.html">會員名單</a>
+          <a href="publications.html">出版品</a>
+          <a href="volunteer.html">志工專區</a>
+          <a href="portal.html">會員專區</a>
+          <a href="contact.html" class="nav-cta">聯絡我們</a>
+        </nav>
+      </div>
+    </header>
+
+    <main>
+      <section class="page-header">
+        <div class="container">
+          <p class="eyebrow">課程與活動報名</p>
+          <h1><span class="nb">想參加哪一場？</span><span class="nb">在這裡報名</span></h1>
+          <p><span class="nb">會員講座、社區坐一坐與各項活動，</span><span class="nb">開放報名時都會列在這一頁。</span><span class="nb">最新的課程消息請看 <a class="text-link-inline" href="https://www.facebook.com/profile.php?id=61552728203973" target="_blank" rel="noopener">Facebook 粉絲專頁</a>。</span></p>
+        </div>
+      </section>
+
+      <section class="page-content">
+        <div class="container">
+          <p id="eventStatus" class="form-note" role="status">載入中…</p>
+          <div id="eventList" class="event-list"></div>
+          <div id="eventEmpty" class="panel event-empty" hidden>
+            <h3>目前沒有開放報名的活動</h3>
+            <p>新課程開放時會公告在 <a class="text-link-inline" href="https://www.facebook.com/profile.php?id=61552728203973" target="_blank" rel="noopener">Facebook 粉絲專頁</a>，也歡迎加 <a class="text-link-inline" href="https://lin.ee/wWnh9Vb" target="_blank" rel="noopener">LINE 官方帳號「寓委聯小幫手」</a>，有新活動會通知你。</p>
+            <p>想看我們辦過什麼？請到<a class="text-link-inline" href="activities.html">活動成果</a>。</p>
+          </div>
+
+          <div id="eventSignup" class="signup" hidden>
+            <aside class="signup-aside">
+              <h2 id="evTitle"></h2>
+              <p id="evMeta"></p>
+              <ol class="steps">
+                <li><div><strong>會員免費帶 1 位朋友</strong><span>會員與志工報名時填會員編號（志工填登記的姓名），每個環節可免費帶 1 位朋友；第 2 位起比照非會員收費。</span></div></li>
+                <li><div><strong>非會員需先繳費</strong><span>送出後會顯示匯款帳號，匯款並回報後五碼，才算報名成功。</span></div></li>
+                <li><div><strong>要取消或更改</strong><span>請私訊 LINE「寓委聯小幫手」。</span></div></li>
+              </ol>
+              <button id="evBack" class="small-btn" type="button">← 看其他活動</button>
+            </aside>
+            <div class="signup-form">
+              <form id="eventForm" novalidate>
+                <fieldset class="choice-group">
+                  <legend class="required">我要報名的環節<small>可複選</small></legend>
+                  <div id="evSessions" class="event-sessions"></div>
+                </fieldset>
+                <div class="form-row">
+                  <div class="form-group"><label class="required" for="evName">姓名</label><input id="evName" type="text" autocomplete="name" required /></div>
+                  <div class="form-group"><label class="required" for="evPhone">行動電話</label><input id="evPhone" type="tel" inputmode="numeric" placeholder="09xxxxxxxx" autocomplete="tel" required /></div>
+                </div>
+                <div class="form-row">
+                  <div class="form-group"><label class="required" for="evEmail">電子信箱</label><input id="evEmail" type="email" placeholder="確認信會寄到這裡" autocomplete="email" required /></div>
+                  <div class="form-group"><label for="evMemberId">會員編號</label><input id="evMemberId" type="text" placeholder="會員請填，例：B00012" autocomplete="off" /></div>
+                </div>
+                <p class="form-note" style="margin-top: -8px">會員請填會員編號，並使用<strong>入會時登記的手機</strong>，系統才認得你。志工請填志工資料表上的姓名或綽號。</p>
+                <div class="form-group"><label for="evNote">備註</label><input id="evNote" type="text" placeholder="例：朋友的姓名、吃素、需要停車位" /></div>
+                <p class="order-total"><span>預估費用</span><strong id="evTotal">NT$ 0</strong></p>
+                <p class="form-note" style="margin-top: -6px">實際金額以送出後系統核對身分的結果為準。</p>
+                <label class="consent"><input id="evConsent" type="checkbox" required /><span>我同意全國公寓大廈管理委員聯誼會為辦理本次活動報名與聯繫之目的，蒐集並使用以上個人資料。詳見<a class="text-link-inline" href="privacy.html" target="_blank">個人資料蒐集告知</a>。</span></label>
+                <div class="hp-field" aria-hidden="true"><label>請勿填寫<input type="text" name="website" tabindex="-1" autocomplete="off" /></label></div>
+                <button class="btn btn-primary" type="submit">送出報名</button>
+              </form>
+              <p id="eventError" class="form-error" role="alert" hidden></p>
+              <div id="eventDone" class="event-done" hidden>
+                <h3 id="doneTitle"></h3>
+                <p id="doneId" class="form-note"></p>
+                <ul id="doneRows" class="event-done-rows"></ul>
+                <div id="donePay" class="dues-bank" hidden>
+                  <span>應繳金額</span>
+                  <strong id="donePayTotal"></strong>
+                  <span style="margin-top: 8px">匯款帳戶</span>
+                  <strong id="donePayBank"></strong>
+                  <p class="dues-account"><b id="donePayAccount"></b><button id="donePayCopy" class="small-btn" type="button">複製帳號</button></p>
+                  <small id="donePayHolder"></small>
+                  <p class="dues-rule">匯款後請在下方回報帳號後五碼，<span class="nb">完成後才算報名成功。</span></p>
+                </div>
+                <p class="form-note">確認信已寄到你的信箱。</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section section-alt" id="report">
+        <div class="container">
+          <div class="section-heading">
+            <p class="eyebrow">已經匯款了嗎</p>
+            <h2>回報匯款</h2>
+            <p><span class="nb">需要繳費的報名，</span><span class="nb">匯款後在這裡回報帳號後五碼，</span><span class="nb">我們對帳後會通知你報名成功。</span></p>
+          </div>
+          <div class="form-card" style="max-width: 640px; margin-inline: auto">
+            <form id="eventReportForm">
+              <div class="form-group"><label class="required" for="erId">報名編號</label><input id="erId" type="text" placeholder="確認信上的編號，例：E2611150930xx" required /></div>
+              <div class="form-row">
+                <div class="form-group"><label class="required" for="erPhone">報名時填的手機</label><input id="erPhone" type="tel" inputmode="numeric" placeholder="09xxxxxxxx" required /></div>
+                <div class="form-group"><label class="required" for="erLast5">匯款帳號後五碼</label><input id="erLast5" type="text" inputmode="numeric" maxlength="5" placeholder="例：12345" required /></div>
+              </div>
+              <button class="btn btn-primary" type="submit">送出回報</button>
+            </form>
+            <p id="eventReportError" class="form-error" role="alert" hidden></p>
+            <div id="eventReportDone" class="form-success" role="status">已收到你的回報，對帳後會通知你報名成功。謝謝！</div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-grid">
+        <div>
+          <img class="footer-logo" src="assets/logo-horizontal.png" alt="全國公寓大廈管理委員聯誼會" width="858" height="240" loading="lazy" />
+          <p>內政部立案全國性社會團體（台內團字第 11202282971 號）<br />統一編號 80049965</p>
+        </div>
+        <div>
+          <h4>聯絡我們</h4>
+          <ul>
+            <li><span class="fi fi-mail" aria-hidden="true"></span><a href="mailto:ccs2024taiwan@gmail.com">ccs2024taiwan@gmail.com</a></li>
+            <li><span class="fi fi-line" aria-hidden="true"></span><a href="https://lin.ee/wWnh9Vb" target="_blank" rel="noopener">LINE 官方帳號「寓委聯小幫手」</a></li>
+            <li><span class="fi fi-fb" aria-hidden="true"></span><a href="https://www.facebook.com/profile.php?id=61552728203973" target="_blank" rel="noopener">Facebook 粉絲專頁（最新活動）</a></li>
+            <li><span class="fi fi-yt" aria-hidden="true"></span><a href="https://www.youtube.com/channel/UCMrTfWJXAXtiOwPrQSGtv8A" target="_blank" rel="noopener">YouTube 頻道</a></li>
+            <li><span class="fi fi-pin" aria-hidden="true"></span>406 臺中市北屯區太順路 60 號 4 樓之 3</li>
+          </ul>
+        </div>
+        <div>
+          <h4>網站導覽</h4>
+          <ul class="footer-nav">
+            <li><a href="index.html">首頁</a></li>
+            <li><a href="about.html">關於我們</a></li>
+            <li><a href="services.html">服務項目</a></li>
+            <li><a href="events.html">課程與活動報名</a></li>
+            <li><a href="activities.html">活動成果</a></li>
+            <li><a href="members.html">會員名單</a></li>
+            <li><a href="publications.html">出版品</a></li>
+            <li><a href="order.html">訂購教戰手冊</a></li>
+            <li><a href="join.html">線上入會申請</a></li>
+            <li><a href="portal.html">會員專區</a></li>
+            <li><a href="volunteer.html">志工專區</a></li>
+            <li><a href="volunteer-join.html">加入志工</a></li>
+            <li><a href="vendors.html">廠商自薦</a></li>
+            <li><a href="contact.html">聯絡我們</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="copyright">© <span id="year"></span> 全國公寓大廈管理委員聯誼會　·　<a href="privacy.html">個人資料蒐集告知</a></div>
+    </footer>
+
+    <script src="script.js"></script>
+  </body>
+</html>

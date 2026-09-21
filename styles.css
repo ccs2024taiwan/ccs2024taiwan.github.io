@@ -3586,3 +3586,166 @@ blockquote {
 #duesForm .btn {
   margin-top: 14px;
 }
+
+/* 聯絡頁：上排四種聯絡方式，下排三個行動入口 */
+.contact-cards.cols-4 {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.contact-cards.contact-actions {
+  margin-top: 20px;
+}
+
+.contact-actions .contact-card {
+  background: var(--yellow-soft);
+}
+
+/* 課程與活動報名 */
+.event-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 24px;
+}
+
+.event-list[hidden] {
+  display: none;
+}
+
+.event-card {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  padding: 26px;
+  border: 1.5px solid var(--border);
+  border-top: 6px solid var(--teal);
+  border-radius: 22px;
+  background: #fff;
+}
+
+.event-date {
+  margin: 0;
+  color: var(--teal-deep);
+  font-weight: 900;
+  letter-spacing: 0.03em;
+}
+
+.event-card h3 {
+  margin: 0;
+}
+
+.event-place {
+  margin: 0;
+  color: var(--muted);
+}
+
+.event-session-list {
+  display: grid;
+  gap: 10px;
+  margin: 10px 0 4px;
+  padding: 0;
+  list-style: none;
+}
+
+.event-session-list li {
+  display: grid;
+  gap: 2px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: var(--yellow-soft);
+}
+
+.event-session-list span {
+  font-size: 0.88rem;
+  color: var(--muted);
+}
+
+.event-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.event-foot small {
+  color: var(--muted);
+}
+
+.event-empty {
+  max-width: 720px;
+  margin-inline: auto;
+  text-align: center;
+}
+
+.event-sessions {
+  display: grid;
+  gap: 12px;
+}
+
+.event-session {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.event-friends {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.event-friends select {
+  width: auto;
+  min-width: 140px;
+  padding: 10px 14px;
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  background: #fff;
+  font: inherit;
+  color: var(--brown);
+}
+
+.event-done h3 {
+  margin-top: 0;
+}
+
+.event-done-rows {
+  display: grid;
+  gap: 8px;
+  margin: 14px 0 18px;
+  padding: 0;
+  list-style: none;
+}
+
+.event-done-rows li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: var(--yellow-soft);
+}
+
+.event-done-rows b {
+  padding: 2px 12px;
+  border-radius: 999px;
+  background: var(--red);
+  color: #fff;
+  font-size: 0.85rem;
+}
+
+.event-done-rows b.ok {
+  background: var(--teal-deep);
+}
+
+@media (max-width: 640px) {
+  .event-session {
+    grid-template-columns: 1fr;
+  }
+}

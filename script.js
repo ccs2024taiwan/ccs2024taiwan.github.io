@@ -59,6 +59,12 @@ const ERROR_MESSAGES = {
   invalid_email: '電子信箱格式不正確。',
   invalid_city: '請選擇社區所在縣市。',
   missing_consent: '請勾選同意事項。',
+  no_session_selected: '請至少勾選一個要報名的環節。',
+  event_closed: '這場活動已經截止報名，或內容有更新，請重新整理頁面。',
+  member_only: '你勾選的環節只開放會員或志工報名。會員請填會員編號，並使用入會時登記的手機。',
+  member_mismatch: '會員編號和手機對不起來。請確認會員編號，並使用入會時登記的手機；需要協助請洽 LINE「寓委聯小幫手」。',
+  already_signed_up: '這支手機已經報名過這個環節了。要更改請洽 LINE「寓委聯小幫手」。',
+  signup_not_found: '找不到待繳費的報名。請確認報名編號與報名時填的手機。',
   invalid_last5: '請輸入匯款帳號的後五碼（5 個數字）。',
   dues_not_open: '目前不是繳費期間，或你的會費已經入帳了。',
   dues_already_reported: '你已經回報過了，秘書處對帳後會通知你。',
@@ -117,6 +123,21 @@ const demoApi = async (payload) => {
     return { ok: true, orderId: 'B000000001', total: unit * Number(f.quantity) + fee, bank: { name: '（示範模式）', account: '000-000-000000' } };
   }
   if (payload.action === 'vendors') return { ok: true, ...DEMO_SERVICES };
+  if (payload.action === 'events') {
+    return { ok: true, bank: DEMO_SERVICES.membership.dues.bank, events: [{
+      id: 'demo1151115', title: '（示範）會員講座＋社區坐一坐', date: '2026-11-15', weekday: '日', place: '示範社區交誼廳', deadline: '2026-11-10',
+      sessions: [
+        { name: '09:30-11:30 會員講座：社區規約的理想與現實', time: '09:30-11:30', place: '示範社區交誼廳', speaker: '示範講師', note: '', memberFee: 0, nonMemberFee: 500, memberOnly: false, maxFriends: 1, capacity: 30, left: 12 },
+        { name: '14:00-17:00 社區坐一坐', time: '14:00-17:00', place: '示範社區', speaker: '', note: '', memberFee: 0, nonMemberFee: 0, memberOnly: true, maxFriends: 1, capacity: 20, left: 0 },
+      ] }] };
+  }
+  if (payload.action === 'eventSignup') {
+    const insider = Boolean(payload.fields.memberId);
+    const rows = payload.fields.sessions.map((p) => ({ session: p.name, seats: 1 + p.friends, fee: insider ? Math.max(0, p.friends - 1) * 500 : /講座/.test(p.name) ? (1 + p.friends) * 500 : 0 }))
+      .map((r) => ({ ...r, status: /坐一坐/.test(r.session) ? '候補' : r.fee ? '待繳費' : '報名成功' }));
+    return { ok: true, id: 'E260921120000', identity: insider ? '會員' : '非會員', rows, total: rows.filter((r) => r.status === '待繳費').reduce((n, r) => n + r.fee, 0) };
+  }
+  if (payload.action === 'eventReport') return { ok: true };
   if (payload.action === 'duesReport') return { ok: true, membership: { ...DEMO_SERVICES.membership, dues: { ...DEMO_SERVICES.membership.dues, pending: true } } };
   if (payload.action === 'sharedList') {
     return payload.folder
@@ -1318,5 +1339,205 @@ if (volunteerJoinForm) {
     volunteerJoinForm.hidden = true;
     successBox.classList.add('visible');
     successBox.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
+  });
+}
+
+// ── 課程與活動報名（events.html）──
+const eventList = document.getElementById('eventList');
+if (eventList) {
+  const $ = (id) => document.getElementById(id);
+  const money = (n) => `NT$ ${Number(n).toLocaleString('en-US')}`;
+  const params = new URLSearchParams(location.search);
+  let events = [];
+  let bank = null;
+  let current = null;
+
+  const feeText = (session) => {
+    if (session.memberOnly) return '限會員與志工' + (session.memberFee ? `｜${money(session.memberFee)}` : '｜免費');
+    return `會員${session.memberFee ? money(session.memberFee) : '免費'}｜非會員${session.nonMemberFee ? money(session.nonMemberFee) : '免費'}`;
+  };
+  const seatText = (session) => (session.left == null ? '' : session.left > 0 ? `剩 ${session.left} 個名額` : '已額滿，可登記候補');
+
+  const showList = () => {
+    current = null;
+    $('eventSignup').hidden = true;
+    eventList.hidden = false;
+    $('eventEmpty').hidden = events.length > 0;
+    eventList.replaceChildren(...events.map((event) => {
+      const card = document.createElement('article');
+      card.className = 'event-card';
+      const date = document.createElement('p');
+      date.className = 'event-date';
+      date.textContent = `${event.date}（${event.weekday}）`;
+      const title = document.createElement('h3');
+      title.textContent = event.title;
+      const place = document.createElement('p');
+      place.className = 'event-place';
+      place.textContent = event.place;
+      const list = document.createElement('ul');
+      list.className = 'event-session-list';
+      list.append(...event.sessions.map((session) => {
+        const li = document.createElement('li');
+        const name = document.createElement('strong');
+        name.textContent = session.name;
+        const meta = document.createElement('span');
+        meta.textContent = [session.speaker && `講師：${session.speaker}`, feeText(session), seatText(session)].filter(Boolean).join('｜');
+        li.append(name, meta);
+        return li;
+      }));
+      const foot = document.createElement('div');
+      foot.className = 'event-foot';
+      const deadline = document.createElement('small');
+      deadline.textContent = event.deadline ? `報名至 ${event.deadline}` : '';
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'btn btn-primary';
+      button.textContent = '我要報名';
+      button.addEventListener('click', () => openEvent(event.id, true));
+      foot.append(deadline, button);
+      card.append(date, title, place, list, foot);
+      return card;
+    }));
+  };
+
+  const updateTotal = () => {
+    if (!current) return;
+    const insider = Boolean($('evMemberId').value.trim());
+    let total = 0;
+    $('evSessions').querySelectorAll('[data-session]').forEach((box) => {
+      const session = current.sessions[Number(box.dataset.session)];
+      const checked = box.querySelector('input[type="checkbox"]').checked;
+      const friendsField = box.querySelector('select');
+      if (friendsField) friendsField.disabled = !checked;
+      if (!checked || (session.left === 0 && session.capacity)) return; // 候補不收費
+      const friends = Number(friendsField?.value || 0);
+      total += insider ? session.memberFee + Math.max(0, friends - 1) * session.nonMemberFee : (1 + friends) * session.nonMemberFee;
+    });
+    $('evTotal').textContent = money(total);
+  };
+
+  const openEvent = (id, scroll) => {
+    current = events.find((event) => event.id === id);
+    if (!current) return showList();
+    eventList.hidden = true;
+    $('eventEmpty').hidden = true;
+    $('eventSignup').hidden = false;
+    $('eventForm').hidden = false;
+    $('eventDone').hidden = true;
+    $('eventError').hidden = true;
+    $('evTitle').textContent = current.title;
+    $('evMeta').textContent = [`${current.date}（${current.weekday}）`, current.place, current.deadline && `報名至 ${current.deadline}`].filter(Boolean).join('｜');
+    $('evBack').hidden = events.length < 2;
+    $('evSessions').replaceChildren(...current.sessions.map((session, i) => {
+      const box = document.createElement('div');
+      box.className = 'event-session';
+      box.dataset.session = i;
+      const label = document.createElement('label');
+      label.className = 'choice';
+      const input = Object.assign(document.createElement('input'), { type: 'checkbox', checked: current.sessions.length === 1 });
+      const text = document.createElement('span');
+      text.textContent = session.name;
+      const small = document.createElement('small');
+      small.textContent = [feeText(session), seatText(session)].filter(Boolean).join('｜');
+      text.append(small);
+      label.append(input, text);
+      box.append(label);
+      if (session.maxFriends > 0) {
+        const friends = document.createElement('label');
+        friends.className = 'event-friends';
+        const select = document.createElement('select');
+        for (let n = 0; n <= session.maxFriends; n++) select.append(Object.assign(document.createElement('option'), { value: n, textContent: n ? `帶 ${n} 位朋友` : '自己參加' }));
+        friends.append('同行', select);
+        box.append(friends);
+      }
+      return box;
+    }));
+    updateTotal();
+    if (scroll) $('eventSignup').scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+  };
+  $('evBack').addEventListener('click', showList);
+  $('evMemberId').addEventListener('input', updateTotal);
+  $('evSessions').addEventListener('change', updateTotal);
+
+  $('eventForm').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const errorBox = $('eventError');
+    errorBox.hidden = true;
+    const fail = (code, el) => { errorBox.textContent = errorMessage(code); errorBox.hidden = false; el?.focus?.(); (el || errorBox).scrollIntoView?.({ behavior: 'smooth', block: 'center' }); };
+    const sessions = Array.from($('evSessions').querySelectorAll('[data-session]')).filter((box) => box.querySelector('input[type="checkbox"]').checked)
+      .map((box) => ({ name: current.sessions[Number(box.dataset.session)].name, friends: Number(box.querySelector('select')?.value || 0) }));
+    if (!sessions.length) return fail('no_session_selected', $('evSessions').querySelector('input'));
+    const missing = [$('evName'), $('evPhone'), $('evEmail')].find((el) => !el.value.trim());
+    if (missing) return fail('missing_fields', missing);
+    if (!/^09\d{8}$/.test($('evPhone').value.replace(/\D/g, ''))) return fail('invalid_phone', $('evPhone'));
+    if (!$('evConsent').checked) return fail('missing_consent', $('evConsent'));
+
+    const button = event.target.querySelector('[type="submit"]');
+    button.disabled = true;
+    const result = await api({
+      action: 'eventSignup', website: event.target.querySelector('[name="website"]').value,
+      fields: { eventId: current.id, sessions, name: $('evName').value, phone: $('evPhone').value, email: $('evEmail').value, memberId: $('evMemberId').value, note: $('evNote').value, consent: true },
+    });
+    button.disabled = false;
+    if (!result.ok) return fail(result.error);
+
+    $('eventForm').hidden = true;
+    $('eventDone').hidden = false;
+    const waiting = result.rows.some((row) => row.status === '候補');
+    $('doneTitle').textContent = result.total ? '已收到報名，請完成繳費' : waiting && result.rows.every((row) => row.status === '候補') ? '已登記候補' : '報名成功！';
+    $('doneId').textContent = `報名編號 ${result.id}｜身分：${result.identity}`;
+    $('doneRows').replaceChildren(...result.rows.map((row) => {
+      const li = document.createElement('li');
+      li.textContent = `${row.session}：${row.seats} 人${row.fee ? '，' + money(row.fee) : ''}`;
+      const tag = document.createElement('b');
+      tag.textContent = row.status;
+      tag.className = row.status === '報名成功' ? 'ok' : '';
+      li.append(tag);
+      return li;
+    }));
+    $('donePay').hidden = !result.total;
+    if (result.total && bank) {
+      $('donePayTotal').textContent = money(result.total);
+      $('donePayBank').textContent = `${bank.name}（${bank.code}）`;
+      $('donePayAccount').textContent = bank.account;
+      $('donePayHolder').textContent = `戶名：${bank.holder}`;
+      $('erId').value = result.id;
+      $('erPhone').value = $('evPhone').value;
+    }
+    $('eventDone').scrollIntoView?.({ behavior: 'smooth', block: 'center' });
+  });
+  $('donePayCopy').addEventListener('click', async (event) => {
+    try { await navigator.clipboard.writeText($('donePayAccount').textContent); event.target.textContent = '已複製'; } catch { event.target.textContent = '請長按帳號複製'; }
+    setTimeout(() => (event.target.textContent = '複製帳號'), 2500);
+  });
+
+  $('eventReportForm').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const errorBox = $('eventReportError');
+    errorBox.hidden = true;
+    const last5 = $('erLast5').value.replace(/\D/g, '');
+    const show = (code) => { errorBox.textContent = errorMessage(code); errorBox.hidden = false; };
+    if (last5.length !== 5) return show('invalid_last5');
+    const button = event.target.querySelector('[type="submit"]');
+    button.disabled = true;
+    const result = await api({ action: 'eventReport', id: $('erId').value, phone: $('erPhone').value, last5 });
+    button.disabled = false;
+    if (!result.ok) return show(result.error);
+    event.target.hidden = true;
+    $('eventReportDone').classList.add('visible');
+  });
+  if (params.get('report')) {
+    $('erId').value = params.get('report');
+    setTimeout(() => $('report').scrollIntoView?.({ block: 'start' }), 300);
+  }
+
+  api({ action: 'events' }).then((result) => {
+    $('eventStatus').hidden = true;
+    events = result.ok ? result.events || [] : [];
+    bank = result.bank || null;
+    const wanted = params.get('id');
+    if (wanted && events.some((e) => e.id === wanted)) openEvent(wanted);
+    else if (events.length === 1 && !params.get('report')) openEvent(events[0].id);
+    else showList();
   });
 }
