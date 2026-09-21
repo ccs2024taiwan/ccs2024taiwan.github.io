@@ -1,5 +1,5 @@
 // 後端（Google Apps Script 網頁應用程式）網址。留空 = 示範模式，不會真的驗證或送出資料。
-const API_URL = '';
+const API_URL = 'https://script.google.com/macros/s/AKfycbxigcc2shJfw4vbTUrbdPv-qwj6EWj-BWc076FtN6YJxhhx78l6lcJ7yMKwaXWet1NbXA/exec';
 
 // 示範模式用的假資料，接上後端後不會用到。
 const DEMO_MEMBER = { id: 'B00000', phone: '0912345678', name: '示範會員' };
