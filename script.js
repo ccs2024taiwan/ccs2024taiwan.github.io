@@ -173,6 +173,19 @@ if (toggle && nav) {
 }
 
 // ── 會員登入 ──
+// 送出後到後端回應前要等 2–5 秒：按鈕換成「送出中…」並轉圈，讓人知道有按到
+function setBusy(button, busy) {
+  if (!button) return;
+  button.disabled = busy;
+  button.classList.toggle('is-busy', busy);
+  if (busy) {
+    button.dataset.label = button.dataset.label || button.textContent;
+    button.textContent = /登入/.test(button.dataset.label) ? '登入中，請稍候…' : '送出中，請稍候…';
+  } else if (button.dataset.label) {
+    button.textContent = button.dataset.label;
+  }
+}
+
 const SESSION_KEY = 'memberSession';
 const loginForm = document.getElementById('loginForm');
 const loginSection = document.getElementById('loginSection');
@@ -310,13 +323,13 @@ document.getElementById('duesForm')?.addEventListener('submit', async (event) =>
   const show = (code) => { errorBox.textContent = errorMessage(code); errorBox.hidden = false; };
   if (last5.length !== 5) return show('invalid_last5');
   const button = event.target.querySelector('[type="submit"]');
-  button.disabled = true;
+  setBusy(button, true);
   const result = await api({
     action: 'duesReport', token: getSession()?.token, last5,
     plan: event.target.querySelector('[name="duesPlan"]:checked')?.value || 'annual',
     paidOn: document.getElementById('duesPaidOn').value, note: document.getElementById('duesNote').value,
   });
-  button.disabled = false;
+  setBusy(button, false);
   if (result.ok) return renderDues(result.membership?.dues);
   if (result.error === 'unauthorized') return logout('unauthorized');
   if (result.error === 'dues_already_reported') { document.getElementById('duesPending').classList.add('visible'); document.getElementById('duesBody').hidden = true; return; }
@@ -498,13 +511,13 @@ if (loginForm) {
   loginForm.addEventListener('submit', async (event) => {
     event.preventDefault();
     const button = loginForm.querySelector('[type="submit"]');
-    button.disabled = true;
+    setBusy(button, true);
     const result = await api({
       action: 'login',
       memberId: document.getElementById('memberId').value,
       phone: document.getElementById('memberPhone').value,
     });
-    button.disabled = false;
+    setBusy(button, false);
 
     if (result.ok) {
       localStorage.setItem(SESSION_KEY, JSON.stringify({ token: result.token, member: result.member }));
@@ -623,7 +636,7 @@ document.querySelectorAll('[data-form-type]').forEach((form) => {
       return;
     }
     const button = form.querySelector('[type="submit"]');
-    button.disabled = true;
+    setBusy(button, true);
     errorBox.hidden = true;
     if (successBox) successBox.classList.remove('visible');
 
@@ -634,7 +647,7 @@ document.querySelectorAll('[data-form-type]').forEach((form) => {
       website: form.querySelector('[name="website"]')?.value || '',
       token: getSession()?.token,
     });
-    button.disabled = false;
+    setBusy(button, false);
 
     if (result.ok) {
       if (successBox) successBox.classList.add('visible');
@@ -819,18 +832,18 @@ if (joinForm) {
     needed.forEach((name) => (fields[name] = pads[name].canvas.toDataURL('image/png')));
 
     const button = joinForm.querySelector('[type="submit"]');
-    button.disabled = true;
+    setBusy(button, true);
     try {
       for (const input of joinForm.querySelectorAll('[data-upload]')) {
         if (!input.disabled && input.files[0]) fields[input.dataset.upload] = await readImage(input.files[0]);
       }
     } catch {
-      button.disabled = false;
+      setBusy(button, false);
       return fail('invalid_upload');
     }
 
     const result = await api({ action: 'apply', fields, website: joinForm.querySelector('[name="website"]').value });
-    button.disabled = false;
+    setBusy(button, false);
     if (!result.ok) return fail(result.error);
 
     joinForm.hidden = true;
@@ -1014,9 +1027,9 @@ if (volunteerLoginForm) {
     event.preventDefault();
     vError.hidden = true;
     const button = volunteerLoginForm.querySelector('[type="submit"]');
-    button.disabled = true;
+    setBusy(button, true);
     const result = await api({ action: 'volunteerLogin', name: document.getElementById('volunteerName').value, phone: document.getElementById('volunteerPhone').value });
-    button.disabled = false;
+    setBusy(button, false);
     if (!result.ok) {
       vError.textContent = result.error === 'invalid_credentials' ? '姓名或手機末三碼不符，請再確認一次。' : errorMessage(result.error);
       vError.hidden = false;
@@ -1120,9 +1133,9 @@ if (volunteerLoginForm) {
         return;
       }
       const button = form.querySelector('[type="submit"]');
-      button.disabled = true;
+      setBusy(button, true);
       const result = await api({ action: 'volunteerSubmit', kind, fields, token: getV()?.token });
-      button.disabled = false;
+      setBusy(button, false);
       if (result.ok) {
         form.reset();
         if (kind === 'expense') {
@@ -1219,16 +1232,16 @@ if (orderForm) {
     });
 
     const button = orderForm.querySelector('[type="submit"]');
-    button.disabled = true;
+    setBusy(button, true);
     const result = await api({ action: 'order', fields, website: orderForm.querySelector('[name="website"]').value });
-    button.disabled = false;
+    setBusy(button, false);
     if (!result.ok) return fail(result.error, result.error === 'member_not_verified' ? orderForm.querySelector('[name="memberId"]') : null);
 
     document.getElementById('doneOrderId').textContent = result.orderId;
     document.getElementById('doneTotal').textContent = money(result.total);
     const bank = result.bank || {};
     document.getElementById('doneBank').textContent = bank.account
-      ? `${bank.name}${bank.code ? `（${bank.code}）` : ''}　帳號 ${bank.account}${bank.holder ? `　戶名 ${bank.holder}` : ''}`
+      ? [`${bank.name}${bank.code ? `（${bank.code}）` : ''}`, `帳號 ${bank.account}`, bank.holder && `戶名 ${bank.holder}`].filter(Boolean).join('\n') // 一項一行，手機上才不會斷在奇怪的地方
       : '匯款帳號請見確認信。';
     document.getElementById('doneMeet').hidden = fields.shipping !== 'meet';
     document.getElementById('reportOrderId').value = result.orderId;
@@ -1253,14 +1266,14 @@ if (orderForm) {
     success.classList.remove('visible');
     error.hidden = true;
     const button = reportForm.querySelector('[type="submit"]');
-    button.disabled = true;
+    setBusy(button, true);
     const result = await api({
       action: 'orderReport',
       orderId: document.getElementById('reportOrderId').value,
       phone: document.getElementById('reportPhone').value,
       last5: document.getElementById('reportLast5').value,
     });
-    button.disabled = false;
+    setBusy(button, false);
     if (result.ok) {
       success.textContent = result.already ? '這筆訂單已經確認收款了，謝謝！' : '已收到回報，我們對帳後就會出貨，出貨時會再寄信通知你。';
       success.classList.add('visible');
@@ -1349,9 +1362,9 @@ if (volunteerJoinForm) {
     fields.agreed = '是';
 
     const button = volunteerJoinForm.querySelector('[type="submit"]');
-    button.disabled = true;
+    setBusy(button, true);
     const result = await api({ action: 'volunteerApply', fields, website: String(data.get('website') || '') });
-    button.disabled = false;
+    setBusy(button, false);
     if (!result.ok) return fail(result.error);
     volunteerJoinForm.hidden = true;
     successBox.classList.add('visible');
@@ -1455,7 +1468,7 @@ if (eventList) {
       const text = document.createElement('span');
       text.textContent = session.name;
       const small = document.createElement('small');
-      small.textContent = [feeText(session), seatText(session)].filter(Boolean).join('｜');
+      small.textContent = [session.speaker && `講師：${session.speaker}`, feeText(session), seatText(session)].filter(Boolean).join('｜');
       text.append(small);
       label.append(input, text);
       box.append(label);
@@ -1498,12 +1511,12 @@ if (eventList) {
     if (!$('evConsent').checked) return fail('missing_consent', $('evConsent'));
 
     const button = event.target.querySelector('[type="submit"]');
-    button.disabled = true;
+    setBusy(button, true);
     const result = await api({
       action: 'eventSignup', website: event.target.querySelector('[name="website"]').value,
       fields: { eventId: current.id, sessions, name: asMember ? '' : $('evName').value, phone: $('evPhone').value, email: asMember ? $('evEmail2').value : $('evEmail').value, memberId: $('evMemberId').value, note: $('evNote').value, consent: true },
     });
-    button.disabled = false;
+    setBusy(button, false);
     if (!result.ok) return fail(result.error, result.error === 'member_no_email' ? $('evEmail2') : null);
 
     $('eventForm').hidden = true;
@@ -1544,9 +1557,9 @@ if (eventList) {
     const show = (code) => { errorBox.textContent = errorMessage(code); errorBox.hidden = false; };
     if (last5.length !== 5) return show('invalid_last5');
     const button = event.target.querySelector('[type="submit"]');
-    button.disabled = true;
+    setBusy(button, true);
     const result = await api({ action: 'eventReport', id: $('erId').value, phone: $('erPhone').value, last5 });
-    button.disabled = false;
+    setBusy(button, false);
     if (!result.ok) return show(result.error);
     event.target.hidden = true;
     $('eventReportDone').classList.add('visible');

@@ -3837,3 +3837,86 @@ blockquote {
     display: block;
   }
 }
+
+/* 送出中 */
+.btn.is-busy {
+  opacity: 0.85;
+  cursor: progress;
+}
+
+.btn.is-busy::before {
+  content: '';
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  margin-right: 0.6em;
+  border: 2.5px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  vertical-align: -0.15em;
+  animation: busy-spin 0.8s linear infinite;
+}
+
+@keyframes busy-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* 訂購頁手機版：商品列不要把數量按鈕擠出畫面 */
+.order-item > div {
+  min-width: 0;
+}
+
+@media (max-width: 480px) {
+  .order-item {
+    grid-template-columns: 72px 1fr;
+    gap: 14px;
+    align-items: start;
+  }
+
+  .order-item strong {
+    font-size: 1.02rem;
+  }
+
+  .stepper {
+    gap: 6px;
+  }
+
+  .stepper input {
+    width: 64px;
+  }
+}
+
+/* 訂購完成：匯款資訊一項一行；手機上標題與內容上下排 */
+#doneBank {
+  white-space: pre-line;
+  line-height: 1.8;
+}
+
+.order-done .org-facts dd {
+  color: var(--brown);
+  font-weight: 700;
+}
+
+@media (max-width: 480px) {
+  .order-done .org-facts {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+
+  .order-done .org-facts dt {
+    margin-top: 12px;
+    font-size: 0.88rem;
+    color: var(--muted);
+  }
+}
+
+.order-item strong,
+.order-item p {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 480px) {
+  .join-form > .join-section {
+    padding-inline: 16px;
+  }
+}
