@@ -3767,3 +3767,73 @@ blockquote {
   color: var(--teal-deep);
   font-weight: 700;
 }
+
+/* 手機：段落裡的長子句放不進一行時，整塊會被硬切。窄螢幕改回一般斷行，並讓每行長度平均，避免最後一行只剩一兩個字 */
+@media (max-width: 600px) {
+  p .nb,
+  li .nb {
+    display: inline;
+  }
+
+  p:has(.nb) {
+    text-wrap: pretty;
+  }
+
+  /* 標題：子句太長時不要硬切成「…顧／好。」，改成各行長度平均 */
+  h1 .nb,
+  h2 .nb {
+    display: inline;
+  }
+
+  h1,
+  h2 {
+    text-wrap: balance;
+  }
+}
+
+/* 「會員不推薦」標籤：白底紅字，避免被 .vendor-item span 的灰色字蓋掉 */
+.vendor-item .vendor-against {
+  padding: 3px 12px;
+  border: 2px solid var(--red-deep);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--red-deep);
+  font-size: 0.86rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+/* 簽名板：「清除重簽」移到簽名區外面，不擋到簽名；手機上簽名區加高 */
+.signature-pad {
+  overflow: visible;
+  margin-bottom: 46px;
+}
+
+.signature-pad canvas {
+  border-radius: 16px;
+  aspect-ratio: 2 / 1; /* 畫布是 900×450：比原本高，手機上比較好簽 */
+}
+
+.signature-pad button {
+  right: 0;
+  bottom: -44px;
+}
+
+
+/* 首頁大標題：電腦兩行（第二、三段接在一起），手機三行 */
+.hero h1 .hl {
+  display: block;
+}
+
+.hero h1 .hl + .hl-join,
+.hero h1 .hl:has(+ .hl-join) {
+  display: inline;
+}
+
+@media (max-width: 600px) {
+  .hero h1 .hl + .hl-join,
+  .hero h1 .hl:has(+ .hl-join) {
+    display: block;
+  }
+}
