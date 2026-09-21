@@ -483,9 +483,13 @@ const logout = (errorCode) => {
 if (dashboard) {
   const session = getSession();
   if (session) {
+    // 重新整理時：先維持登入後的畫面，資料回來再填上，不要閃回登入框
+    showDashboard(session.member, [], {});
+    if (memberGreeting) memberGreeting.textContent = `${session.member.name}（${session.member.id}）您好，資料載入中…`;
     api({ action: 'vendors', token: session.token }).then((result) => {
       if (result.ok) showDashboard(session.member, result.vendors, result);
-      else logout(result.error === 'unauthorized' ? 'unauthorized' : null);
+      else if (result.error === 'unauthorized') logout('unauthorized'); // 憑證過期（12 小時）才需要重新登入
+      else if (memberGreeting) memberGreeting.textContent = `${session.member.name}（${session.member.id}）您好。資料暫時載入不了，請稍後再重新整理一次。`;
     });
   }
 }
@@ -993,7 +997,17 @@ if (volunteerLoginForm) {
 
   const saved = getV();
   if (saved) {
-    api({ action: 'volunteerHome', token: saved.token }).then((result) => (result.ok ? render(result) : signOut(result.error === 'unauthorized' ? 'unauthorized' : null)));
+    // 重新整理時：先維持登入後的畫面，不要閃回登入框；只有憑證過期才登出
+    const greeting = document.getElementById('volunteerGreeting');
+    loginBox.hidden = true;
+    board.hidden = false;
+    document.body.classList.add('volunteer-in');
+    if (greeting) greeting.textContent = '資料載入中…';
+    api({ action: 'volunteerHome', token: saved.token }).then((result) => {
+      if (result.ok) render(result);
+      else if (result.error === 'unauthorized') signOut('unauthorized');
+      else if (greeting) greeting.textContent = '資料暫時載入不了，請稍後再重新整理一次。';
+    });
   }
 
   volunteerLoginForm.addEventListener('submit', async (event) => {
