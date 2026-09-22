@@ -130,7 +130,7 @@ const demoApi = async (payload) => {
     return { ok: true, orderId: 'B000000001', total: unit * Number(f.quantity) + fee, bank: { name: '（示範模式）', account: '000-000-000000' } };
   }
   if (payload.action === 'vendors') return { ok: true, ...DEMO_SERVICES };
-  if (payload.action === 'reviewLogin' || payload.action === 'reviewVote') {
+  if (payload.action === 'reviewLogin' || payload.action === 'reviewOpen' || payload.action === 'reviewVote') {
     const yes = payload.action === 'reviewVote' && payload.result === 'yes';
     return { ok: true, token: 'demo', me: { name: '示範理事', role: 'director', title: '理事' }, status: '審核中', created: '2026-09-22',
       applicant: { type: '個人會員', name: '示範申請人', items: [['性別', '女'], ['現職', '示範公司／經理'], ['居住社區', '示範社區／臺中市北屯區'], ['委員經歷', '主委、第三屆、在職'], ['得知管道', '朋友介紹'], ['入會目的', '學習成長, 廠商名單']] },
@@ -1609,6 +1609,7 @@ if (reviewLoginForm) {
   const $ = (id) => document.getElementById(id);
   const reviewId = new URLSearchParams(location.search).get('id') || '';
   let reviewToken = '';
+  const reviewKey = new URLSearchParams(location.search).get('k') || '';
   if (!reviewId) { $('reviewStatus').hidden = false; $('reviewStatus').textContent = '這個連結缺少審核編號，請向秘書處索取正確的連結。'; reviewLoginForm.querySelector('[type="submit"]').disabled = true; }
 
   const render = (data) => {
@@ -1654,6 +1655,19 @@ if (reviewLoginForm) {
     if (!data.ok) { errorBox.textContent = errorMessage(data.error); errorBox.hidden = false; return; }
     render(data);
   };
+  // 專屬連結：直接打開，不用登入
+  if (reviewId && reviewKey) {
+    $('reviewLogin').hidden = true;
+    $('reviewStatus').hidden = false;
+    $('reviewStatus').textContent = '載入中…';
+    api({ action: 'reviewOpen', id: reviewId, k: reviewKey }).then((result) => {
+      $('reviewStatus').hidden = true;
+      if (result.ok) return render(result);
+      $('reviewLogin').hidden = false;
+      $('reviewLoginError').textContent = errorMessage(result.error) + ' 也可以用會員編號登入。';
+      $('reviewLoginError').hidden = false;
+    });
+  }
   $('rvYes').addEventListener('click', () => vote('yes', $('rvYes')));
   $('rvNo').addEventListener('click', () => vote('no', $('rvNo')));
 }
