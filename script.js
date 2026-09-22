@@ -59,6 +59,8 @@ const ERROR_MESSAGES = {
   invalid_email: '電子信箱格式不正確。',
   invalid_city: '請選擇社區所在縣市。',
   missing_consent: '請勾選同意事項。',
+  sold_out: '這本書目前已售完，補印後會在官網公告。',
+  stock_short: '庫存不夠這個數量，請減少本數，或洽 LINE「寓委聯小幫手」。',
   no_session_selected: '請至少勾選一個要報名的環節。',
   event_closed: '這場活動已經截止報名，或內容有更新，請重新整理頁面。',
   member_only: '你勾選的環節只開放會員或志工報名。會員請填會員編號，並使用入會時登記的手機。',
@@ -1198,6 +1200,17 @@ if (orderForm) {
     document.querySelectorAll('[data-price]').forEach((el) => (el.textContent = config[el.dataset.price]));
     document.querySelectorAll('[data-fee]').forEach((el) => (el.textContent = config.shipping[el.dataset.fee]?.fee ?? el.textContent));
     document.querySelectorAll('[data-max]').forEach((el) => (el.textContent = config.shipping[el.dataset.max]?.max ?? el.textContent));
+    // 庫存：銷售紀錄表有設定時才會有數字；售完就關閉訂購
+    const stockEl = document.getElementById('orderStock');
+    if (stockEl && config.stock != null) {
+      stockEl.hidden = false;
+      if (config.stock > 0) stockEl.textContent = `目前庫存 ${config.stock} 本`;
+      else {
+        stockEl.textContent = '目前已售完，補印後會在官網公告。';
+        stockEl.classList.add('is-soldout');
+        orderForm.querySelector('[type="submit"]').disabled = true;
+      }
+    }
     refresh();
   });
   refresh();

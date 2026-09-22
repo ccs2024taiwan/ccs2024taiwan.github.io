@@ -3886,37 +3886,13 @@ blockquote {
   }
 }
 
-/* 訂購完成：匯款資訊一項一行；手機上標題與內容上下排 */
-#doneBank {
-  white-space: pre-line;
-  line-height: 1.8;
-}
-
-.order-done .org-facts dd {
-  color: var(--brown);
+.order-stock {
+  margin: -6px 0 10px;
+  font-size: 0.9rem;
   font-weight: 700;
+  color: var(--teal-deep);
 }
 
-@media (max-width: 480px) {
-  .order-done .org-facts {
-    grid-template-columns: 1fr;
-    gap: 2px;
-  }
-
-  .order-done .org-facts dt {
-    margin-top: 12px;
-    font-size: 0.88rem;
-    color: var(--muted);
-  }
-}
-
-.order-item strong,
-.order-item p {
-  overflow-wrap: anywhere;
-}
-
-@media (max-width: 480px) {
-  .join-form > .join-section {
-    padding-inline: 16px;
-  }
+.order-stock.is-soldout {
+  color: var(--red-deep);
 }
