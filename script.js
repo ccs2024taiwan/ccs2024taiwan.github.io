@@ -59,6 +59,10 @@ const ERROR_MESSAGES = {
   invalid_email: '電子信箱格式不正確。',
   invalid_city: '請選擇社區所在縣市。',
   missing_consent: '請勾選同意事項。',
+  review_not_found: '找不到這筆審核，可能已經結束或連結不對。',
+  not_officer: '這個會員編號不在理監事名單裡，無法檢視審核資料。',
+  not_director: '只有理事可以投票。',
+  review_closed: '這筆審核已經結束，不能再投票。',
   sold_out: '這本書目前已售完，補印後會在官網公告。',
   stock_short: '庫存不夠這個數量，請減少本數，或洽 LINE「寓委聯小幫手」。',
   no_session_selected: '請至少勾選一個要報名的環節。',
@@ -126,6 +130,12 @@ const demoApi = async (payload) => {
     return { ok: true, orderId: 'B000000001', total: unit * Number(f.quantity) + fee, bank: { name: '（示範模式）', account: '000-000-000000' } };
   }
   if (payload.action === 'vendors') return { ok: true, ...DEMO_SERVICES };
+  if (payload.action === 'reviewLogin' || payload.action === 'reviewVote') {
+    const yes = payload.action === 'reviewVote' && payload.result === 'yes';
+    return { ok: true, token: 'demo', me: { name: '示範理事', role: 'director', title: '理事' }, status: '審核中', created: '2026-09-22',
+      applicant: { type: '個人會員', name: '示範申請人', items: [['性別', '女'], ['現職', '示範公司／經理'], ['居住社區', '示範社區／臺中市北屯區'], ['委員經歷', '主委、第三屆、在職'], ['得知管道', '朋友介紹'], ['入會目的', '學習成長, 廠商名單']] },
+      tally: { yes: yes ? 3 : 2, no: 1, total: 9, needed: 5 }, votes: [{ name: '理事甲', result: '同意', note: '', when: '9/22 10:00' }, { name: '理事乙', result: '不同意', note: '建議先參加活動', when: '9/22 11:30' }].concat(payload.action === 'reviewVote' ? [{ name: '示範理事', result: yes ? '同意' : '不同意', note: payload.note || '', when: '剛剛' }] : []), myVote: payload.action === 'reviewVote' ? (yes ? '同意' : '不同意') : '' };
+  }
   if (payload.action === 'events') {
     return { ok: true, bank: DEMO_SERVICES.membership.dues.bank, events: [{
       id: 'demo1151115', title: '（示範）會員講座＋社區坐一坐', date: '2026-11-15', weekday: '日', place: '示範社區交誼廳', deadline: '2026-11-10',
@@ -1591,4 +1601,59 @@ if (eventList) {
     else if (events.length === 1 && !params.get('report')) openEvent(events[0].id);
     else showList();
   });
+}
+
+// ── 入會申請線上審核（review.html）──
+const reviewLoginForm = document.getElementById('reviewLoginForm');
+if (reviewLoginForm) {
+  const $ = (id) => document.getElementById(id);
+  const reviewId = new URLSearchParams(location.search).get('id') || '';
+  let reviewToken = '';
+  if (!reviewId) { $('reviewStatus').hidden = false; $('reviewStatus').textContent = '這個連結缺少審核編號，請向秘書處索取正確的連結。'; reviewLoginForm.querySelector('[type="submit"]').disabled = true; }
+
+  const render = (data) => {
+    reviewToken = data.token;
+    $('reviewLogin').hidden = true;
+    $('reviewBoard').hidden = false;
+    $('rvGreeting').textContent = `${data.me.name}（${data.me.title}）您好。`;
+    $('rvStatusBadge').textContent = data.status;
+    $('rvStatusBadge').className = 'badge ' + (data.status === '通過' ? 'badge-teal' : data.status === '未通過' ? 'badge-red' : 'badge-yellow');
+    $('rvType').textContent = data.applicant.type;
+    $('rvName').textContent = data.applicant.name;
+    $('rvItems').replaceChildren(...data.applicant.items.filter(([, v]) => v).flatMap(([k, v]) => { const dt = document.createElement('dt'); dt.textContent = k; const dd = document.createElement('dd'); dd.textContent = v; return [dt, dd]; }));
+    $('rvCreated').textContent = data.created ? `申請送審日期：${data.created}` : '';
+    const director = data.me.role === 'director';
+    const open = data.status === '審核中';
+    $('rvYes').hidden = $('rvNo').hidden = !director || !open;
+    $('rvNote').closest('.form-group').hidden = !director || !open;
+    $('rvNoVote').hidden = director;
+    $('rvMine').textContent = !open ? `這筆審核已${data.status}。` : data.myVote ? `你已投「${data.myVote}」，改按會以最後一次為準。` : '你還沒有投票。';
+    $('rvYesCount').textContent = data.tally.yes;
+    $('rvNoCount').textContent = data.tally.no;
+    $('rvNeeded').textContent = `${data.tally.needed}／${data.tally.total}`;
+    $('rvVotes').replaceChildren(...data.votes.map((v) => { const li = document.createElement('li'); const b = document.createElement('b'); b.textContent = v.result; b.className = v.result === '同意' ? 'ok' : ''; li.append(b, ` ${v.name}${v.note ? '：' + v.note : ''}`); const s = document.createElement('small'); s.textContent = v.when; li.append(s); return li; }));
+  };
+
+  reviewLoginForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const errorBox = $('reviewLoginError');
+    errorBox.hidden = true;
+    const button = reviewLoginForm.querySelector('[type="submit"]');
+    setBusy(button, true);
+    const result = await api({ action: 'reviewLogin', id: reviewId, memberId: $('rvMemberId').value, phone: $('rvPhone').value });
+    setBusy(button, false);
+    if (!result.ok) { errorBox.textContent = errorMessage(result.error); errorBox.hidden = false; return; }
+    render(result);
+  });
+  const vote = async (result, button) => {
+    const errorBox = $('reviewError');
+    errorBox.hidden = true;
+    setBusy(button, true);
+    const data = await api({ action: 'reviewVote', id: reviewId, token: reviewToken, result, note: $('rvNote').value });
+    setBusy(button, false);
+    if (!data.ok) { errorBox.textContent = errorMessage(data.error); errorBox.hidden = false; return; }
+    render(data);
+  };
+  $('rvYes').addEventListener('click', () => vote('yes', $('rvYes')));
+  $('rvNo').addEventListener('click', () => vote('no', $('rvNo')));
 }

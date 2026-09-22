@@ -3896,3 +3896,73 @@ blockquote {
 .order-stock.is-soldout {
   color: var(--red-deep);
 }
+
+/* 入會申請審核 */
+.review-grid {
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  gap: 24px;
+  align-items: start;
+}
+
+.review-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 6px 0 12px;
+}
+
+.review-tally {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1.5px dashed var(--border);
+}
+
+.review-votes {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.review-votes li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.95rem;
+}
+
+.review-votes b {
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--red-deep);
+  color: #fff;
+  font-size: 0.8rem;
+}
+
+.review-votes b.ok {
+  background: var(--teal-deep);
+}
+
+.review-votes small {
+  margin-left: auto;
+  color: var(--muted);
+}
+
+.badge-yellow {
+  background: var(--yellow);
+  color: var(--brown);
+}
+
+.badge-red {
+  background: var(--red-deep);
+  color: #fff;
+}
+
+@media (max-width: 760px) {
+  .review-grid {
+    grid-template-columns: 1fr;
+  }
+}
