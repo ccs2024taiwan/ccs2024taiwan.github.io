@@ -59,6 +59,7 @@ const ERROR_MESSAGES = {
   invalid_email: '電子信箱格式不正確。',
   invalid_city: '請選擇社區所在縣市。',
   missing_consent: '請勾選同意事項。',
+  pay_unavailable: '線上付款暫時無法使用，請改選銀行轉帳。',
   sold_out: '這本書目前已售完，補印後會在官網公告。',
   stock_short: '庫存不夠這個數量，請減少本數，或洽 LINE「寓委聯小幫手」。',
   no_session_selected: '請至少勾選一個要報名的環節。',
@@ -1186,6 +1187,7 @@ if (orderForm) {
       box.querySelectorAll('input, select').forEach((el) => (el.disabled = !active));
     });
     orderForm.querySelectorAll('[data-payment]').forEach((el) => (el.hidden = !config.payments.includes(el.dataset.payment)));
+    if (config.onlineMethods && config.onlineMethods.length) document.getElementById('onlineMethods').textContent = config.onlineMethods.join('、') + '，付款完成即自動確認';
   };
 
   orderForm.addEventListener('input', refresh);
@@ -1250,6 +1252,15 @@ if (orderForm) {
     setBusy(button, false);
     if (!result.ok) return fail(result.error, result.error === 'member_not_verified' ? orderForm.querySelector('[name="memberId"]') : null);
 
+    if (result.pay) { // 線上付款：帶著藍新要的欄位跳轉到付款頁
+      const form = document.createElement('form');
+      form.method = 'POST';
+      form.action = result.pay.url;
+      Object.entries(result.pay.fields).forEach(([name, value]) => form.append(Object.assign(document.createElement('input'), { type: 'hidden', name, value })));
+      document.body.append(form);
+      form.submit();
+      return;
+    }
     document.getElementById('doneOrderId').textContent = result.orderId;
     document.getElementById('doneTotal').textContent = money(result.total);
     const bank = result.bank || {};
@@ -1270,6 +1281,20 @@ if (orderForm) {
   if (reportId) {
     document.getElementById('reportOrderId').value = reportId;
     document.getElementById('reportSection').scrollIntoView?.({ block: 'start' });
+  }
+  // 線上付款完成後從藍新回來：order.html?paid=訂單編號&status=SUCCESS
+  const paidId = new URLSearchParams(location.search).get('paid');
+  if (paidId) {
+    const ok = new URLSearchParams(location.search).get('status') === 'SUCCESS';
+    const note = document.createElement('div');
+    note.className = 'panel order-done';
+    note.style.marginBottom = '28px';
+    note.innerHTML = ok
+      ? '<span class="badge badge-teal">付款完成</span><h2>謝謝你的訂購！</h2><p>訂單編號 <b></b>。款項已收到，確認信稍後會寄到你的信箱；選 ATM 轉帳的話，轉帳完成後系統會自動確認。</p>'
+      : '<span class="badge badge-red">付款未完成</span><h2>這筆訂單還沒付款</h2><p>訂單編號 <b></b>。你可以重新下單選擇線上付款，或改用銀行轉帳；有問題請洽 LINE「寓委聯小幫手」。</p>';
+    note.querySelector('b').textContent = paidId;
+    orderForm.closest('[data-order-layout]').before(note);
+    note.scrollIntoView?.({ block: 'start' });
   }
   reportForm.addEventListener('submit', async (event) => {
     event.preventDefault();

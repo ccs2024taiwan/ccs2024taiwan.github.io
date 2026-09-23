@@ -123,8 +123,7 @@
               <legend><span></span>付款方式</legend>
               <div class="choice-grid choice-grid-2">
                 <label class="choice" data-payment="transfer"><input type="radio" name="payment" value="transfer" checked /><span>銀行轉帳<small>下單後顯示匯款帳號，匯款後回報帳號後五碼</small></span></label>
-                <label class="choice" data-payment="card" hidden><input type="radio" name="payment" value="card" /><span>信用卡<small>線上刷卡，付款完成即確認</small></span></label>
-                <label class="choice" data-payment="linepay" hidden><input type="radio" name="payment" value="linepay" /><span>LINE Pay<small>付款完成即確認</small></span></label>
+                <label class="choice" data-payment="online" hidden><input type="radio" name="payment" value="online" /><span>線上付款<small id="onlineMethods">信用卡、LINE Pay、ATM，付款完成即自動確認</small></span></label>
               </div>
               <label class="consent">
                 <input name="consent" type="checkbox" required />
