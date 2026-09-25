@@ -122,7 +122,7 @@ const demoApi = async (payload) => {
   if (payload.action === 'order') {
     const f = payload.fields;
     if (f.buyer === 'member' && !(f.memberId.trim().toUpperCase() === DEMO_MEMBER.id && f.memberPhone.replace(/\D/g, '').slice(-3) === DEMO_MEMBER.phone.slice(-3))) return { ok: false, error: 'member_not_verified' };
-    const unit = f.buyer === 'member' ? 100 : 180;
+    const unit = f.product === 'v1' ? (f.buyer === 'member' ? 90 : 170) : f.buyer === 'member' ? 100 : 180;
     const fee = { post: 50, cvs: 60, meet: 0 }[f.shipping] ?? 50;
     return { ok: true, orderId: 'B000000001', total: unit * Number(f.quantity) + fee, bank: { name: '（示範模式）', account: '000-000-000000' } };
   }
@@ -1162,7 +1162,7 @@ if (volunteerLoginForm) {
 const orderForm = document.querySelector('[data-order]');
 if (orderForm) {
   const money = (n) => `NT$ ${Number(n).toLocaleString('en-US')}`;
-  let config = { price: 180, memberPrice: 100, maxQuantity: 50, shipping: { post: { label: '郵局寄送', fee: 50, max: 20 }, cvs: { label: '7-11 店到店', fee: 60, max: 20 }, meet: { label: '面交', fee: 0, max: 50 } }, payments: ['transfer'] };
+  let config = { price: 180, memberPrice: 100, products: [{ key: 'v2', name: '新手委員教戰手冊（第二版）', price: 180, memberPrice: 100, stock: null }, { key: 'v1', name: '新手委員教戰手冊（第一版）', price: 170, memberPrice: 90, stock: null }], defaultProduct: 'v2', maxQuantity: 50, shipping: { post: { label: '郵局寄送', fee: 50, max: 20 }, cvs: { label: '7-11 店到店', fee: 60, max: 20 }, meet: { label: '面交', fee: 0, max: 50 } }, payments: ['transfer'] };
   const maxFor = () => config.shipping[val('shipping')]?.max || config.maxQuantity;
   const orderError = orderForm.querySelector('[data-order-error]');
   const qty = orderForm.querySelector('[name="quantity"]');
@@ -1174,9 +1174,21 @@ if (orderForm) {
     const n = Math.min(maxFor(), Math.max(1, Math.floor(Number(qty.value)) || 1));
     qty.max = maxFor();
     if (Number(qty.value) > maxFor()) qty.value = maxFor();
-    const unit = member ? config.memberPrice : config.price;
+    const product = (config.products || []).find((p) => p.key === val('product')) || config.products?.[0] || config;
+    const unit = member ? product.memberPrice : product.price;
     const fee = config.shipping[shipping].fee;
-    document.getElementById('sumBooks').textContent = `${money(unit)} × ${n}`;
+    orderForm.querySelector('[data-unit="general"]').textContent = product.price;
+    orderForm.querySelector('[data-unit="member"]').textContent = product.memberPrice;
+    // 庫存：這個版本有銷售紀錄表才顯示；售完就不能送出
+    const stockEl = document.getElementById('orderStock');
+    const submit = orderForm.querySelector('[type="submit"]');
+    if (stockEl) {
+      stockEl.hidden = product.stock == null;
+      stockEl.classList.toggle('is-soldout', product.stock === 0);
+      stockEl.textContent = product.stock === 0 ? '這個版本目前已售完。' : product.stock != null ? `目前庫存 ${product.stock} 本` : '';
+      submit.disabled = product.stock === 0;
+    }
+    document.getElementById('sumBooks').textContent = `${product.name ? product.name.replace('新手委員教戰手冊', '') + ' ' : ''}${money(unit)} × ${n}`;
     document.getElementById('sumShipping').textContent = `${config.shipping[shipping].label} ${money(fee)}`;
     document.getElementById('sumTotal').textContent = money(unit * n + fee);
     // 依選項顯示對應欄位；隱藏的欄位停用，才不會被當成必填
@@ -1199,20 +1211,9 @@ if (orderForm) {
   });
   api({ action: 'orderConfig' }).then((result) => {
     if (result.ok) config = result;
-    document.querySelectorAll('[data-price]').forEach((el) => (el.textContent = config[el.dataset.price]));
     document.querySelectorAll('[data-fee]').forEach((el) => (el.textContent = config.shipping[el.dataset.fee]?.fee ?? el.textContent));
     document.querySelectorAll('[data-max]').forEach((el) => (el.textContent = config.shipping[el.dataset.max]?.max ?? el.textContent));
-    // 庫存：銷售紀錄表有設定時才會有數字；售完就關閉訂購
-    const stockEl = document.getElementById('orderStock');
-    if (stockEl && config.stock != null) {
-      stockEl.hidden = false;
-      if (config.stock > 0) stockEl.textContent = `目前庫存 ${config.stock} 本`;
-      else {
-        stockEl.textContent = '目前已售完，補印後會在官網公告。';
-        stockEl.classList.add('is-soldout');
-        orderForm.querySelector('[type="submit"]').disabled = true;
-      }
-    }
+    (config.products || []).forEach((p) => { orderForm.querySelector(`[data-product-price="${p.key}"]`) && (orderForm.querySelector(`[data-product-price="${p.key}"]`).textContent = p.price); orderForm.querySelector(`[data-product-member="${p.key}"]`) && (orderForm.querySelector(`[data-product-member="${p.key}"]`).textContent = p.memberPrice); });
     refresh();
   });
   refresh();

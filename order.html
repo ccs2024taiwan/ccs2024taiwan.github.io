@@ -59,8 +59,11 @@
               <div class="order-item">
                 <img src="assets/book-cover.jpg" alt="" width="640" height="1001" loading="lazy" />
                 <div>
-                  <strong>新手委員教戰手冊（第二版）</strong>
-                  <p>定價 <span data-price="price">180</span> 元・會員價 <span data-price="memberPrice">100</span> 元</p>
+                  <strong>新手委員教戰手冊</strong>
+                  <div class="choice-grid choice-grid-2 product-choice">
+                    <label class="choice"><input type="radio" name="product" value="v2" checked /><span>第二版<small>定價 <b data-product-price="v2">180</b> 元・會員價 <b data-product-member="v2">100</b> 元</small></span></label>
+                    <label class="choice"><input type="radio" name="product" value="v1" /><span>第一版<small>定價 <b data-product-price="v1">170</b> 元・會員價 <b data-product-member="v1">90</b> 元</small></span></label>
+                  </div>
                   <p id="orderStock" class="order-stock" hidden></p>
                   <div class="stepper">
                     <button type="button" data-step="-1" aria-label="減少一本">−</button>
@@ -71,8 +74,8 @@
                 </div>
               </div>
               <div class="choice-grid choice-grid-2">
-                <label class="choice"><input type="radio" name="buyer" value="general" checked /><span>一般訂購<small>每本 <b data-price="price">180</b> 元</small></span></label>
-                <label class="choice"><input type="radio" name="buyer" value="member" /><span>我是會員<small>每本 <b data-price="memberPrice">100</b> 元，需驗證會員編號</small></span></label>
+                <label class="choice"><input type="radio" name="buyer" value="general" checked /><span>一般訂購<small>每本 <b data-unit="general">180</b> 元</small></span></label>
+                <label class="choice"><input type="radio" name="buyer" value="member" /><span>我是會員<small>每本 <b data-unit="member">100</b> 元，需驗證會員編號</small></span></label>
               </div>
               <div class="form-row" data-show="buyer=member" hidden>
                 <div class="form-group"><label class="required" for="o-memberId">會員編號</label><input id="o-memberId" name="memberId" type="text" placeholder="例：B00012" required /></div>

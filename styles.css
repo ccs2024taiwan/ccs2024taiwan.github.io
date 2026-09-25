@@ -3896,3 +3896,11 @@ blockquote {
 .order-stock.is-soldout {
   color: var(--red-deep);
 }
+
+.product-choice {
+  margin: 6px 0 10px;
+}
+
+.product-choice .choice {
+  padding: 10px 14px;
+}
