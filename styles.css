@@ -3904,3 +3904,14 @@ blockquote {
 .product-choice .choice {
   padding: 10px 14px;
 }
+
+@media (max-width: 600px) {
+  .product-choice {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .product-choice .choice small {
+    white-space: nowrap;
+  }
+}
