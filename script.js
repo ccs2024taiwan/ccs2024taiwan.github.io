@@ -59,6 +59,8 @@ const ERROR_MESSAGES = {
   invalid_email: '電子信箱格式不正確。',
   invalid_city: '請選擇社區所在縣市。',
   missing_consent: '請勾選同意事項。',
+  topic_not_found: '找不到這個主題，請重新整理頁面。',
+  too_fast: '留言太頻繁了，請稍等一分鐘再送。',
   pay_unavailable: '線上付款暫時無法使用，請改選銀行轉帳。',
   sold_out: '這本書目前已售完，補印後會在官網公告。',
   stock_short: '庫存不夠這個數量，請減少本數，或洽 LINE「寓委聯小幫手」。',
@@ -127,6 +129,12 @@ const demoApi = async (payload) => {
     return { ok: true, orderId: 'B000000001', total: unit * Number(f.quantity) + fee, bank: { name: '（示範模式）', account: '000-000-000000' } };
   }
   if (payload.action === 'vendors') return { ok: true, ...DEMO_SERVICES };
+  if (payload.action === 'forum' || payload.action === 'forumReply') {
+    return { ok: true, topics: [
+      { id: 'demo1', title: '（示範）機車位該不該收費？各社區怎麼定價', category: '停車管理', date: '2024/10', question: '一個 200 戶的社區想開始對機車位收費，想知道各社區怎麼定價、收來的錢怎麼用。', views: ['多數社區每月 50～100 元，用來支付車位地坪與照明維護。', '也有社區不收費，但要求登記車牌，方便管理。', '有委員提醒：收費前先盤點車位數，避免供不應求。'], takeaway: '沒有標準答案；多數人建議先做車位盤點，再依維護成本訂價，並經區權會決議。', caveat: '', quote: '一位主委說：「收費不是為了賺錢，是讓車位有人管。」', replies: [{ name: '示範會員', text: '我們社區每月 60 元，收來專款專用在車位照明。', when: '2026/9/20' }].concat(payload.action === 'forumReply' ? [{ name: '示範會員', text: payload.text, when: '剛剛' }] : []) },
+      { id: 'demo2', title: '（示範）物業公司要換，交接期要注意什麼', category: '物業管理', date: '2023/12', question: '社區決定更換物業公司，新舊交接期該注意哪些事，才不會出現空窗。', views: ['把鑰匙、監視器帳號、門禁資料列清單逐項點交。', '舊物業的最後一個月要求留下完整的收支明細。', '新物業進場前先做一次設備巡檢，缺失拍照存證。'], takeaway: '交接要有書面清單、雙方簽名，管委會派人全程在場。', caveat: '', quote: '', replies: [] },
+    ] };
+  }
   if (payload.action === 'events') {
     return { ok: true, bank: DEMO_SERVICES.membership.dues.bank, events: [{
       id: 'demo1151115', title: '（示範）會員講座＋社區坐一坐', date: '2026-11-15', weekday: '日', place: '示範社區交誼廳', deadline: '2026-11-10',
@@ -1616,5 +1624,101 @@ if (eventList) {
     if (wanted && events.some((e) => e.id === wanted)) openEvent(wanted);
     else if (events.length === 1 && !params.get('report')) openEvent(events[0].id);
     else showList();
+  });
+}
+
+// ── 經典討論串（forum.html、portal.html 登入前）──
+const forumListEl = document.getElementById('forumList');
+const portalForumList = document.getElementById('portalForumList');
+if (forumListEl || portalForumList) {
+  const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; };
+  let topics = [];
+  let category = 'all';
+  const wantedId = new URLSearchParams(location.search).get('id');
+
+  const renderReplies = (box, topic) => {
+    box.replaceChildren(...topic.replies.map((r) => { const li = el('li', 'forum-reply'); li.append(el('b', '', r.name), el('span', '', r.text), el('small', '', r.when)); return li; }));
+    box.hidden = !topic.replies.length;
+  };
+
+  const renderTopic = (topic, open) => {
+    const card = el('article', 'forum-topic' + (open ? ' is-open' : ''));
+    card.id = 'topic-' + topic.id;
+    const head = el('button', 'forum-head');
+    head.type = 'button';
+    head.setAttribute('aria-expanded', open ? 'true' : 'false');
+    head.append(el('span', 'forum-cat', topic.category || '討論'), el('h3', '', topic.title), el('small', '', [topic.date, topic.replies.length ? `${topic.replies.length} 則留言` : ''].filter(Boolean).join('｜')));
+    const body = el('div', 'forum-body');
+    body.hidden = !open;
+    const q = el('div', 'forum-block'); q.append(el('h4', '', '問題'), el('p', '', topic.question));
+    const v = el('div', 'forum-block'); v.append(el('h4', '', '大家怎麼說')); const ul = el('ul', 'forum-views'); ul.append(...topic.views.map((x) => el('li', '', x))); v.append(ul);
+    body.append(q, v);
+    if (topic.takeaway) { const t = el('div', 'forum-block forum-takeaway'); t.append(el('h4', '', '結論'), el('p', '', topic.takeaway)); body.append(t); }
+    if (topic.quote) body.append(el('blockquote', 'forum-quote', topic.quote));
+    if (topic.caveat) body.append(el('p', 'form-note', '提醒：' + topic.caveat));
+    const rBox = el('div', 'forum-replies');
+    rBox.append(el('h4', '', '會員留言'));
+    const rList = el('ul', 'forum-reply-list');
+    renderReplies(rList, topic);
+    const rEmpty = el('p', 'form-note', '還沒有人留言，來當第一個。');
+    rEmpty.hidden = topic.replies.length > 0;
+    rBox.append(rList, rEmpty);
+    const session = getSession();
+    if (session) {
+      const form = el('form', 'forum-form');
+      const ta = el('textarea'); ta.placeholder = '分享你們社區的做法，或補充你的看法…'; ta.maxLength = 1000; ta.required = true;
+      const row = el('div', 'forum-form-row');
+      row.append(el('small', '', `以「${session.member.name}」留言`), Object.assign(el('button', 'btn btn-primary', '送出留言'), { type: 'submit' }));
+      const err = el('p', 'form-error'); err.hidden = true;
+      form.append(ta, row, err);
+      form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        err.hidden = true;
+        const button = form.querySelector('[type="submit"]');
+        setBusy(button, true);
+        const result = await api({ action: 'forumReply', token: session.token, topic: topic.id, text: ta.value });
+        setBusy(button, false);
+        if (!result.ok) { if (result.error === 'unauthorized') return logout('unauthorized'); err.textContent = errorMessage(result.error); err.hidden = false; return; }
+        ta.value = '';
+        const fresh = (result.topics || []).find((t) => t.id === topic.id);
+        if (fresh) { topic.replies = fresh.replies; renderReplies(rList, topic); rEmpty.hidden = true; }
+      });
+      rBox.append(form);
+    } else {
+      const note = el('p', 'form-note');
+      note.append('登入會員後就可以留言。', Object.assign(el('a', 'text-link-inline', '前往會員登入'), { href: 'portal.html' }));
+      rBox.append(note);
+    }
+    body.append(rBox);
+    head.addEventListener('click', () => { const show = body.hidden; body.hidden = !show; card.classList.toggle('is-open', show); head.setAttribute('aria-expanded', show ? 'true' : 'false'); });
+    card.append(head, body);
+    return card;
+  };
+
+  const renderList = () => {
+    if (!forumListEl) return;
+    const q = (document.getElementById('forumSearch')?.value || '').trim().toLowerCase();
+    const shown = topics.filter((t) => (category === 'all' || t.category === category) && (!q || [t.title, t.question, t.takeaway, ...t.views].join(' ').toLowerCase().includes(q)));
+    forumListEl.replaceChildren(...shown.map((t) => renderTopic(t, shown.length === 1 || t.id === wantedId)));
+    document.getElementById('forumEmpty').hidden = shown.length > 0;
+  };
+
+  api({ action: 'forum' }).then((result) => {
+    topics = result.ok ? result.topics || [] : [];
+    const status = document.getElementById('forumStatus');
+    if (status) status.hidden = true;
+    if (portalForumList) {
+      const box = document.getElementById('portalForum');
+      box.hidden = !topics.length;
+      portalForumList.replaceChildren(...topics.slice(0, 4).map((t) => { const a = el('a', 'forum-teaser'); a.href = 'forum.html?id=' + encodeURIComponent(t.id); a.append(el('span', 'forum-cat', t.category || '討論'), el('strong', '', t.title), el('small', '', t.replies.length ? `${t.replies.length} 則留言` : t.date)); return a; }));
+    }
+    if (forumListEl) {
+      const cats = ['all', ...new Set(topics.map((t) => t.category).filter(Boolean))];
+      const tabs = document.getElementById('forumTabs');
+      tabs.replaceChildren(...cats.map((c) => { const b = el('button', 'tab-button' + (c === 'all' ? ' active' : ''), c === 'all' ? '全部' : c); b.type = 'button'; b.addEventListener('click', () => { category = c; tabs.querySelectorAll('.tab-button').forEach((x) => x.classList.toggle('active', x === b)); renderList(); }); return b; }));
+      document.getElementById('forumSearch').addEventListener('input', renderList);
+      renderList();
+      if (wantedId) setTimeout(() => document.getElementById('topic-' + wantedId)?.scrollIntoView?.({ behavior: 'smooth', block: 'start' }), 200);
+    }
   });
 }
