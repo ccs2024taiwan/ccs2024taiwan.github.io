@@ -59,6 +59,7 @@ const ERROR_MESSAGES = {
   invalid_email: '電子信箱格式不正確。',
   invalid_city: '請選擇社區所在縣市。',
   missing_consent: '請勾選同意事項。',
+  duplicate_claim: '這張請款單剛才已經送出過了（同任務、同金額）。要補品項請洽秘書長，不用重送。',
   topic_not_found: '找不到這個主題，請重新整理頁面。',
   too_fast: '留言太頻繁了，請稍等一分鐘再送。',
   pay_unavailable: '線上付款暫時無法使用，請改選銀行轉帳。',
