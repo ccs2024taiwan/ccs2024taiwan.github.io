@@ -153,9 +153,13 @@
 
             <div class="form-card zone-card" data-work="expense" hidden>
               <h3>請款申請</h3>
-              <p class="form-note" style="margin-top: 0">一張收據填一張申請，把收據上的每個品項都列進來。</p>
+              <p class="form-note" style="margin-top: 0">把收據上的每個品項都列進來。</p>
               <form data-volunteer-form="expense">
-                <div class="form-group"><label class="required" for="eTask">任務／活動名稱</label><input id="eTask" name="task" type="text" placeholder="例：管委會交流日" required /></div>
+                <div class="form-row">
+                  <div class="form-group"><label class="required" for="eTask">任務／活動名稱</label><input id="eTask" name="task" type="text" placeholder="例：管委會交流日" required /></div>
+                  <div class="form-group"><label class="required" for="eSpent">消費日期</label><input id="eSpent" name="spent" type="date" required /></div>
+                </div>
+                <p class="form-note" style="margin-top: -8px">消費日期＝收據上的日期。一張收據填一張申請。</p>
                 <div class="form-group">
                   <span class="label required">收據品項</span>
                   <div class="item-head" aria-hidden="true"><span>品名</span><span>單價</span><span>數量</span><span>小計</span><span></span></div>

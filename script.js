@@ -1110,6 +1110,7 @@ if (volunteerLoginForm) {
     signup: (form) => ({ tasks: Array.from(form.querySelectorAll('[name="tasks"]:checked')).map((box) => box.value), note: form.querySelector('[name="note"]').value }),
     expense: (form) => ({
       task: form.querySelector('[name="task"]').value,
+      spent: form.querySelector('[name="spent"]').value,
       method: form.querySelector('[name="method"]:checked').value,
       note: form.querySelector('[name="note"]').value,
       items: Array.from(itemRows.querySelectorAll('.item-row')).map((row) => ({ name: row.querySelector('[data-f="name"]').value.trim(), price: row.querySelector('[data-f="price"]').value, qty: row.querySelector('[data-f="qty"]').value })).filter((it) => it.name),
@@ -1135,7 +1136,7 @@ if (volunteerLoginForm) {
       const fields = gather[kind](form);
       const problem =
         kind === 'signup' && !fields.tasks.length ? 'nothing_selected'
-        : kind === 'expense' && (!fields.task.trim() || !fields.items.length) ? 'missing_fields'
+        : kind === 'expense' && (!fields.task.trim() || !fields.spent || !fields.items.length) ? 'missing_fields'
         : kind === 'equipment' && (!fields.task.trim() || !fields.from || (!fields.items.length && !fields.other.trim())) ? 'missing_fields'
         : '';
       if (problem) {
