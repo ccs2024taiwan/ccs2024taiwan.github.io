@@ -1046,6 +1046,62 @@ blockquote {
   }
 }
 
+/* ── 社區妖怪圖鑑（出版品頁） ── */
+.monster-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 18px;
+}
+
+.monster-card {
+  margin: 0;
+  padding: 18px 16px 16px;
+  background: var(--yellow-soft);
+  border-radius: 22px;
+  text-align: center;
+}
+
+.monster-card img {
+  width: 100%;
+  height: 180px;
+  object-fit: contain;
+}
+
+.monster-card figcaption {
+  margin-top: 10px;
+  font-size: 0.92rem;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.monster-card figcaption strong {
+  display: block;
+  margin-bottom: 2px;
+  font-size: 1.05rem;
+  color: var(--ink);
+}
+
+.sticker-strip {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 28px;
+  padding: 16px;
+  background: var(--teal-soft);
+  border-radius: 22px;
+}
+
+.sticker-strip img {
+  width: 100%;
+  height: auto;
+}
+
+@media (max-width: 720px) {
+  .sticker-strip {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
 /* ── 活動照片 ── */
 .gallery-group {
   margin-top: 48px;
