@@ -4238,3 +4238,91 @@ blockquote {
     gap: 4px;
   }
 }
+
+/* 出版品總覽 */
+.catalog-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 18px;
+  margin-bottom: 44px;
+}
+
+.catalog-card {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border: 1.5px solid var(--border);
+  border-radius: 20px;
+  background: var(--surface);
+  color: var(--brown);
+  text-decoration: none;
+  transition: transform 0.25s ease, border-color 0.25s ease;
+}
+
+.catalog-card:hover {
+  transform: translateY(-3px);
+  border-color: var(--teal);
+}
+
+.catalog-visual {
+  display: block;
+  aspect-ratio: 1 / 1;
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--cream);
+}
+
+.catalog-visual img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.catalog-visual-soft img {
+  object-fit: contain;
+  padding: 14px;
+}
+
+.catalog-body {
+  display: grid;
+  gap: 6px;
+  align-content: start;
+}
+
+.catalog-body .badge {
+  justify-self: start;
+}
+
+.catalog-body strong {
+  font-size: 1.05rem;
+  line-height: 1.45;
+}
+
+.catalog-body small {
+  color: var(--muted);
+}
+
+.catalog-cta {
+  margin-top: 4px;
+  color: var(--teal-deep);
+  font-weight: 700;
+}
+
+.sticker-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  max-width: 760px;
+  margin: 0 auto;
+}
+
+.sticker-row img {
+  width: 100%;
+  height: auto;
+}
+
+@media (max-width: 600px) {
+  .sticker-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
