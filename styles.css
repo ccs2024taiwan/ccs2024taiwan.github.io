@@ -1065,6 +1065,23 @@ blockquote {
   width: 100%;
   height: 190px;
   object-fit: contain;
+  transition: transform 0.25s ease;
+}
+
+.monster-zoom {
+  display: block;
+  cursor: zoom-in;
+}
+
+.monster-zoom:hover img {
+  transform: scale(1.06);
+}
+
+/* 妖怪圖是透明背景，放大時墊一塊淺底比較看得清楚 */
+.lightbox img[src*="/monsters/"] {
+  background: var(--cream);
+  padding: 16px;
+  box-sizing: border-box;
 }
 
 .monster-card figcaption {

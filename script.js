@@ -702,10 +702,12 @@ if (lightbox) {
     captionEl.textContent = `${photo.dataset.caption}（${position + 1}／${current.length}）`;
   };
 
-  document.querySelectorAll('.gallery-group .photo').forEach((photo) => {
+  // 活動照片（.photo-grid）與妖怪圖鑑（.monster-grid）共用同一個放大檢視；左右鍵在同一組裡切換
+  document.querySelectorAll('.gallery-group .photo, .monster-card .monster-zoom').forEach((photo) => {
     photo.addEventListener('click', (event) => {
       event.preventDefault();
-      current = Array.from(photo.closest('.photo-grid').querySelectorAll('.photo'));
+      const group = photo.closest('.photo-grid, .monster-grid');
+      current = Array.from(group.querySelectorAll('.photo, .monster-zoom'));
       show(current.indexOf(photo));
       lightbox.showModal();
     });
