@@ -48,6 +48,16 @@ const DEMO_VOLUNTEER = {
   },
 };
 
+const DEMO_EQUIPMENT = {
+  mine: [{ rowNumber: 1, applicationId: 'L000001', item: '投影機', quantity: 1, status: '已核准', borrower: '示範志工', borrowerRole: '志工', purpose: '示範活動', pickup: '2026-11-01', due: '2026-11-05', holder: '示範保管人', returnMethod: '', recipient: '', overdueDays: 0, actions: ['cancel', 'pickedUp'] }],
+  keeping: [],
+  managing: null,
+  isManager: false,
+  canKeep: true,
+  catalog: [{ name: '投影機', quantity: 1, place: '示範保管人' }, { name: '帳篷', quantity: 2, place: '示範保管人' }],
+  recipients: ['示範保管人'],
+};
+
 const ERROR_MESSAGES = {
   invalid_credentials: '會員編號或手機末三碼不符，請再確認一次。',
   locked: '錯誤次數過多，帳號已暫時鎖定。請稍後再試，或加 LINE「寓委聯小幫手」由專人協助。',
@@ -90,6 +100,9 @@ const ERROR_MESSAGES = {
   member_not_verified: '會員編號與手機末三碼對不起來，無法套用會員價。請確認後再試，或改選「一般訂購」。',
   invalid_last5: '帳號後五碼請填 5 個數字。',
   order_not_found: '找不到這筆訂單，請確認訂單編號與下單時填的手機。',
+  item_not_found: '找不到這個品項，請重新整理頁面後再選一次。',
+  member_restricted_item: '這個品項目前只開放志工借用，會員還不能借。',
+  forbidden: '你目前沒有權限做這個動作，請重新整理頁面確認狀態。',
 };
 const errorMessage = (code) => ERROR_MESSAGES[code] || '系統忙碌中，請稍後再試。';
 
@@ -160,6 +173,7 @@ const demoApi = async (payload) => {
   if (payload.action === 'sharedThumbs') return { ok: true, thumbs: {} };
   if (payload.action === 'sharedDownload') return { ok: true, name: '示範檔案.txt', mime: 'text/plain', data: btoa('This is a demo file.') };
   if (payload.action === 'members' || payload.action === 'honorRoll') return { ok: false };
+  if (payload.action === 'equipmentHome' || payload.action === 'equipmentRequest' || payload.action === 'equipmentAction') return { ok: true, applicationId: 'L000001', ...DEMO_EQUIPMENT };
   return { ok: true };
 };
 
@@ -938,40 +952,6 @@ if (volunteerLoginForm) {
     document.getElementById('reminderEmpty').hidden = items.length > 0;
   };
 
-  // 器材：像購物車一樣勾選、調整數量
-  const renderEquipment = (items) => {
-    const list = document.getElementById('cartList');
-    list.replaceChildren(
-      ...items.map((item) => {
-        const row = el('div', 'cart-row');
-        const info = el('div');
-        info.append(el('strong', '', item.name), el('small', '', [item.quantity ? `現有 ${item.quantity}` : '', item.place, item.note].filter(Boolean).join('｜')));
-        const stepper = el('div', 'stepper');
-        const minus = el('button', '', '−');
-        const plus = el('button', '', '＋');
-        const qty = el('input');
-        [minus, plus].forEach((b) => (b.type = 'button'));
-        qty.type = 'number';
-        qty.min = 0;
-        qty.max = item.quantity || 99;
-        qty.value = 0;
-        qty.dataset.cartItem = item.name;
-        qty.setAttribute('aria-label', `${item.name} 數量`);
-        const bump = (n) => {
-          qty.value = Math.min(Number(qty.max), Math.max(0, (Number(qty.value) || 0) + n));
-          row.classList.toggle('in-cart', Number(qty.value) > 0);
-        };
-        minus.addEventListener('click', () => bump(-1));
-        plus.addEventListener('click', () => bump(1));
-        qty.addEventListener('input', () => bump(0));
-        stepper.append(minus, qty, plus);
-        row.append(info, stepper);
-        return row;
-      })
-    );
-    document.getElementById('cartEmpty').hidden = items.length > 0;
-  };
-
   const render = (data) => {
     document.getElementById('volunteerGreeting').textContent = `${data.volunteer.name} 您好，謝謝你的付出。`;
     document.getElementById('vHours').textContent = data.stats.hours;
@@ -991,7 +971,6 @@ if (volunteerLoginForm) {
     }
     renderTasks(data.tasks || []);
     renderReminders(data.reminders || []);
-    renderEquipment(data.equipment || []);
     document.getElementById('receiptAddress').textContent = data.receiptAddress || '請洽秘書長';
 
     const body = document.getElementById('volunteerHistory');
@@ -1118,14 +1097,6 @@ if (volunteerLoginForm) {
       note: form.querySelector('[name="note"]').value,
       items: Array.from(itemRows.querySelectorAll('.item-row')).map((row) => ({ name: row.querySelector('[data-f="name"]').value.trim(), price: row.querySelector('[data-f="price"]').value, qty: row.querySelector('[data-f="qty"]').value })).filter((it) => it.name),
     }),
-    equipment: (form) => ({
-      task: form.querySelector('[name="task"]').value,
-      from: form.querySelector('[name="from"]').value,
-      to: form.querySelector('[name="to"]').value,
-      other: form.querySelector('[name="other"]').value,
-      note: form.querySelector('[name="note"]').value,
-      items: Array.from(form.querySelectorAll('[data-cart-item]')).map((q) => ({ name: q.dataset.cartItem, qty: Number(q.value) || 0 })).filter((it) => it.qty > 0),
-    }),
   };
 
   document.querySelectorAll('form[data-volunteer-form]').forEach((form) => {
@@ -1140,7 +1111,6 @@ if (volunteerLoginForm) {
       const problem =
         kind === 'signup' && !fields.tasks.length ? 'nothing_selected'
         : kind === 'expense' && (!fields.task.trim() || !fields.spent || !fields.items.length) ? 'missing_fields'
-        : kind === 'equipment' && (!fields.task.trim() || !fields.from || (!fields.items.length && !fields.other.trim())) ? 'missing_fields'
         : '';
       if (problem) {
         error.textContent = errorMessage(problem);
@@ -1167,6 +1137,268 @@ if (volunteerLoginForm) {
         error.hidden = false;
       }
     });
+  });
+}
+
+// ── 我的器材（志工專區與會員專區共用，見 equipment.html）──
+const equipBoard = document.getElementById('equipBoard');
+if (equipBoard) {
+  const EQ_V_KEY = 'volunteerSession';
+  const EQ_M_KEY = 'memberSession';
+  const guestBox = document.getElementById('equipGuest');
+  const greeting = document.getElementById('equipGreeting');
+  const globalError = document.getElementById('equipGlobalError');
+  const el = (tag, className, text) => {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text != null) node.textContent = text;
+    return node;
+  };
+
+  const getEquipSession = () => {
+    try {
+      const v = JSON.parse(localStorage.getItem(EQ_V_KEY));
+      if (v && v.token) return { token: v.token, audience: 'volunteer' };
+    } catch {
+      /* 忽略壞掉的 localStorage 內容 */
+    }
+    try {
+      const m = JSON.parse(localStorage.getItem(EQ_M_KEY));
+      if (m && m.token) return { token: m.token, audience: 'member' };
+    } catch {
+      /* 忽略壞掉的 localStorage 內容 */
+    }
+    return null;
+  };
+
+  const session = getEquipSession();
+  const token = session ? session.token : '';
+  if (!session) {
+    guestBox.hidden = false;
+    equipBoard.hidden = true;
+  } else {
+    guestBox.hidden = true;
+    equipBoard.hidden = false;
+    document.getElementById('equipMemberHint').hidden = session.audience !== 'member';
+    boot();
+  }
+
+  const STATUS_CLASS = {
+    申請中: 'state-wait', 已核准: 'state-wait', 借出中: 'state-ok', 歸還申請: 'state-wait',
+    已歸還: 'state-ok', 轉保管: 'state-ok', 不核准: 'state-no', 取消: 'state-no',
+  };
+  const ACTION_LABELS = {
+    cancel: '取消申請', approve: '核准', reject: '不核准', pickedUp: '已取件', delivered: '已交付',
+    returnRequest: '我要歸還', keepApprove: '同意留用', keepReject: '不同意留用', receiveConfirm: '已收到',
+  };
+  const RETURN_METHOD_LABELS = { toHolder: '還給保管人', toPerson: '還給指定的人', keep: '留在我這裡' };
+
+  let lastView = null;
+
+  const makeSimpleButton = (item, action) => {
+    const btn = el('button', 'small-btn', ACTION_LABELS[action] || action);
+    btn.type = 'button';
+    btn.addEventListener('click', () => runAction(item.rowNumber, action));
+    return btn;
+  };
+
+  // 不核准／不同意留用：按下去先展開一個可以填原因（選填）的小表單，再按一次才真的送出
+  const makeReasonButton = (item, action) => {
+    const wrap = el('span', 'equip-inline');
+    const btn = el('button', 'small-btn', ACTION_LABELS[action]);
+    btn.type = 'button';
+    const box = el('span', 'equip-inline-form');
+    box.hidden = true;
+    const input = el('input');
+    input.type = 'text';
+    input.placeholder = '原因（選填）';
+    const ok = el('button', 'small-btn', '確認送出');
+    ok.type = 'button';
+    ok.addEventListener('click', () => runAction(item.rowNumber, action, { reason: input.value }));
+    box.append(input, ok);
+    btn.addEventListener('click', () => (box.hidden = !box.hidden));
+    wrap.append(btn, box);
+    return wrap;
+  };
+
+  // 我要歸還：選「還給保管人」「還給指定的人」，志工才會多一個「留在我這裡」
+  const makeReturnButton = (item) => {
+    const wrap = el('span', 'equip-inline');
+    const btn = el('button', 'small-btn', ACTION_LABELS.returnRequest);
+    btn.type = 'button';
+    const box = el('span', 'equip-inline-form');
+    box.hidden = true;
+    const select = el('select');
+    select.append(new Option(RETURN_METHOD_LABELS.toHolder, 'toHolder'), new Option(RETURN_METHOD_LABELS.toPerson, 'toPerson'));
+    if (lastView && lastView.canKeep) select.append(new Option(RETURN_METHOD_LABELS.keep, 'keep'));
+    const recipientSelect = el('select');
+    recipientSelect.hidden = true;
+    ((lastView && lastView.recipients) || []).forEach((name) => recipientSelect.append(new Option(name, name)));
+    select.addEventListener('change', () => (recipientSelect.hidden = select.value !== 'toPerson'));
+    const ok = el('button', 'small-btn', '確認送出');
+    ok.type = 'button';
+    ok.addEventListener('click', () => runAction(item.rowNumber, 'returnRequest', { method: select.value, recipient: recipientSelect.value }));
+    box.append(select, recipientSelect, ok);
+    btn.addEventListener('click', () => (box.hidden = !box.hidden));
+    wrap.append(btn, box);
+    return wrap;
+  };
+
+  const renderEquipRow = (item, opts) => {
+    opts = opts || {};
+    const row = el('div', 'equip-row' + (item.overdueDays ? ' is-overdue' : ''));
+    const head = el('div', 'equip-head');
+    head.append(el('strong', '', item.quantity ? `${item.item} × ${item.quantity}` : item.item));
+    head.append(el('span', `task-state ${STATUS_CLASS[item.status] || 'state-wait'}`, item.status));
+    row.append(head);
+
+    const meta = [];
+    if (opts.showBorrower) meta.push(`借用人：${item.borrower}${item.borrowerRole ? `（${item.borrowerRole}）` : ''}`);
+    if (item.purpose) meta.push(`用途：${item.purpose}`);
+    if (item.pickup) meta.push(`取件：${item.pickup}`);
+    if (item.due) meta.push(`歸還：${item.due}`);
+    if (item.holder) meta.push(`保管人：${item.holder}`);
+    if (item.status === '歸還申請' && item.recipient) meta.push(`歸還方式：${item.returnMethod}${item.returnMethod === RETURN_METHOD_LABELS.keep ? '' : `（給 ${item.recipient}）`}`);
+    if (meta.length) row.append(el('p', 'equip-meta', meta.join('｜')));
+    if (item.overdueDays) row.append(el('p', 'warn', `已逾期 ${item.overdueDays} 天，請盡快處理`));
+
+    const actions = el('div', 'equip-actions');
+    (item.actions || []).forEach((action) => {
+      if (action === 'reject' || action === 'keepReject') actions.append(makeReasonButton(item, action));
+      else if (action === 'returnRequest') actions.append(makeReturnButton(item));
+      else actions.append(makeSimpleButton(item, action));
+    });
+    if (actions.children.length) row.append(actions);
+    return row;
+  };
+
+  const renderList = (containerId, items, opts) => {
+    const box = document.getElementById(containerId);
+    if (!box) return;
+    box.replaceChildren(...items.map((item) => renderEquipRow(item, opts)));
+  };
+
+  // 新增申請：跟志工專區舊版一樣，像購物車勾選、調整數量
+  const renderCatalog = (items) => {
+    const list = document.getElementById('equipCartList');
+    list.replaceChildren(
+      ...items.map((item) => {
+        const row = el('div', 'cart-row');
+        const info = el('div');
+        info.append(el('strong', '', item.name), el('small', '', [item.quantity ? `現有 ${item.quantity}` : '', item.place].filter(Boolean).join('｜')));
+        const stepper = el('div', 'stepper');
+        const minus = el('button', '', '−');
+        const plus = el('button', '', '＋');
+        const qty = el('input');
+        [minus, plus].forEach((b) => (b.type = 'button'));
+        qty.type = 'number';
+        qty.min = 0;
+        qty.max = item.quantity || 99;
+        qty.value = 0;
+        qty.dataset.cartItem = item.name;
+        qty.setAttribute('aria-label', `${item.name} 數量`);
+        const bump = (n) => {
+          qty.value = Math.min(Number(qty.max), Math.max(0, (Number(qty.value) || 0) + n));
+          row.classList.toggle('in-cart', Number(qty.value) > 0);
+        };
+        minus.addEventListener('click', () => bump(-1));
+        plus.addEventListener('click', () => bump(1));
+        qty.addEventListener('input', () => bump(0));
+        stepper.append(minus, qty, plus);
+        row.append(info, stepper);
+        return row;
+      })
+    );
+    document.getElementById('equipCartEmpty').hidden = items.length > 0;
+  };
+
+  const render = (data) => {
+    lastView = data;
+    greeting.textContent = data.isManager ? '你同時是器材管理志工，下面多了一個管理區。' : '需要什麼器材，從下面的清單勾選送出就好。';
+    renderCatalog(data.catalog || []);
+    renderList('equipMineList', data.mine || [], { showBorrower: false });
+    document.getElementById('equipMineEmpty').hidden = (data.mine || []).length > 0;
+    document.getElementById('equipKeepBox').hidden = !(data.keeping || []).length;
+    renderList('equipKeepList', data.keeping || [], { showBorrower: true });
+    const manageBox = document.getElementById('equipManageBox');
+    manageBox.hidden = !data.managing;
+    if (data.managing) {
+      ['pending', 'out', 'returning'].forEach((key) => {
+        const box = manageBox.querySelector(`[data-manage="${key}"]`);
+        box.replaceChildren(...(data.managing[key] || []).map((item) => renderEquipRow(item, { showBorrower: true })));
+      });
+    }
+  };
+
+  function boot() {
+    greeting.textContent = '載入中…';
+    api({ action: 'equipmentHome', token }).then((result) => {
+      if (result.ok) return render(result);
+      if (result.error === 'unauthorized') {
+        guestBox.hidden = false;
+        equipBoard.hidden = true;
+        return;
+      }
+      greeting.textContent = '資料暫時載入不了，請稍後再重新整理一次。';
+    });
+  }
+
+  async function runAction(rowNumber, step, extra) {
+    globalError.hidden = true;
+    const payload = Object.assign({ action: 'equipmentAction', token, rowNumber, step }, extra || {});
+    const result = await api(payload);
+    if (result.ok) return render(result);
+    if (result.error === 'unauthorized') {
+      guestBox.hidden = false;
+      equipBoard.hidden = true;
+      return;
+    }
+    globalError.textContent = errorMessage(result.error);
+    globalError.hidden = false;
+  }
+
+  document.querySelectorAll('[data-manage-tab]').forEach((tab) => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('[data-manage-tab]').forEach((t) => t.classList.toggle('active', t === tab));
+      document.querySelectorAll('[data-manage]').forEach((box) => (box.hidden = box.dataset.manage !== tab.dataset.manageTab));
+    });
+  });
+
+  const requestForm = document.getElementById('equipRequestForm');
+  const reqError = document.getElementById('equipReqError');
+  const reqSuccess = document.getElementById('equipReqSuccess');
+  requestForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    reqError.hidden = true;
+    reqSuccess.classList.remove('visible');
+    const items = Array.from(requestForm.querySelectorAll('[data-cart-item]'))
+      .map((q) => ({ name: q.dataset.cartItem, qty: Number(q.value) || 0 }))
+      .filter((it) => it.qty > 0);
+    const purpose = document.getElementById('eqPurpose').value;
+    const pickup = document.getElementById('eqPickup').value;
+    const due = document.getElementById('eqDue').value;
+    if (!items.length || !purpose.trim() || !pickup || !due) {
+      reqError.textContent = errorMessage('missing_fields');
+      reqError.hidden = false;
+      return;
+    }
+    const button = requestForm.querySelector('[type="submit"]');
+    setBusy(button, true);
+    const result = await api({ action: 'equipmentRequest', token, purpose, pickup, due, items });
+    setBusy(button, false);
+    if (!result.ok) {
+      if (result.error === 'unauthorized') {
+        guestBox.hidden = false;
+        equipBoard.hidden = true;
+        return;
+      }
+      reqError.textContent = errorMessage(result.error);
+      reqError.hidden = false;
+      return;
+    }
+    requestForm.reset();
+    render(result);
+    reqSuccess.classList.add('visible');
   });
 }
 

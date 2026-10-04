@@ -3,14 +3,14 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>經典討論串｜寓委聯</title>
-    <meta name="description" content="寓委聯會員群組裡最常被問、討論最熱烈的社區管理議題整理：管理費、物業、點交、停車、規約與區權會。" />
-    <link rel="canonical" href="https://ccs2024taiwan.github.io/forum.html" />
+    <title>我的器材｜寓委聯</title>
+    <meta name="description" content="投影機、關東旗、帳篷等協會器材的借用申請與進度查詢，志工專區與會員專區登入後共用這一頁。" />
+    <link rel="canonical" href="https://ccs2024taiwan.github.io/equipment.html" />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="全國公寓大廈管理委員聯誼會" />
-    <meta property="og:title" content="經典討論串｜寓委聯" />
-    <meta property="og:description" content="加入寓委聯會員、報名社區坐一坐、申請活動協辦、訂購出版品，或與我們聯絡。" />
-    <meta property="og:url" content="https://ccs2024taiwan.github.io/forum.html" />
+    <meta property="og:title" content="我的器材｜寓委聯" />
+    <meta property="og:description" content="投影機、關東旗、帳篷等協會器材的借用申請與進度查詢。" />
+    <meta property="og:url" content="https://ccs2024taiwan.github.io/equipment.html" />
     <meta property="og:image" content="https://ccs2024taiwan.github.io/assets/og-image.jpg" />
     <meta property="og:locale" content="zh_TW" />
     <link rel="icon" href="assets/favicon.png" type="image/png" />
@@ -21,7 +21,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Chiron+GoRound+TC:wght@400;500;700;900&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="styles.css" />
   </head>
-  <body class="zone-member">
+  <body>
     <header class="topbar">
       <div class="container nav-wrap">
         <a class="brand" href="index.html" aria-label="回首頁">
@@ -45,21 +45,65 @@
     <main>
       <section class="page-header">
         <div class="container">
-          <p class="eyebrow">經典討論串</p>
-          <h1><span class="nb">委員們問過的問題，</span><span class="nb">都在這裡</span></h1>
-          <p><span class="nb">這些是會員群組裡討論最熱烈的議題，</span><span class="nb">由秘書處整理成問題、各方觀點與結論。</span><span class="nb">會員登入後可以在下面留言，</span><span class="nb">補充你們社區的做法。</span></p>
+          <p class="eyebrow">器材借還</p>
+          <h1><span class="nb">投影機、關東旗、帳篷…</span><span class="nb">我的器材一頁搞定</span></h1>
+          <p><span class="nb">從志工專區或會員專區登入後就能用：</span><span class="nb">申請借用、查核准進度、</span><span class="nb">約定取件與歸還。</span></p>
         </div>
       </section>
 
       <section class="page-content">
         <div class="container">
-          <div class="forum-tools">
-            <div class="member-tabs" id="forumTabs" role="group" aria-label="分類"></div>
-            <div class="search-box-wrap"><input id="forumSearch" type="search" placeholder="搜尋主題：管理費、點交、停車…" aria-label="搜尋討論串" /></div>
+          <div id="equipGuest" class="panel">
+            <h3>請先登入</h3>
+            <p>器材借用要先登入志工專區或會員專區，系統才知道要通知誰、找誰確認。</p>
+            <p class="link-row"><a class="btn btn-primary" href="volunteer.html">志工登入 →</a><a class="btn btn-secondary" href="portal.html">會員登入 →</a></p>
           </div>
-          <p id="forumStatus" class="form-note" role="status">載入中…</p>
-          <div id="forumList" class="forum-list"></div>
-          <p id="forumEmpty" class="form-note" hidden>還沒有公開的討論串。</p>
+
+          <div id="equipBoard" hidden>
+            <p id="equipGreeting" class="form-note" role="status"></p>
+            <p id="equipGlobalError" class="form-error" role="alert" hidden></p>
+
+            <div class="form-card zone-card">
+              <h3>新增借用申請</h3>
+              <p class="form-note" style="margin-top: 0">勾選需要的品項，按 ＋ 調整數量。<span id="equipMemberHint" hidden>會員只能借「可出借」的品項。</span></p>
+              <form id="equipRequestForm">
+                <div id="equipCartList" class="cart-list"></div>
+                <p id="equipCartEmpty" class="form-note" hidden>目前沒有可以借的品項，請洽 LINE「寓委聯小幫手」。</p>
+                <div class="form-group"><label class="required" for="eqPurpose">用途／任務</label><input id="eqPurpose" type="text" placeholder="例：○○社區中秋晚會" required /></div>
+                <div class="form-row">
+                  <div class="form-group"><label class="required" for="eqPickup">預計取件日</label><input id="eqPickup" type="date" required /></div>
+                  <div class="form-group"><label class="required" for="eqDue">預計歸還日</label><input id="eqDue" type="date" required /></div>
+                </div>
+                <button class="btn btn-primary" type="submit">送出申請</button>
+              </form>
+              <p id="equipReqError" class="form-error" role="alert" hidden></p>
+              <div id="equipReqSuccess" class="form-success" role="status">已送出，器材管理志工審核後會通知你。</div>
+            </div>
+
+            <div class="panel" id="equipMineBox">
+              <h3>我的借用</h3>
+              <div id="equipMineList" class="equip-list"></div>
+              <p id="equipMineEmpty" class="form-note" hidden>目前沒有借用中的器材。</p>
+            </div>
+
+            <div class="panel" id="equipKeepBox" hidden>
+              <h3>我保管的</h3>
+              <p class="form-note" style="margin-top: 0">有人核准要來拿，或要歸還給你的器材。</p>
+              <div id="equipKeepList" class="equip-list"></div>
+            </div>
+
+            <div class="panel" id="equipManageBox" hidden>
+              <h3>器材管理</h3>
+              <div class="member-tabs" role="group" aria-label="器材管理">
+                <button class="tab-button active" type="button" data-manage-tab="pending">待核准</button>
+                <button class="tab-button" type="button" data-manage-tab="out">借出中</button>
+                <button class="tab-button" type="button" data-manage-tab="returning">轉保管待審</button>
+              </div>
+              <div class="equip-list" data-manage="pending"></div>
+              <div class="equip-list" data-manage="out" hidden></div>
+              <div class="equip-list" data-manage="returning" hidden></div>
+            </div>
+          </div>
         </div>
       </section>
     </main>
@@ -95,7 +139,7 @@
             <li><a href="portal.html">會員專區</a></li>
             <li><a href="forum.html">經典討論串</a></li>
             <li><a href="volunteer.html">志工專區</a></li>
-            <li><a href="equipment.html">器材借用</a></li>
+            <li><a href="equipment.html" aria-current="page">器材借用</a></li>
             <li><a href="volunteer-join.html">加入志工</a></li>
             <li><a href="vendors.html">廠商自薦</a></li>
             <li><a href="contact.html">聯絡我們</a></li>

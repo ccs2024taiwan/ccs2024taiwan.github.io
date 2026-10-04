@@ -132,10 +132,15 @@
               <p id="reminderEmpty" class="form-note">目前沒有兩週內到期的工作。加入任務後，該任務的工作時程會出現在這裡，快到期時也會寄信提醒你。</p>
             </div>
 
+            <div class="panel reminder-panel">
+              <h3>器材借用</h3>
+              <p class="form-note" style="margin: 0 0 10px">投影機、關東旗、帳篷…協會的器材，到專屬頁面申請、查核准進度、約交還時間。</p>
+              <a class="btn btn-secondary" href="equipment.html">我的器材 →</a>
+            </div>
+
             <div class="member-tabs" role="group" aria-label="志工作業">
               <button class="tab-button active" type="button" data-work-tab="signup">任務報名</button>
               <button class="tab-button" type="button" data-work-tab="expense">請款申請</button>
-              <button class="tab-button" type="button" data-work-tab="equipment">器材申請</button>
             </div>
 
             <div class="form-card zone-card" data-work="signup">
@@ -183,25 +188,6 @@
               </form>
               <p class="form-error" role="alert" hidden></p>
               <div class="form-success" role="status">已送出。收到收據正本並審核後就會付款給你。</div>
-            </div>
-
-            <div class="form-card zone-card" data-work="equipment" hidden>
-              <h3>器材申請</h3>
-              <p class="form-note" style="margin-top: 0">從現有器材裡挑選，按 ＋ 調整數量。</p>
-              <form data-volunteer-form="equipment">
-                <div id="cartList" class="cart-list"></div>
-                <p id="cartEmpty" class="form-note" hidden>器材清單整理中。需要的東西請先填在下面的「其他需求」。</p>
-                <div class="form-group"><label for="qOther">其他需求（清單上沒有的）</label><input id="qOther" name="other" type="text" placeholder="例：麥克風 2 支" /></div>
-                <div class="form-group"><label class="required" for="qTask">用在哪個任務／活動</label><input id="qTask" name="task" type="text" required /></div>
-                <div class="form-row">
-                  <div class="form-group"><label class="required" for="qFrom">使用日期</label><input id="qFrom" name="from" type="date" required /></div>
-                  <div class="form-group"><label for="qTo">歸還日期</label><input id="qTo" name="to" type="date" /></div>
-                </div>
-                <div class="form-group"><label for="qNote">說明</label><input id="qNote" name="note" type="text" placeholder="取用地點、注意事項" /></div>
-                <button class="btn btn-primary" type="submit">送出申請</button>
-              </form>
-              <p class="form-error" role="alert" hidden></p>
-              <div class="form-success" role="status">已送出，負責的夥伴會與你確認器材與取用方式。</div>
             </div>
           </div>
         </section>
@@ -251,6 +237,7 @@
             <li><a href="portal.html">會員專區</a></li>
             <li><a href="forum.html">經典討論串</a></li>
             <li><a href="volunteer.html">志工專區</a></li>
+            <li><a href="equipment.html">器材借用</a></li>
             <li><a href="volunteer-join.html">加入志工</a></li>
             <li><a href="vendors.html">廠商自薦</a></li>
             <li><a href="contact.html">聯絡我們</a></li>

@@ -2857,6 +2857,76 @@ blockquote {
   margin: 0;
 }
 
+/* 我的器材（equipment.html） */
+.equip-list {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.equip-row {
+  display: grid;
+  gap: 8px;
+  padding: 16px 18px;
+  border: 2px solid var(--border);
+  border-radius: 20px;
+  background: var(--cream);
+}
+
+.equip-row.is-overdue {
+  border-color: var(--red-deep);
+}
+
+.equip-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.equip-head strong {
+  font-size: 1.05rem;
+}
+
+.equip-meta {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.equip-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.equip-inline {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.equip-inline-form {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.equip-inline-form input,
+.equip-inline-form select {
+  padding: 6px 8px;
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  font-size: 0.88rem;
+}
+
 .item-head,
 .item-row {
   display: grid;
