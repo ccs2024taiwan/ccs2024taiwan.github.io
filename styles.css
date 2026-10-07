@@ -2927,6 +2927,108 @@ blockquote {
   font-size: 0.88rem;
 }
 
+/* 活動建檔（archive.html） */
+.ar-tabs {
+  flex-wrap: wrap;
+}
+
+.ar-section h4,
+.ar-readonly h4 {
+  margin: 0 0 8px;
+  font-size: 0.98rem;
+}
+
+.ar-readonly {
+  margin-bottom: 18px;
+  padding: 14px 16px;
+}
+
+.ar-staff-head,
+.ar-staff-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 1.2fr) auto minmax(100px, 1fr) 32px;
+  gap: 8px;
+  align-items: center;
+}
+
+.ar-roles {
+  display: inline-flex;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.ar-roles label {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.9rem;
+}
+
+.ar-upload {
+  display: inline-block;
+  cursor: pointer;
+}
+
+.ar-photos {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.ar-photo {
+  margin: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.ar-photo img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: 10px;
+  background: var(--cream);
+}
+
+.ar-photo.is-featured img {
+  outline: 3px solid var(--teal);
+}
+
+.ar-photo figcaption {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  font-size: 0.8rem;
+}
+
+.ar-photo figcaption small {
+  flex: 1 1 100%;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ar-saved {
+  margin-left: 12px;
+  color: var(--teal-deep);
+  font-weight: 700;
+}
+
+@media (max-width: 600px) {
+  .ar-staff-head {
+    display: none;
+  }
+  .ar-staff-row {
+    grid-template-columns: 1fr 32px;
+  }
+  .ar-staff-row .ar-roles,
+  .ar-staff-row [data-s="note"] {
+    grid-column: 1 / -1;
+  }
+}
+
 /* 妖怪圖鑑：引用他人圖像的出處標註 */
 .monster-credit {
   display: block;

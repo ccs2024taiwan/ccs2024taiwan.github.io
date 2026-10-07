@@ -103,6 +103,9 @@ const ERROR_MESSAGES = {
   item_not_found: '找不到這個品項，請重新整理頁面後再選一次。',
   member_restricted_item: '這個品項目前只開放志工借用，會員還不能借。',
   forbidden: '你目前沒有權限做這個動作，請重新整理頁面確認狀態。',
+  archive_not_ready: '活動建檔的雲端硬碟資料夾還沒設定，請洽秘書處（試算表「設定」的〈活動建檔資料夾 ID〉）。',
+  archive_locked: '這份建檔已送交，不能再修改；需要修改請洽秘書處退回。',
+  archive_too_many_featured: '精選照片最多 20 張，請先取消其他張。',
 };
 const errorMessage = (code) => ERROR_MESSAGES[code] || '系統忙碌中，請稍後再試。';
 

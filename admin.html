@@ -113,6 +113,15 @@
 
         <section class="page-content">
           <div class="container">
+            <h2 class="admin-heading">活動建檔</h2>
+            <p class="form-note">志工在「活動建檔」頁填好、召集人送交後會出現在這裡。結案會產生成果報告（Google 文件＋PDF）、把工作人員寫進參與紀錄、任務改完成。</p>
+            <div id="adminArchives" class="equip-list"></div>
+            <p id="adminArchiveEmpty" class="form-note" hidden>目前沒有已送交的活動建檔。</p>
+          </div>
+        </section>
+
+        <section class="page-content" style="padding-top: 0">
+          <div class="container">
             <h2 class="admin-heading">志工名冊與參與統計</h2>
             <p id="adminUnmatched" class="form-error" hidden></p>
             <div class="admin-toolbar">
@@ -142,6 +151,11 @@
     <dialog id="volunteerDialog" class="admin-dialog">
       <button class="admin-dialog-close small-btn" type="button">關閉</button>
       <div id="volunteerDetail"></div>
+    </dialog>
+
+    <dialog id="archiveDialog" class="admin-dialog">
+      <button class="admin-dialog-close small-btn" type="button">關閉</button>
+      <div id="archiveDetail"></div>
     </dialog>
 
     <footer class="site-footer">

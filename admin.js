@@ -223,7 +223,7 @@ if (adminDashboard) {
     const session = { token: result.token, member: result.member };
     localStorage.setItem(SESSION_KEY, JSON.stringify(session));
     loginFormEl.reset();
-    load(session);
+    loadAll(session);
   });
 
   document.getElementById('adminLogoutBtn').addEventListener('click', () => {
@@ -244,6 +244,88 @@ if (adminDashboard) {
     if (event.target === dialog) dialog.close();
   });
 
+  // ── 活動建檔：已送交／退回／已結案的清單，檢視、退回、結案 ──
+  const archiveDialog = document.getElementById('archiveDialog');
+  const archiveDetail = document.getElementById('archiveDetail');
+  const archiveStatusClass = (s) => (s === '已送交' ? 'badge-yellow' : s === '已結案' ? 'badge-teal' : 'badge-red');
+
+  const loadArchives = async (session) => {
+    if (!API_URL) return;
+    const result = await api({ action: 'archiveAdminList', token: session.token });
+    if (!result.ok) return;
+    const box = document.getElementById('adminArchives');
+    document.getElementById('adminArchiveEmpty').hidden = result.archives.length > 0;
+    box.replaceChildren(...result.archives.map((a) => {
+      const row = el('div', null, 'equip-row');
+      const head = el('div', null, 'equip-head');
+      head.append(el('strong', a.title || a.task), el('span', a.status, `badge ${archiveStatusClass(a.status)}`));
+      row.append(head, el('p', [a.date && `活動日 ${a.date}`, a.submitter && `送交人 ${a.submitter}`, a.submitted && `送交 ${a.submitted}`].filter(Boolean).join('・'), 'equip-meta'));
+      const actions = el('div', null, 'equip-actions');
+      const view = el('button', '檢視內容', 'small-btn'); view.type = 'button'; view.addEventListener('click', () => showArchive(session, a.task)); actions.append(view);
+      if (a.report) { const link = el('a', '成果報告', 'small-btn'); link.href = a.report; link.target = '_blank'; link.rel = 'noopener'; actions.append(link); }
+      if (a.folder) { const link = el('a', '資料夾', 'small-btn'); link.href = a.folder; link.target = '_blank'; link.rel = 'noopener'; actions.append(link); }
+      row.append(actions);
+      return row;
+    }));
+  };
+
+  const showArchive = async (session, task) => {
+    archiveDetail.replaceChildren(el('p', '載入中…'));
+    archiveDialog.showModal();
+    const v = await api({ action: 'archiveAdminGet', token: session.token, task });
+    if (!v.ok) return archiveDetail.replaceChildren(el('p', errorMessage(v.error), 'form-error'));
+    const d = v.data;
+    const nodes = [el('h3', d['活動名稱'] || task), el('p', `建檔編號 ${v.id}・狀態 ${v.status}・任務「${d['任務名稱']}」・送交人 ${d['送交人'] || '—'}`, 'admin-summary')];
+    if (d['退回原因']) nodes.push(el('p', `上次退回原因：${d['退回原因']}`, 'form-error'));
+    const info = el('dl', null, 'admin-info');
+    [['日期', [d['日期'], d['開始時間'] && `${d['開始時間']}–${d['結束時間']}`].filter(Boolean).join(' ')], ['地點', d['地點']], ['類型', d['類型']], ['負責人', d['活動負責人']], ['講師', d['講師'] && `${d['講師']}${d['講師背景'] ? `（${d['講師背景']}）` : ''}`],
+      ['人數', [d['報名人數'] && `報名 ${d['報名人數']}`, d['實到人數'] && `實到 ${d['實到人數']}`, d['會員人數'] && `會員 ${d['會員人數']}`, d['非會員人數'] && `非會員 ${d['非會員人數']}`].filter(Boolean).join('・')],
+      ['問卷', d['問卷回收數'] && `${d['問卷回收數']} 份，平均 ${d['問卷平均分'] || '—'}`], ['執行期間', d['執行期間起'] && `${d['執行期間起']}～${d['執行期間迄']}`],
+    ].filter(([, value]) => value).forEach(([label, value]) => info.append(el('dt', label), el('dd', value)));
+    nodes.push(info);
+    const block = (title, text) => { if (!text) return; nodes.push(el('h4', title)); const p = el('p', text); p.style.whiteSpace = 'pre-wrap'; nodes.push(p); };
+    block('工作人員', v.staff.map((p) => `${p.name}（${p.role}）`).join('、') || '（未填）');
+    block('計畫流程（工作進度）', v.work.map((w) => `・${w.title}｜${w.owner}｜${w.due}`).join('\n'));
+    block('活動宗旨／目的', d['活動宗旨']);
+    block('具體成果', d['具體成果']);
+    block('學員反映', d['學員反映']);
+    block('檢討', [d['檢討事前'] && `《事前》${d['檢討事前']}`, d['檢討事中'] && `《事中》${d['檢討事中']}`, d['檢討事後'] && `《事後》${d['檢討事後']}`, d['下次建議'] && `下次建議：${d['下次建議']}`, d['廠商評價'] && `廠商評價：${d['廠商評價']}`].filter(Boolean).join('\n'));
+    block('經費來源', d['經費來源']);
+    block('支出（日記帳）', v.expenses.map((e) => `・${e.date} ${e.item}：${e.amount}`).join('\n') + (d['支出補充'] ? `\n補充：${d['支出補充']}` : ''));
+    block('器材', v.equipment.map((e) => `・${e.item}（${e.provider}）`).join('\n') + (d['器材補充'] ? `\n補充：${d['器材補充']}` : ''));
+    block('新聞／社群', d['新聞／社群連結']);
+    const featured = (d['精選照片'] || '').split(',').filter(Boolean);
+    nodes.push(el('h4', `照片 ${v.files.photos.length} 張（精選 ${featured.length}）・附件 ${v.files.attachments.length} 個`));
+    if (v.files.folder) { const a = el('a', '在雲端硬碟開啟資料夾', 'text-link-inline'); a.href = v.files.folder; a.target = '_blank'; a.rel = 'noopener'; nodes.push(a); }
+    const photos = el('div', null, 'ar-photos');
+    v.files.photos.forEach((f) => { const fig = el('figure', null, 'ar-photo' + (featured.indexOf(f.id) !== -1 ? ' is-featured' : '')); const img = el('img'); img.dataset.id = f.id; img.alt = f.name; fig.append(img, el('figcaption', (featured.indexOf(f.id) !== -1 ? '★ ' : '') + f.name)); photos.append(fig); });
+    nodes.push(photos);
+    if (d['報告連結']) { const a = el('a', '開啟成果報告', 'btn btn-secondary'); a.href = d['報告連結']; a.target = '_blank'; a.rel = 'noopener'; nodes.push(el('p'), a); }
+
+    const actions = el('div', null, 'equip-actions');
+    const msg = el('p', '', 'form-note');
+    if (v.status === '已送交') {
+      const reason = el('input'); reason.type = 'text'; reason.placeholder = '退回原因（會通知送交人）'; reason.style.minWidth = '260px';
+      const back = el('button', '退回', 'small-btn'); back.type = 'button';
+      back.addEventListener('click', async () => { back.disabled = true; const r = await api({ action: 'archiveReturn', token: session.token, task, reason: reason.value }); back.disabled = false; if (!r.ok) return (msg.textContent = errorMessage(r.error)); archiveDialog.close(); loadArchives(session); });
+      const close = el('button', '結案：產生報告、寫入參與紀錄', 'btn btn-primary'); close.type = 'button';
+      close.addEventListener('click', async () => { close.disabled = true; msg.textContent = '結案中，產生報告需要一點時間…'; const r = await api({ action: 'archiveClose', token: session.token, task }); close.disabled = false; if (!r.ok) return (msg.textContent = errorMessage(r.error)); msg.textContent = ''; archiveDialog.close(); loadArchives(session); load(session); });
+      actions.append(reason, back, close);
+    } else if (v.status === '已結案') {
+      const redo = el('button', '重新產生報告（會更新參與紀錄）', 'small-btn'); redo.type = 'button';
+      redo.addEventListener('click', async () => { redo.disabled = true; msg.textContent = '重新產生中…'; const r = await api({ action: 'archiveClose', token: session.token, task }); redo.disabled = false; msg.textContent = r.ok ? '' : errorMessage(r.error); if (r.ok) { archiveDialog.close(); loadArchives(session); } });
+      actions.append(redo);
+    }
+    nodes.push(actions, msg);
+    archiveDetail.replaceChildren(...nodes);
+    const ids = v.files.photos.map((f) => f.id);
+    const next = async () => { const batch = ids.splice(0, 6); if (!batch.length) return; const r = await api({ action: 'archiveThumbs', token: session.token, ids: batch }); if (r.ok) batch.forEach((id) => { const img = photos.querySelector(`img[data-id="${id}"]`); if (img && r.thumbs[id]) img.src = r.thumbs[id]; }); next(); };
+    next();
+  };
+  archiveDialog.querySelector('.admin-dialog-close').addEventListener('click', () => archiveDialog.close());
+  archiveDialog.addEventListener('click', (event) => { if (event.target === archiveDialog) archiveDialog.close(); });
+  const loadAll = async (session) => { await load(session); if (!adminDashboard.hidden) loadArchives(session); };
+
   const existing = getSession();
-  if (existing) load(existing);
+  if (existing) loadAll(existing);
 }
