@@ -1981,10 +1981,17 @@ if (forumListEl || portalForumList) {
     document.getElementById('forumEmpty').hidden = shown.length > 0;
   };
 
-  api({ action: 'forum' }).then((result) => {
+  // 有會員憑證就帶上：後端會給全部；沒登入只給前幾則（其餘要加入會員）
+  api({ action: 'forum', token: getSession()?.token || '' }).then((result) => {
     topics = result.ok ? result.topics || [] : [];
     const status = document.getElementById('forumStatus');
     if (status) status.hidden = true;
+    const locked = document.getElementById('forumLocked');
+    if (locked) {
+      locked.hidden = !(result.ok && result.locked);
+      const more = document.getElementById('forumLockedCount');
+      if (more) more.textContent = String(Math.max(0, (result.total || 0) - topics.length));
+    }
     if (portalForumList) {
       const box = document.getElementById('portalForum');
       box.hidden = !topics.length;
