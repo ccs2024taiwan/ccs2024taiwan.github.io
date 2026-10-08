@@ -147,7 +147,7 @@ if (arBoard) {
     fillSelect(document.querySelector('[data-f="類型"]'), view.types, d['類型']);
     renderStaff(view.staff, view);
     fillTable('arWork', view.work, ['title', 'owner', 'due', 'status'], '「工作進度」表沒有這個任務的工作。');
-    fillTable('arExpenses', view.expenses, ['date', 'item', 'amount'], '「日記帳」沒有這個任務的支出。');
+    fillTable('arExpenses', view.expenses, ['date', 'item', 'amount'], '還沒有這個任務審核通過的請款或其他支出。');
     fillTable('arEquipment', view.equipment, ['item', 'provider'], '「器材借用單」沒有這個任務的借用。');
     fillSelect(document.getElementById('arFileKind'), view.attachmentKinds, view.attachmentKinds[0]);
     renderPhotos(view);
