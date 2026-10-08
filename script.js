@@ -1509,7 +1509,7 @@ if (orderForm) {
       form.submit();
       return;
     }
-    document.getElementById('doneOrderId').textContent = result.orderId;
+    document.getElementById('doneOrderId').textContent = result.orderId + (result.duplicate ? '（你剛才已經下過這筆，沒有重複建立）' : '');
     document.getElementById('doneTotal').textContent = money(result.total);
     const bank = result.bank || {};
     document.getElementById('doneBank').textContent = bank.account
