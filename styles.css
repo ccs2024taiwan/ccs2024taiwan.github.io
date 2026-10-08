@@ -2927,6 +2927,25 @@ blockquote {
   font-size: 0.88rem;
 }
 
+/* 訂購：7-11 門市選擇 */
+.store-pick {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.store-pick input {
+  flex: 1 1 auto;
+  min-width: 0;
+  cursor: pointer;
+  background: var(--cream);
+}
+
+.store-pick .small-btn {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
 /* 活動建檔（archive.html） */
 .ar-tabs {
   flex-wrap: wrap;

@@ -105,8 +105,17 @@
                 </div>
               </div>
               <div data-show="shipping=cvs" hidden>
-                <div class="form-group"><label class="required" for="o-store">取件門市（店名或店號）</label><input id="o-store" name="store" type="text" placeholder="例：豐展門市 或 123456" required /></div>
-                <p class="form-note">不確定店名？到 <a class="text-link-inline" href="https://emap.pcsc.com.tw/" target="_blank" rel="noopener">7-11 門市查詢</a>找離你最近的門市。取件時需出示與「收件人姓名」相同的證件。</p>
+                <div class="form-group">
+                  <label class="required" for="o-store">取件門市</label>
+                  <div class="store-pick">
+                    <input id="o-store" name="store" type="text" placeholder="請按右邊的按鈕，從 7-11 地圖選門市" readonly required />
+                    <button id="pickStore" class="small-btn" type="button">選擇門市</button>
+                  </div>
+                  <input type="hidden" name="storeId" id="o-storeId" />
+                  <input type="hidden" name="storeAddress" id="o-storeAddress" />
+                  <p id="storeInfo" class="form-note" hidden></p>
+                </div>
+                <p class="form-note">按「選擇門市」會開 7-11 的電子地圖，只會列出有提供交貨便的門市，選好會自動填回來。取件時需出示與「收件人姓名」相同的證件。</p>
               </div>
             </fieldset>
 

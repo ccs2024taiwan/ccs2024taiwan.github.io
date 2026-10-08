@@ -1465,6 +1465,42 @@ if (orderForm) {
   });
   refresh();
 
+  // ── 7-11 取件門市：開官方電子地圖選，選完由後端頁面帶回 order.html?pickstore=店號|店名|地址 ──
+  const storeInput = orderForm.querySelector('[name="store"]');
+  const applyStore = (id, name, address) => {
+    storeInput.value = name;
+    document.getElementById('o-storeId').value = id;
+    document.getElementById('o-storeAddress').value = address;
+    const info = document.getElementById('storeInfo');
+    info.textContent = `店號 ${id}・${address}`;
+    info.hidden = !id;
+  };
+  const picked = new URLSearchParams(location.search).get('pickstore');
+  if (picked) {
+    const [id, name, address] = picked.split('|');
+    if (window.opener && !window.opener.closed) {
+      // 這是地圖的彈出視窗：把結果交給原本的訂購頁，然後關掉自己
+      window.opener.postMessage({ type: 'cvs-store', id, name, address }, location.origin);
+      window.close();
+    } else {
+      // 沒有 opener（彈出視窗被擋、改在同一分頁開）：直接填在這一頁
+      orderForm.querySelector('[name="shipping"][value="cvs"]').checked = true;
+      refresh();
+      applyStore(id, name, address);
+    }
+  }
+  window.addEventListener('message', (event) => {
+    if (event.origin !== location.origin || !event.data || event.data.type !== 'cvs-store') return;
+    applyStore(event.data.id, event.data.name, event.data.address);
+  });
+  document.getElementById('pickStore')?.addEventListener('click', () => {
+    const callback = `${API_URL}?store=pick`;
+    const url = `https://emap.presco.com.tw/c2cemap.ashx?eshopid=870&servicetype=1&url=${encodeURIComponent(callback)}`;
+    const popup = window.open(url, 'cvsStoreMap', 'width=1000,height=720');
+    if (!popup) location.href = url; // 彈出視窗被擋：同一分頁開，選完會帶回這頁
+  });
+  storeInput?.addEventListener('click', () => document.getElementById('pickStore').click());
+
   const fail = (code, el) => {
     orderError.textContent = errorMessage(code);
     orderError.hidden = false;
