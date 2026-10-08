@@ -1035,8 +1035,8 @@ if (volunteerLoginForm) {
     localStorage.setItem(V_KEY, JSON.stringify({ token: result.token }));
     volunteerLoginForm.reset();
     render(result);
-    // 登入框在榮譽榜下面，登入後榮譽榜移到頁尾：把畫面帶回最上面的歡迎詞
-    window.scrollTo({ top: Math.max(0, board.getBoundingClientRect().top + window.scrollY - 96), behavior: 'smooth' });
+    // 登入框在榮譽榜下面，登入後榮譽榜移到頁尾：直接切到專區最上方（不要捲動動畫）
+    window.scrollTo({ top: Math.max(0, board.getBoundingClientRect().top + window.scrollY - 96), behavior: 'instant' });
   });
 
   document.getElementById('volunteerLogout').addEventListener('click', () => signOut());
