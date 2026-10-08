@@ -106,6 +106,7 @@ const ERROR_MESSAGES = {
   archive_not_ready: '活動建檔的雲端硬碟資料夾還沒設定，請洽秘書處（試算表「設定」的〈活動建檔資料夾 ID〉）。',
   archive_locked: '這份建檔已送交，不能再修改；需要修改請洽秘書處退回。',
   archive_too_many_featured: '精選照片最多 20 張，請先取消其他張。',
+  invalid_name: '姓名看起來不完整（含注音或沒有文字），請確認輸入法有選字後再送出。',
 };
 const errorMessage = (code) => ERROR_MESSAGES[code] || '系統忙碌中，請稍後再試。';
 
@@ -1520,6 +1521,8 @@ if (orderForm) {
     if (missing) return fail(missing.type === 'checkbox' ? 'missing_consent' : 'missing_fields', missing);
     const phone = orderForm.querySelector('[name="phone"]');
     if (!/^09\d{8}$/.test(phone.value.replace(/\D/g, ''))) return fail('invalid_phone', phone);
+    const nameInput = orderForm.querySelector('[name="name"]');
+    if (/[ㄅ-ㄯˇˊˋ˙]/.test(nameInput.value) || !/[一-鿿A-Za-z]/.test(nameInput.value)) return fail('invalid_name', nameInput);
 
     const fields = {};
     controls.forEach((el) => {
