@@ -2974,9 +2974,9 @@ blockquote {
 }
 
 .ar-staff-head,
-.ar-staff-row {
+.item-row.ar-staff-row {
   display: grid;
-  grid-template-columns: minmax(120px, 1.2fr) auto minmax(100px, 1fr) 32px;
+  grid-template-columns: minmax(120px, 1.2fr) auto minmax(100px, 1fr) 36px;
   gap: 8px;
   align-items: center;
 }
@@ -3050,8 +3050,8 @@ blockquote {
   .ar-staff-head {
     display: none;
   }
-  .ar-staff-row {
-    grid-template-columns: 1fr 32px;
+  .item-row.ar-staff-row {
+    grid-template-columns: 1fr 36px;
   }
   .ar-staff-row .ar-roles,
   .ar-staff-row [data-s="note"] {
