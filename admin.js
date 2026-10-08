@@ -275,7 +275,7 @@ if (adminDashboard) {
     const v = await api({ action: 'archiveAdminGet', token: session.token, task });
     if (!v.ok) return archiveDetail.replaceChildren(el('p', errorMessage(v.error), 'form-error'));
     const d = v.data;
-    const nodes = [el('h3', d['活動名稱'] || task), el('p', `建檔編號 ${v.id}・狀態 ${v.status}・任務「${d['任務名稱']}」・送交人 ${d['送交人'] || '—'}`, 'admin-summary')];
+    const nodes = [el('h3', d['活動名稱'] || task), el('p', `建檔編號 ${v.id}・狀態 ${v.status}・任務「${d['任務名稱']}」・送交人 ${d['送交人'] || '—'}${v.mode === 'routine' ? '・常態任務（簡易版：結案產生工作報告，不寫參與紀錄）' : ''}`, 'admin-summary')];
     if (d['退回原因']) nodes.push(el('p', `上次退回原因：${d['退回原因']}`, 'form-error'));
     const info = el('dl', null, 'admin-info');
     [['日期', [d['日期'], d['開始時間'] && `${d['開始時間']}–${d['結束時間']}`].filter(Boolean).join(' ')], ['地點', d['地點']], ['類型', d['類型']], ['負責人', d['活動負責人']], ['講師', d['講師'] && `${d['講師']}${d['講師背景'] ? `（${d['講師背景']}）` : ''}`],

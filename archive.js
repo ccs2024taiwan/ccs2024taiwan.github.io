@@ -32,7 +32,7 @@ if (arBoard) {
       head.append(el('strong', '', t.task));
       head.append(el('span', `task-state ${t.status === '已送交' ? 'state-ok' : t.status === '退回' ? 'state-no' : 'state-wait'}`, t.status || '未開始'));
       row.append(head);
-      row.append(el('p', 'equip-meta', [t.type, t.lead && `召集人：${t.lead}`, t.start && `${t.start}～${t.end || ''}`, t.mine ? '我有參與' : ''].filter(Boolean).join('｜')));
+      row.append(el('p', 'equip-meta', [t.type, t.mode === 'routine' ? '常態任務（簡易版建檔）' : '', t.lead && `召集人：${t.lead}`, t.start && `${t.start}～${t.end || ''}`, t.mine ? '我有參與' : ''].filter(Boolean).join('｜')));
       const actions = el('div', 'equip-actions');
       const btn = el('button', 'small-btn', t.status ? '繼續填寫／查看' : '開始建檔');
       btn.type = 'button';
@@ -50,7 +50,22 @@ if (arBoard) {
   };
 
   // ── 編輯器 ──
-  const setVal = (name, value) => { const input = editor.querySelector(`[data-f="${name}"]`); if (input) input.value = value == null ? '' : value; };
+  const setVal = (name, value) => editor.querySelectorAll(`[data-f="${name}"]`).forEach((input) => (input.value = value == null ? '' : value));
+
+  // 常態版：藏掉活動專用的段落與欄位、換標籤；活動版則反過來
+  const applyMode = (mode) => {
+    const routine = mode === 'routine';
+    editor.querySelectorAll('[data-event-only]').forEach((n) => (n.hidden = routine));
+    editor.querySelectorAll('[data-routine-only]').forEach((n) => (n.hidden = !routine));
+    editor.querySelectorAll('[data-routine-label]').forEach((n) => {
+      if (!n.dataset.eventLabel) n.dataset.eventLabel = n.textContent;
+      n.textContent = routine ? n.dataset.routineLabel : n.dataset.eventLabel;
+    });
+    editor.querySelectorAll('[data-mode-text]').forEach((n) => (n.textContent = routine ? n.dataset.routineText : n.dataset.eventText));
+    editor.querySelector('[data-f="日期"]').required = !routine;
+    const active = editor.querySelector('[data-ar-tab].active');
+    if (active && active.hidden) editor.querySelector('[data-ar-tab="basic"]').click();
+  };
   const fillSelect = (select, options, value) => { select.replaceChildren(...options.map((o) => new Option(o, o))); if (value && options.indexOf(value) === -1) select.append(new Option(value, value)); select.value = value || options[0]; };
 
   const renderStaff = (staff, view) => {
@@ -132,6 +147,7 @@ if (arBoard) {
 
   const render = (view) => {
     current.view = view;
+    applyMode(view.mode);
     const d = view.data;
     document.getElementById('arTitle').textContent = d['活動名稱'] || current.task;
     document.getElementById('arMeta').textContent = [`任務：${d['任務名稱']}`, `建檔編號 ${view.id}`, d['最後編輯者'] && `最後編輯：${d['最後編輯者']} ${d['最後編輯時間'].slice(0, 10)}`].filter(Boolean).join('｜');

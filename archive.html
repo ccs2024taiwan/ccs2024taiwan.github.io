@@ -74,36 +74,36 @@
 
               <div class="member-tabs ar-tabs" role="group" aria-label="建檔段落">
                 <button class="tab-button active" type="button" data-ar-tab="basic">1 基本資料</button>
-                <button class="tab-button" type="button" data-ar-tab="attendance">2 參與情形</button>
-                <button class="tab-button" type="button" data-ar-tab="staff">3 工作人員</button>
-                <button class="tab-button" type="button" data-ar-tab="content">4 內容與成果</button>
-                <button class="tab-button" type="button" data-ar-tab="review">5 檢討</button>
-                <button class="tab-button" type="button" data-ar-tab="budget">6 經費與器材</button>
-                <button class="tab-button" type="button" data-ar-tab="files">7 附件與照片</button>
+                <button class="tab-button" type="button" data-ar-tab="attendance" data-event-only>2 參與情形</button>
+                <button class="tab-button" type="button" data-ar-tab="staff" data-routine-label="2 工作人員">3 工作人員</button>
+                <button class="tab-button" type="button" data-ar-tab="content" data-routine-label="3 成果摘要">4 內容與成果</button>
+                <button class="tab-button" type="button" data-ar-tab="review" data-event-only>5 檢討</button>
+                <button class="tab-button" type="button" data-ar-tab="budget" data-routine-label="4 經費與器材">6 經費與器材</button>
+                <button class="tab-button" type="button" data-ar-tab="files" data-routine-label="5 附件與照片">7 附件與照片</button>
               </div>
 
               <form class="form-card zone-card ar-section" data-ar-section="basic">
                 <h3>基本資料</h3>
-                <p class="form-note" style="margin-top: 0">任務名稱、負責人、期間由「任務」表帶入，可以改。</p>
+                <p class="form-note" style="margin-top: 0" data-mode-text data-event-text="任務名稱、負責人、期間由「任務」表帶入，可以改。" data-routine-text="這是常態任務（簡易版建檔）：只要填期間、負責人、工作人員、成果摘要與附件。">任務名稱、負責人、期間由「任務」表帶入，可以改。</p>
                 <div class="form-row">
-                  <div class="form-group"><label class="required" for="f-活動名稱">活動名稱</label><input id="f-活動名稱" data-f="活動名稱" type="text" required /></div>
+                  <div class="form-group"><label class="required" for="f-活動名稱" data-routine-label="任務／工作名稱">活動名稱</label><input id="f-活動名稱" data-f="活動名稱" type="text" required /></div>
                   <div class="form-group"><label for="f-類型">類型</label><select id="f-類型" data-f="類型"></select></div>
                 </div>
-                <div class="form-row">
+                <div class="form-row" data-event-only>
                   <div class="form-group"><label class="required" for="f-日期">活動日期</label><input id="f-日期" data-f="日期" type="date" required /></div>
                   <div class="form-group"><label for="f-開始時間">開始時間</label><input id="f-開始時間" data-f="開始時間" type="time" /></div>
                   <div class="form-group"><label for="f-結束時間">結束時間</label><input id="f-結束時間" data-f="結束時間" type="time" /></div>
                 </div>
-                <div class="form-group"><label for="f-地點">地點</label><input id="f-地點" data-f="地點" type="text" /></div>
-                <div class="form-row">
+                <div class="form-group" data-event-only><label for="f-地點">地點</label><input id="f-地點" data-f="地點" type="text" /></div>
+                <div class="form-row" data-event-only>
                   <div class="form-group"><label for="f-主辦單位">主辦單位</label><input id="f-主辦單位" data-f="主辦單位" type="text" /></div>
                   <div class="form-group"><label for="f-協辦單位">協辦單位</label><input id="f-協辦單位" data-f="協辦單位" type="text" /></div>
                 </div>
                 <div class="form-row">
-                  <div class="form-group"><label for="f-活動負責人">活動負責人</label><input id="f-活動負責人" data-f="活動負責人" type="text" /></div>
-                  <div class="form-group"><label for="f-講師">講師</label><input id="f-講師" data-f="講師" type="text" /></div>
+                  <div class="form-group"><label for="f-活動負責人" data-routine-label="任務負責人">活動負責人</label><input id="f-活動負責人" data-f="活動負責人" type="text" /></div>
+                  <div class="form-group" data-event-only><label for="f-講師">講師</label><input id="f-講師" data-f="講師" type="text" /></div>
                 </div>
-                <div class="form-group"><label for="f-講師背景">講師背景</label><input id="f-講師背景" data-f="講師背景" type="text" /></div>
+                <div class="form-group" data-event-only><label for="f-講師背景">講師背景</label><input id="f-講師背景" data-f="講師背景" type="text" /></div>
                 <div class="form-row">
                   <div class="form-group"><label for="f-執行期間起">執行期間（起）</label><input id="f-執行期間起" data-f="執行期間起" type="date" /></div>
                   <div class="form-group"><label for="f-執行期間迄">執行期間（迄）</label><input id="f-執行期間迄" data-f="執行期間迄" type="date" /></div>
@@ -149,9 +149,10 @@
                   <div class="member-table-wrap"><table class="member-table"><thead><tr><th>工作內容</th><th>負責人</th><th>完成日</th><th>狀態</th></tr></thead><tbody id="arWork"></tbody></table></div>
                   <p class="form-note">要補流程請在試算表「工作進度」新增，或在 LINE 群組用 #待辦。</p>
                 </div>
-                <div class="form-group"><label for="f-活動宗旨">活動宗旨／目的</label><textarea id="f-活動宗旨" data-f="活動宗旨" rows="4"></textarea></div>
-                <div class="form-group"><label for="f-具體成果">具體成果</label><textarea id="f-具體成果" data-f="具體成果" rows="4" placeholder="一行一點"></textarea></div>
-                <div class="form-group"><label for="f-學員反映">學員反映</label><textarea id="f-學員反映" data-f="學員反映" rows="4" placeholder="問卷或現場回饋的重點"></textarea></div>
+                <div class="form-group"><label for="f-活動宗旨" data-routine-label="任務目標／工作範圍">活動宗旨／目的</label><textarea id="f-活動宗旨" data-f="活動宗旨" rows="4"></textarea></div>
+                <div class="form-group"><label for="f-具體成果" data-routine-label="這段期間做了什麼（含數據：集數、貼文數、場次…）">具體成果</label><textarea id="f-具體成果" data-f="具體成果" rows="4" placeholder="一行一點"></textarea></div>
+                <div class="form-group" data-event-only><label for="f-學員反映">學員反映</label><textarea id="f-學員反映" data-f="學員反映" rows="4" placeholder="問卷或現場回饋的重點"></textarea></div>
+                <div class="form-group" data-routine-only hidden><label for="f-下次建議-r">檢討與下次建議</label><textarea id="f-下次建議-r" data-f="下次建議" rows="4"></textarea></div>
                 <button class="btn btn-primary" type="submit">儲存這段</button>
                 <span class="ar-saved" role="status"></span>
               </form>
@@ -218,7 +219,7 @@
 
               <div class="form-card zone-card" id="arSubmitBox">
                 <h3>送交秘書處</h3>
-                <p class="form-note" style="margin-top: 0">七段都填好、照片也勾好精選後，由<strong>任務召集人</strong>送交。送交後鎖定，秘書處結案時會產生成果報告並寫入參與紀錄。</p>
+                <p class="form-note" style="margin-top: 0" data-mode-text data-event-text="七段都填好、照片也勾好精選後，由任務召集人送交。送交後鎖定，秘書處結案時會產生成果報告並寫入參與紀錄。" data-routine-text="各段填好後，由任務召集人送交。送交後鎖定，秘書處結案時會產生工作報告；常態任務的積分依每月參與紀錄計算，結案不另外加分。">七段都填好、照片也勾好精選後，由任務召集人送交。送交後鎖定，秘書處結案時會產生成果報告並寫入參與紀錄。</p>
                 <p id="arSubmitHint" class="form-note" hidden>你不是這個任務的召集人，填好後請通知召集人送交。</p>
                 <button id="arSubmit" class="btn btn-primary" type="button">送交秘書處</button>
                 <p id="arSubmitError" class="form-error" role="alert" hidden></p>
