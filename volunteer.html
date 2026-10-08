@@ -171,6 +171,19 @@
                   <div class="form-group"><label class="required" for="eSpent">消費日期</label><input id="eSpent" name="spent" type="date" required /></div>
                 </div>
                 <p class="form-note" style="margin-top: -8px">消費日期＝收據上的日期。一張收據填一張申請。</p>
+                <fieldset class="choice-group">
+                  <legend class="required">單據種類</legend>
+                  <div class="choice-grid choice-grid-2">
+                    <label class="choice"><input type="radio" name="receiptType" value="發票" checked /><span>發票<small>統一發票（含電子發票）</small></span></label>
+                    <label class="choice"><input type="radio" name="receiptType" value="收據" /><span>收據<small>商家開的免用統一發票收據</small></span></label>
+                    <label class="choice"><input type="radio" name="receiptType" value="支出證明單" /><span>支出證明單<small>拿不到發票或收據時由本會開立</small></span></label>
+                    <label class="choice"><input type="radio" name="receiptType" value="其他" /><span>其他<small>請在說明欄註明</small></span></label>
+                  </div>
+                </fieldset>
+                <div class="receipt-note" data-receipt-hint>
+                  <strong>開發票請打本會統編 80049965</strong>
+                  <p>抬頭：社團法人全國公寓大廈管理委員聯誼會。結帳前先跟店家說要打統編，沒打統編的發票會無法核銷。收據也請店家寫上本會全名。</p>
+                </div>
                 <div class="form-group">
                   <span class="label required">收據品項</span>
                   <div class="item-head" aria-hidden="true"><span>品名</span><span>單價</span><span>數量</span><span>小計</span><span></span></div>

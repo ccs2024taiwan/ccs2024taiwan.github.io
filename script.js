@@ -1097,6 +1097,7 @@ if (volunteerLoginForm) {
     expense: (form) => ({
       task: form.querySelector('[name="task"]').value,
       spent: form.querySelector('[name="spent"]').value,
+      receiptType: form.querySelector('[name="receiptType"]:checked')?.value || '',
       method: form.querySelector('[name="method"]:checked').value,
       note: form.querySelector('[name="note"]').value,
       items: Array.from(itemRows.querySelectorAll('.item-row')).map((row) => ({ name: row.querySelector('[data-f="name"]').value.trim(), price: row.querySelector('[data-f="price"]').value, qty: row.querySelector('[data-f="qty"]').value })).filter((it) => it.name),
