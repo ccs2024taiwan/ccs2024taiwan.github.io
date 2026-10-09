@@ -801,6 +801,18 @@ if (joinForm) {
 
 
   // 上傳圖檔先縮到 1600px 內的 JPEG，避免手機照片過大
+  // 社區所在地：選縣市 → 鄉鎮市區下拉跟著換（資料在 assets/tw-zip.js；後端把兩個接成「臺中市北屯區」）
+  const jCity = document.getElementById('j-city');
+  const jDistrict = document.getElementById('j-district');
+  if (jCity && jDistrict && typeof TW_ZIP !== 'undefined') {
+    const fill = () => {
+      const list = TW_ZIP[jCity.value] || [];
+      jDistrict.replaceChildren(new Option(list.length ? '請選擇' : '先選縣市', ''), ...list.map(([name]) => new Option(name, name)));
+    };
+    jCity.addEventListener('change', fill);
+    fill();
+  }
+
   const readImage = (file) =>
     new Promise((resolve, reject) => {
       const img = new Image();
