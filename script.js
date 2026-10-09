@@ -1419,6 +1419,44 @@ if (equipBoard) {
   });
 }
 
+// ── 入會費線上繳費（pay.html?no=J…）──
+const payCard = document.getElementById('payCard');
+if (payCard) {
+  const no = (new URLSearchParams(location.search).get('no') || '').trim();
+  const status = document.getElementById('payStatus');
+  const error = document.getElementById('payError');
+  const showError = (code) => { status.hidden = true; error.textContent = code === 'not_found' ? '找不到這筆繳費資料，可能已經繳清或連結不完整；請用繳費通知裡的連結，或洽 LINE「寓委聯小幫手」。' : errorMessage(code); error.hidden = false; };
+  const money = (n) => `NT$ ${Number(n).toLocaleString('en-US')}`;
+  const goPay = (pay) => {
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = pay.url;
+    Object.entries(pay.fields).forEach(([name, value]) => form.append(Object.assign(document.createElement('input'), { type: 'hidden', name, value })));
+    document.body.append(form);
+    form.submit();
+  };
+  if (!no) showError('not_found');
+  else api({ action: 'joinPay', no }).then((result) => {
+    if (!result.ok) return showError(result.error);
+    status.hidden = true;
+    if (result.paid) { document.getElementById('payPaid').hidden = false; return; }
+    document.getElementById('payTitle').textContent = `${result.label}（${result.type}）的入會費用`;
+    document.getElementById('payItems').replaceChildren(...result.items.map((t) => { const li = document.createElement('li'); li.textContent = t; return li; }));
+    document.getElementById('payTotal').textContent = money(result.total);
+    document.getElementById('payMethods').textContent = result.methods.join('、');
+    document.getElementById('payInfo').hidden = false;
+    document.getElementById('payGo').addEventListener('click', async () => {
+      const button = document.getElementById('payGo');
+      setBusy(button, true);
+      const r = await api({ action: 'joinPay', no, start: true });
+      setBusy(button, false);
+      if (!r.ok) return showError(r.error);
+      if (r.paid) { document.getElementById('payInfo').hidden = true; document.getElementById('payPaid').hidden = false; return; }
+      goPay(r.pay);
+    });
+  });
+}
+
 // ── 書籍訂購 ──
 const orderForm = document.querySelector('[data-order]');
 if (orderForm) {
