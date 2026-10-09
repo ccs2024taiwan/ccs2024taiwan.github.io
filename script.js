@@ -1467,6 +1467,24 @@ if (orderForm) {
   });
   refresh();
 
+  // ── 郵局寄送：選縣市 → 區域下拉跟著換 → 郵遞區號自動帶入（資料在 assets/tw-zip.js）──
+  const citySelect = orderForm.querySelector('[name="city"]');
+  const districtSelect = orderForm.querySelector('[name="district"]');
+  const zipInput = orderForm.querySelector('[name="zip"]');
+  if (citySelect && districtSelect && typeof TW_ZIP !== 'undefined') {
+    const fillDistricts = () => {
+      const list = TW_ZIP[citySelect.value] || [];
+      districtSelect.replaceChildren(new Option(list.length ? '請選擇' : '先選縣市', ''), ...list.map(([name, zip]) => new Option(name, name, false, false)));
+      zipInput.value = '';
+    };
+    citySelect.addEventListener('change', fillDistricts);
+    districtSelect.addEventListener('change', () => {
+      const hit = (TW_ZIP[citySelect.value] || []).find(([name]) => name === districtSelect.value);
+      zipInput.value = hit ? hit[1] : '';
+    });
+    fillDistricts();
+  }
+
   // ── 7-11 取件門市：開官方電子地圖選，選完由後端頁面帶回 order.html?pickstore=店號|店名|地址 ──
   const storeInput = orderForm.querySelector('[name="store"]');
   const applyStore = (id, name, address) => {

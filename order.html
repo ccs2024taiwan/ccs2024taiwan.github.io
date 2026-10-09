@@ -94,9 +94,10 @@
               <div data-show="shipping=post">
                 <div class="form-row">
                   <div class="form-group"><label class="required" for="o-city">縣市</label><select id="o-city" name="city" required><option value="">請選擇</option><option>臺北市</option><option>新北市</option><option>基隆市</option><option>桃園市</option><option>新竹市</option><option>新竹縣</option><option>苗栗縣</option><option>臺中市</option><option>彰化縣</option><option>南投縣</option><option>雲林縣</option><option>嘉義市</option><option>嘉義縣</option><option>臺南市</option><option>高雄市</option><option>屏東縣</option><option>宜蘭縣</option><option>花蓮縣</option><option>臺東縣</option><option>澎湖縣</option><option>金門縣</option><option>連江縣</option></select></div>
-                  <div class="form-group"><label for="o-zip">郵遞區號</label><input id="o-zip" name="zip" type="text" inputmode="numeric" maxlength="6" /></div>
+                  <div class="form-group"><label class="required" for="o-district">區域</label><select id="o-district" name="district" required><option value="">先選縣市</option></select></div>
+                  <div class="form-group"><label for="o-zip">郵遞區號</label><input id="o-zip" name="zip" type="text" inputmode="numeric" maxlength="6" placeholder="選區域會自動帶入" /></div>
                 </div>
-                <div class="form-group"><label class="required" for="o-address">地址</label><input id="o-address" name="address" type="text" autocomplete="street-address" placeholder="區、路、號、樓" required /></div>
+                <div class="form-group"><label class="required" for="o-address">地址</label><input id="o-address" name="address" type="text" autocomplete="street-address" placeholder="路、段、巷、號、樓（區域已在上面選）" required /></div>
               </div>
               <div data-show="shipping=meet" hidden>
                 <div class="receipt-note">
@@ -252,6 +253,7 @@
       <div class="copyright">© <span id="year"></span> 全國公寓大廈管理委員聯誼會　·　<a href="privacy.html">個人資料蒐集告知</a></div>
     </footer>
 
+    <script src="assets/tw-zip.js"></script>
     <script src="script.js"></script>
   </body>
 </html>
