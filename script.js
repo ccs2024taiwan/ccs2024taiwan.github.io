@@ -1442,16 +1442,50 @@ if (payCard) {
     if (result.paid) { document.getElementById('payPaid').hidden = false; return; }
     document.getElementById('payTitle').textContent = `${result.label}（${result.type}）的入會費用`;
     document.getElementById('payItems').replaceChildren(...result.items.map((t) => { const li = document.createElement('li'); li.textContent = t; return li; }));
-    document.getElementById('payTotal').textContent = money(result.total);
     document.getElementById('payMethods').textContent = result.methods.join('、');
     document.getElementById('payInfo').hidden = false;
-    document.getElementById('payGo').addEventListener('click', async () => {
-      const button = document.getElementById('payGo');
+
+    // 紀念品：勾了才出現地址與加購；金額即時加總
+    const gift = result.gift || { shipping: 50, price: 100, name: '新手委員教戰手冊', maxExtra: 20 };
+    const $ = (id) => document.getElementById(id);
+    $('giftName').textContent = gift.name;
+    $('giftShip').textContent = gift.shipping;
+    $('giftShip2').textContent = gift.shipping;
+    $('giftPrice').textContent = gift.price;
+    $('giftExtra').max = gift.maxExtra;
+    const city = $('giftCity'), district = $('giftDistrict'), zip = $('giftZip');
+    if (typeof TW_ZIP !== 'undefined') {
+      city.replaceChildren(new Option('請選擇', ''), ...Object.keys(TW_ZIP).map((c) => new Option(c, c)));
+      city.addEventListener('change', () => { district.replaceChildren(new Option('請選擇', ''), ...(TW_ZIP[city.value] || []).map(([n]) => new Option(n, n))); zip.value = ''; });
+      district.addEventListener('change', () => { const hit = (TW_ZIP[city.value] || []).find(([n]) => n === district.value); zip.value = hit ? hit[1] : ''; });
+    }
+    const giftOn = () => $('giftWant').checked;
+    const extra = () => Math.min(gift.maxExtra, Math.max(0, Math.floor(Number($('giftExtra').value) || 0)));
+    const recalc = () => {
+      $('giftFields').hidden = !giftOn();
+      const lines = [];
+      let total = result.fee != null ? result.fee : result.total;
+      if (giftOn()) {
+        lines.push(`紀念品《${gift.name}》1 本 0 元＋運費 ${gift.shipping} 元`);
+        total += gift.shipping;
+        if (extra()) { lines.push(`加購 ${extra()} 本 × ${gift.price} 元 = ${extra() * gift.price} 元`); total += extra() * gift.price; }
+      }
+      $('payExtra').replaceChildren(...lines.map((t) => { const li = document.createElement('li'); li.textContent = t; return li; }));
+      $('payTotal').textContent = money(total);
+    };
+    ['giftWant', 'giftExtra'].forEach((id) => $(id).addEventListener('input', recalc));
+    $('giftWant').addEventListener('change', recalc);
+    recalc();
+
+    $('payGo').addEventListener('click', async () => {
+      error.hidden = true;
+      if (giftOn() && (!city.value || !district.value || !$('giftAddress').value.trim())) return showError('missing_fields');
+      const button = $('payGo');
       setBusy(button, true);
-      const r = await api({ action: 'joinPay', no, start: true });
+      const r = await api({ action: 'joinPay', no, start: true, gift: giftOn(), extra: extra(), city: city.value, district: district.value, zip: zip.value, address: $('giftAddress').value.trim() });
       setBusy(button, false);
       if (!r.ok) return showError(r.error);
-      if (r.paid) { document.getElementById('payInfo').hidden = true; document.getElementById('payPaid').hidden = false; return; }
+      if (r.paid) { $('payInfo').hidden = true; $('payPaid').hidden = false; return; }
       goPay(r.pay);
     });
   });

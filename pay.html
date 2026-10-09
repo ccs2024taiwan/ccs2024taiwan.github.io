@@ -50,6 +50,23 @@
             <div id="payInfo" hidden>
               <h3 id="payTitle"></h3>
               <ul id="payItems" class="event-done-rows"></ul>
+              <fieldset class="choice-group" id="giftBox">
+                <legend>會員紀念品《<span id="giftName">新手委員教戰手冊</span>》</legend>
+                <p class="form-note" style="margin-top: 0">新會員可獲贈 1 本。可在講座、交流日現場領取；想郵寄請勾選（運費 <span id="giftShip">50</span> 元），也可以一起加購，不另收運費。</p>
+                <label class="consent"><input id="giftWant" type="checkbox" /><span>寄送紀念品 1 本給我（運費 <span id="giftShip2">50</span> 元）</span></label>
+                <div id="giftFields" hidden>
+                  <div class="form-row">
+                    <div class="form-group"><label for="giftExtra">加購本數（會員價 <span id="giftPrice">100</span> 元／本）</label><input id="giftExtra" type="number" min="0" max="20" value="0" /></div>
+                  </div>
+                  <div class="form-row">
+                    <div class="form-group"><label class="required" for="giftCity">縣市</label><select id="giftCity"><option value="">請選擇</option></select></div>
+                    <div class="form-group"><label class="required" for="giftDistrict">區域</label><select id="giftDistrict"><option value="">先選縣市</option></select></div>
+                    <div class="form-group"><label for="giftZip">郵遞區號</label><input id="giftZip" type="text" inputmode="numeric" maxlength="6" /></div>
+                  </div>
+                  <div class="form-group"><label class="required" for="giftAddress">地址</label><input id="giftAddress" type="text" placeholder="路、段、巷、號、樓" /></div>
+                </div>
+              </fieldset>
+              <ul id="payExtra" class="event-done-rows"></ul>
               <p class="order-total"><span>應付金額</span><strong id="payTotal"></strong></p>
               <p class="form-note">可用：<span id="payMethods"></span>。付款資料由藍新金流處理，本會不會接觸到您的卡號。</p>
               <button id="payGo" class="btn btn-primary" type="button">前往付款</button>
@@ -110,6 +127,7 @@
       <div class="copyright">© <span id="year"></span> 全國公寓大廈管理委員聯誼會　·　<a href="privacy.html">個人資料蒐集告知</a></div>
     </footer>
 
+    <script src="assets/tw-zip.js"></script>
     <script src="script.js"></script>
   </body>
 </html>
