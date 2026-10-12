@@ -65,9 +65,13 @@
             <aside class="signup-aside">
               <h2 id="evTitle"></h2>
               <p id="evMeta"></p>
+              <div id="evMap" class="ev-map" hidden>
+                <iframe id="evMapFrame" title="活動地點地圖" loading="lazy" referrerpolicy="no-referrer-when-downgrade" allowfullscreen></iframe>
+                <a id="evMapLink" class="ev-map-link" href="#" target="_blank" rel="noopener">在 Google 地圖開啟</a>
+              </div>
               <ol class="steps">
-                <li><div><strong>會員免費帶 1 位朋友</strong><span>會員與志工報名時填會員編號（志工填登記的姓名），每個環節可免費帶 1 位朋友；第 2 位起比照非會員收費。</span></div></li>
-                <li><div><strong>非會員需先繳費</strong><span>送出後會顯示匯款帳號，匯款並回報後五碼，才算報名成功。</span></div></li>
+                <li><div><strong>會員免費帶 1 位朋友</strong><span>會員與志工報名時填會員編號（志工填登記的姓名），可免費帶 1 位朋友；第 2 位起比照非會員收費。</span></div></li>
+                <li><div><strong>非會員需先繳費</strong><span id="evPayStep">送出後可以線上刷卡，付完立即完成報名；或匯款並回報後五碼，對帳後才算報名成功。</span></div></li>
                 <li><div><strong>要取消或更改</strong><span>請私訊 LINE「寓委聯小幫手」。</span></div></li>
               </ol>
               <button id="evBack" class="small-btn" type="button">← 看其他活動</button>
@@ -108,6 +112,10 @@
                 <div id="donePay" class="dues-bank" hidden>
                   <span>應繳金額</span>
                   <strong id="donePayTotal"></strong>
+                  <div id="donePayOnline" class="ev-pay-online" hidden>
+                    <button id="donePayCard" class="btn btn-primary" type="button">線上付款（信用卡）</button>
+                    <small id="donePayMethods">付款完成立即報名成功，不用回報後五碼。</small>
+                  </div>
                   <span style="margin-top: 8px">匯款帳戶</span>
                   <strong id="donePayBank"></strong>
                   <p class="dues-account"><b id="donePayAccount"></b><button id="donePayCopy" class="small-btn" type="button">複製帳號</button></p>
@@ -115,6 +123,11 @@
                   <p class="dues-rule">匯款後請在下方回報帳號後五碼，<span class="nb">完成後才算報名成功。</span></p>
                 </div>
                 <p class="form-note">確認信已寄到你的信箱。</p>
+                <div class="ev-book">
+                  <strong>要順便帶一本《新手委員教戰手冊》嗎？</strong>
+                  <p>到訂購頁下單，寄送方式選「<b>面交</b>」、備註寫活動名稱，活動當天直接交給你，不用運費。</p>
+                  <a id="doneBookLink" class="small-btn" href="order.html?shipping=meet" target="_blank" rel="noopener">去訂購手冊（面交）</a>
+                </div>
               </div>
             </div>
           </div>
@@ -126,7 +139,7 @@
           <div class="section-heading">
             <p class="eyebrow">已經匯款了嗎</p>
             <h2>回報匯款</h2>
-            <p><span class="nb">需要繳費的報名，</span><span class="nb">匯款後在這裡回報帳號後五碼，</span><span class="nb">我們對帳後會通知你報名成功。</span></p>
+            <p><span class="nb">需要繳費的報名，</span><span class="nb">可以在這裡線上刷卡，</span><span class="nb">或匯款後回報帳號後五碼，</span><span class="nb">我們對帳後會通知你報名成功。</span></p>
           </div>
           <div class="form-card" style="max-width: 640px; margin-inline: auto">
             <form id="eventReportForm">
@@ -135,7 +148,10 @@
                 <div class="form-group"><label class="required" for="erPhone">報名時填的手機</label><input id="erPhone" type="tel" inputmode="numeric" placeholder="09xxxxxxxx" required /></div>
                 <div class="form-group"><label class="required" for="erLast5">匯款帳號後五碼</label><input id="erLast5" type="text" inputmode="numeric" maxlength="5" placeholder="例：12345" required /></div>
               </div>
-              <button class="btn btn-primary" type="submit">送出回報</button>
+              <div class="ev-report-actions">
+                <button class="btn btn-primary" type="submit">送出匯款回報</button>
+                <button id="erPayCard" class="btn btn-secondary" type="button" hidden>改用線上付款（信用卡）</button>
+              </div>
             </form>
             <p id="eventReportError" class="form-error" role="alert" hidden></p>
             <div id="eventReportDone" class="form-success" role="status">已收到你的回報，對帳後會通知你報名成功。謝謝！</div>

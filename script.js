@@ -82,6 +82,7 @@ const ERROR_MESSAGES = {
   already_signed_up: '這支手機已經報名過這個環節了。要更改請洽 LINE「寓委聯小幫手」。',
   member_no_email: '你的會員資料裡沒有可用的信箱，請在下方填一個信箱，確認信才寄得到。',
   signup_not_found: '找不到待繳費的報名。請確認報名編號與報名時填的手機。',
+  already_paid: '這筆報名已經付過款了，不用再付。',
   invalid_last5: '請輸入匯款帳號的後五碼（5 個數字）。',
   dues_not_open: '目前不是繳費期間，或你的會費已經入帳了。',
   dues_already_reported: '你已經回報過了，秘書處對帳後會通知你。',
@@ -234,6 +235,8 @@ const getSession = () => {
   }
 };
 
+const VENDOR_DISCLAIMER = '本資料為會員個人合作經驗分享，僅供會員訪價參考，非本會推薦或不推薦之名單；本會不對合作結果負責，請勿外流。';
+
 const renderVendors = (vendors) => {
   if (!vendorResults) return;
   const line = (tag, text, className) => {
@@ -260,6 +263,8 @@ const renderVendors = (vendors) => {
       if (vendor.note) item.append(line('p', vendor.note));
       item.append(line('p', [`推薦人：${vendor.referrer || '未提供'}`, vendor.when && `推薦時間：${vendor.when}`].filter(Boolean).join('｜'), 'vendor-meta'));
       if (vendor.contact) item.append(line('span', `聯絡：${vendor.contact}`));
+      // 免責聲明印在每一張卡上：截圖也帶得走，避免被當成本會的推薦或黑名單
+      item.append(line('p', VENDOR_DISCLAIMER, 'vendor-disclaimer'));
       return item;
     })
   );
@@ -1551,6 +1556,16 @@ if (orderForm) {
   });
   refresh();
 
+  // 從課程報名頁過來（order.html?shipping=meet&event=活動代號）：先選好「面交」，備註帶活動代號，活動當天交書
+  const presetShipping = new URLSearchParams(location.search).get('shipping');
+  if (presetShipping && config.shipping[presetShipping]) {
+    const radio = orderForm.querySelector(`[name="shipping"][value="${presetShipping}"]`);
+    if (radio) { radio.checked = true; refresh(); }
+    const eventId = new URLSearchParams(location.search).get('event');
+    const note = orderForm.querySelector('[name="note"]');
+    if (eventId && note && !note.value) note.value = `活動當天面交（活動代號 ${eventId}）`;
+  }
+
   // ── 郵局寄送：選縣市 → 區域下拉跟著換 → 郵遞區號自動帶入（資料在 assets/tw-zip.js）──
   const citySelect = orderForm.querySelector('[name="city"]');
   const districtSelect = orderForm.querySelector('[name="district"]');
@@ -1808,6 +1823,7 @@ if (eventList) {
   const params = new URLSearchParams(location.search);
   let events = [];
   let bank = null;
+  let online = []; // 開放的線上付款方式名稱；空＝沒開放
   let current = null;
 
   const feeText = (session) => {
@@ -1841,6 +1857,7 @@ if (eventList) {
         const meta = document.createElement('span');
         meta.textContent = [session.speaker && `講師：${session.speaker}`, feeText(session), seatText(session)].filter(Boolean).join('｜');
         li.append(name, meta);
+        if (session.note) li.append(Object.assign(document.createElement('span'), { className: 'event-session-note', textContent: session.note }));
         return li;
       }));
       const foot = document.createElement('div');
@@ -1886,6 +1903,14 @@ if (eventList) {
     $('evTitle').textContent = current.title;
     $('evMeta').textContent = [`${current.date}（${current.weekday}）`, current.place, current.deadline && `報名至 ${current.deadline}`].filter(Boolean).join('｜');
     $('evBack').hidden = events.length < 2;
+    // 活動地點 Google 地圖：課程活動表有填「地址」就用地址，沒有就用「地點」去找
+    const mapQuery = (current.address || current.place || '').trim();
+    $('evMap').hidden = !mapQuery;
+    if (mapQuery) {
+      $('evMapFrame').src = `https://www.google.com/maps?q=${encodeURIComponent(mapQuery)}&output=embed&hl=zh-TW`;
+      $('evMapLink').href = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapQuery)}`;
+    }
+    $('doneBookLink').href = `order.html?shipping=meet&event=${encodeURIComponent(current.id)}`;
     $('evSessions').replaceChildren(...current.sessions.map((session, i) => {
       const box = document.createElement('div');
       box.className = 'event-session';
@@ -1898,6 +1923,7 @@ if (eventList) {
       const small = document.createElement('small');
       small.textContent = [session.speaker && `講師：${session.speaker}`, feeText(session), seatText(session)].filter(Boolean).join('｜');
       text.append(small);
+      if (session.note) text.append(Object.assign(document.createElement('small'), { className: 'event-session-note', textContent: session.note }));
       label.append(input, text);
       box.append(label);
       if (session.maxFriends > 0) {
@@ -1962,16 +1988,45 @@ if (eventList) {
       return li;
     }));
     $('donePay').hidden = !result.total;
-    if (result.total && bank) {
+    if (result.total) {
       $('donePayTotal').textContent = money(result.total);
-      $('donePayBank').textContent = `${bank.name}（${bank.code}）`;
-      $('donePayAccount').textContent = bank.account;
-      $('donePayHolder').textContent = `戶名：${bank.holder}`;
+      if (bank) {
+        $('donePayBank').textContent = `${bank.name}（${bank.code}）`;
+        $('donePayAccount').textContent = bank.account;
+        $('donePayHolder').textContent = `戶名：${bank.holder}`;
+      }
       $('erId').value = result.id;
       $('erPhone').value = $('evPhone').value;
+      const methods = result.online || online;
+      $('donePayOnline').hidden = !methods.length;
+      if (methods.length) $('donePayCard').textContent = `線上付款（${methods.join('、')}）`;
     }
     $('eventDone').scrollIntoView?.({ behavior: 'smooth', block: 'center' });
   });
+
+  // ── 線上刷卡：報名編號＋手機 → 後端回傳藍新表單 → 跳轉付款頁 ──
+  const goPay = (pay) => {
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = pay.url;
+    Object.entries(pay.fields).forEach(([name, value]) => form.append(Object.assign(document.createElement('input'), { type: 'hidden', name, value })));
+    document.body.append(form);
+    form.submit();
+  };
+  const startPay = async (button, errorBox) => {
+    errorBox.hidden = true;
+    const id = $('erId').value.trim();
+    const phone = $('erPhone').value.replace(/\D/g, '');
+    const show = (code) => { errorBox.textContent = errorMessage(code); errorBox.hidden = false; errorBox.scrollIntoView?.({ behavior: 'smooth', block: 'center' }); };
+    if (!id || !/^09\d{8}$/.test(phone)) return show('missing_fields');
+    setBusy(button, true);
+    const result = await api({ action: 'eventPay', id, phone });
+    if (!result.ok) { setBusy(button, false); return show(result.error); }
+    if (result.paid) { setBusy(button, false); return show('already_paid'); }
+    goPay(result.pay); // 跳轉中，按鈕維持忙碌狀態
+  };
+  $('donePayCard').addEventListener('click', (event) => startPay(event.currentTarget, $('eventError')));
+  $('erPayCard').addEventListener('click', (event) => startPay(event.currentTarget, $('eventReportError')));
   $('donePayCopy').addEventListener('click', async (event) => {
     try { await navigator.clipboard.writeText($('donePayAccount').textContent); event.target.textContent = '已複製'; } catch { event.target.textContent = '請長按帳號複製'; }
     setTimeout(() => (event.target.textContent = '複製帳號'), 2500);
@@ -1996,14 +2051,31 @@ if (eventList) {
     $('erId').value = params.get('report');
     setTimeout(() => $('report').scrollIntoView?.({ block: 'start' }), 300);
   }
+  // 線上付款完成後從藍新回來：events.html?paid=報名編號&status=SUCCESS
+  const paidId = params.get('paid');
+  if (paidId) {
+    const ok = params.get('status') === 'SUCCESS';
+    const note = document.createElement('div');
+    note.className = 'panel ev-paid-note';
+    note.innerHTML = ok
+      ? '<span class="badge badge-teal">付款完成</span><h3>報名成功，當天見！</h3><p>報名編號 <b></b>。款項已收到，報名成功通知稍後會寄到你的信箱；選 ATM 轉帳的話，轉帳完成後系統會自動確認。</p>'
+      : '<span class="badge badge-red">付款未完成</span><h3>這筆報名還沒付款</h3><p>報名編號 <b></b>。你可以在下方「回報匯款」區重新線上付款，或改用銀行匯款；有問題請洽 LINE「寓委聯小幫手」。</p>';
+    note.querySelector('b').textContent = paidId.replace(/R\d{6}$/, '');
+    $('eventStatus').before(note);
+    $('erId').value = paidId.replace(/R\d{6}$/, '');
+  }
 
   api({ action: 'events' }).then((result) => {
     $('eventStatus').hidden = true;
     events = result.ok ? result.events || [] : [];
     bank = result.bank || null;
+    online = result.online || [];
+    $('erPayCard').hidden = !online.length;
+    if (online.length) $('erPayCard').textContent = `改用線上付款（${online.join('、')}）`;
+    else $('evPayStep').textContent = '送出後會顯示匯款帳號，匯款並回報後五碼，才算報名成功。';
     const wanted = params.get('id');
     if (wanted && events.some((e) => e.id === wanted)) openEvent(wanted);
-    else if (events.length === 1 && !params.get('report')) openEvent(events[0].id);
+    else if (events.length === 1 && !params.get('report') && !paidId) openEvent(events[0].id);
     else showList();
   });
 }

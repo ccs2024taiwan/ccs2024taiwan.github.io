@@ -2374,6 +2374,40 @@ blockquote {
   font-weight: 700;
 }
 
+/* 廠商資料庫：免責聲明跟著捲動（黏在頁面頂端），每張卡片底下也各印一行 */
+.vendor-notice {
+  position: sticky;
+  top: 8px;
+  z-index: 5;
+  margin: 0 0 14px;
+  padding: 10px 14px;
+  border: 1.5px solid var(--red-deep);
+  border-radius: 12px;
+  background: #fff8f4;
+  color: var(--red-deep);
+  font-size: 0.9rem;
+  line-height: 1.6;
+  box-shadow: 0 6px 18px rgba(59, 36, 5, 0.1);
+}
+
+.vendor-notice strong {
+  display: inline-block;
+  margin-right: 8px;
+  padding: 1px 10px;
+  border-radius: 999px;
+  background: var(--red-deep);
+  color: #fff;
+  font-size: 0.82rem;
+}
+
+.vendor-item .vendor-disclaimer {
+  margin-top: 6px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border);
+  font-size: 0.8rem;
+  color: var(--red-deep);
+}
+
 /* ── 會員服務選單 ── */
 .service-title {
   margin: 0 0 20px;
@@ -4025,6 +4059,86 @@ blockquote {
 
 .event-done h3 {
   margin-top: 0;
+}
+
+/* 報名側欄：活動地點 Google 地圖 */
+.ev-map {
+  margin: 16px 0 6px;
+  border-radius: 14px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.ev-map iframe {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  aspect-ratio: 4 / 3;
+  border: 0;
+}
+
+.ev-map-link {
+  display: block;
+  padding: 8px 12px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #fff;
+  text-decoration: none;
+}
+
+.ev-map-link:hover {
+  text-decoration: underline;
+}
+
+/* 報名卡片與環節：課程活動表「說明」欄 */
+.event-session-note {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.9rem;
+  color: var(--text);
+  white-space: pre-line;
+}
+
+/* 繳費框裡的線上付款 */
+.ev-pay-online {
+  display: grid;
+  gap: 6px;
+  justify-items: start;
+  margin: 8px 0 10px;
+  padding-bottom: 12px;
+  border-bottom: 1.5px dashed var(--border);
+}
+
+.ev-pay-online small {
+  color: var(--muted);
+}
+
+.ev-report-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+/* 報名完成後：順便買手冊 */
+.ev-book {
+  margin-top: 18px;
+  padding: 16px 18px;
+  border-radius: 16px;
+  background: var(--yellow-soft);
+}
+
+.ev-book strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.ev-book p {
+  margin: 0 0 10px;
+  font-size: 0.95rem;
+}
+
+.ev-paid-note {
+  margin-bottom: 24px;
 }
 
 .event-done-rows {
