@@ -1180,18 +1180,23 @@ if (equipBoard) {
     return node;
   };
 
-  const getEquipSession = () => {
+  // 同一個瀏覽器可能同時登著志工與會員：從會員專區連過來（?as=member）就用會員身分，
+  // 從志工專區連過來（?as=volunteer）用志工身分；沒帶參數時志工優先
+  const readSession = (key, audience) => {
     try {
-      const v = JSON.parse(localStorage.getItem(EQ_V_KEY));
-      if (v && v.token) return { token: v.token, audience: 'volunteer' };
+      const s = JSON.parse(localStorage.getItem(key));
+      if (s && s.token) return { token: s.token, audience };
     } catch {
       /* 忽略壞掉的 localStorage 內容 */
     }
-    try {
-      const m = JSON.parse(localStorage.getItem(EQ_M_KEY));
-      if (m && m.token) return { token: m.token, audience: 'member' };
-    } catch {
-      /* 忽略壞掉的 localStorage 內容 */
+    return null;
+  };
+  const getEquipSession = () => {
+    const as = new URLSearchParams(location.search).get('as');
+    const order = as === 'member' ? [[EQ_M_KEY, 'member'], [EQ_V_KEY, 'volunteer']] : [[EQ_V_KEY, 'volunteer'], [EQ_M_KEY, 'member']];
+    for (const [key, audience] of order) {
+      const s = readSession(key, audience);
+      if (s) return s;
     }
     return null;
   };
@@ -1339,7 +1344,7 @@ if (equipBoard) {
 
   const render = (data) => {
     lastView = data;
-    greeting.textContent = data.isManager ? '你同時是器材管理志工，下面多了一個管理區。' : '需要什麼器材，從下面的清單勾選送出就好。';
+    greeting.textContent = (session.audience === 'member' ? '你目前以會員身分登入，只會看到開放給會員借用的品項。' : '') + (data.isManager ? '你同時是器材管理志工，下面多了一個管理區。' : '需要什麼器材，從下面的清單勾選送出就好。');
     renderCatalog(data.catalog || []);
     renderList('equipMineList', data.mine || [], { showBorrower: false });
     document.getElementById('equipMineEmpty').hidden = (data.mine || []).length > 0;
