@@ -975,6 +975,9 @@ if (volunteerLoginForm) {
 
   const render = (data) => {
     document.getElementById('volunteerGreeting').textContent = `${data.volunteer.name} 您好，謝謝你的付出。`;
+    // 秘書處（志工資料的會員編號列在管理員名單）多一顆「開啟行政中心」；行政中心要用會員編號登入
+    const adminLink = document.getElementById('volunteerAdminLink');
+    if (adminLink) adminLink.hidden = !data.admin;
     document.getElementById('vHours').textContent = data.stats.hours;
     document.getElementById('vAttended').textContent = data.stats.attended;
     document.getElementById('vTasks').textContent = data.stats.tasks;

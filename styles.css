@@ -311,6 +311,12 @@ blockquote {
   cursor: pointer;
 }
 
+.small-btn-strong {
+  border-color: var(--red-deep);
+  background: var(--red-deep);
+  color: #fff;
+}
+
 .small-btn:hover {
   background: var(--brown);
   color: #fff;
