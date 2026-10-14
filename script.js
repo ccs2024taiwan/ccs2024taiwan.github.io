@@ -1132,7 +1132,7 @@ if (claimBoard) {
       items.querySelectorAll('.claim-row').forEach((row) => { total += Math.round(Number(row.querySelector('[data-f="amount"]').value) || 0); });
       $('claimTotal').textContent = money(total);
     };
-    const addRow = () => {
+    const addRow = (focus) => {
       const row = el('div', 'claim-row');
       const mk = (f, type, placeholder, label) => {
         const input = el('input');
@@ -1140,7 +1140,12 @@ if (claimBoard) {
         input.dataset.f = f;
         if (placeholder) input.placeholder = placeholder;
         input.setAttribute('aria-label', label);
-        if (type === 'number') { input.min = 1; input.step = 1; input.inputMode = 'numeric'; }
+        // 金額不用 type=number：Windows 的注音輸入法碰到數字欄會被關掉，接著的品名欄就變成英文；改用文字欄＋只留數字
+        if (f === 'amount') {
+          input.inputMode = 'numeric';
+          input.autocomplete = 'off';
+          input.addEventListener('input', () => { const digits = input.value.replace(/[^\d]/g, ''); if (digits !== input.value) input.value = digits; });
+        }
         input.addEventListener('input', recalc);
         return input;
       };
@@ -1154,10 +1159,11 @@ if (claimBoard) {
       remove.type = 'button';
       remove.setAttribute('aria-label', '刪除這一項');
       remove.addEventListener('click', () => { if (items.querySelectorAll('.claim-row').length > 1) row.remove(); recalc(); });
-      row.append(mk('name', 'text', '品名／事由，例：A4 影印紙', '品名'), mk('amount', 'number', '金額', '金額'), mk('spent', 'date', '', '消費日期'), type, task, remove);
+      row.append(mk('name', 'text', '品名／事由，例：A4 影印紙', '品名'), mk('amount', 'text', '金額', '金額'), mk('spent', 'date', '', '消費日期'), type, task, remove);
       items.append(row);
+      if (focus) row.querySelector('[data-f="name"]').focus(); // 按「＋ 新增一項」後游標直接到新列的品名
     };
-    $('claimAddItem').addEventListener('click', addRow);
+    $('claimAddItem').addEventListener('click', () => addRow(true));
     const renderMine = (list) => {
       $('claimMine').replaceChildren(...list.map((c) => {
         const li = el('li');
