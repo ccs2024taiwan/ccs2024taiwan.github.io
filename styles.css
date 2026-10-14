@@ -2447,6 +2447,13 @@ blockquote {
   border-color: var(--zone, var(--teal-deep));
 }
 
+/* 用 <a> 做的服務卡（經典討論串、秘書處請款）：外觀同按鈕卡 */
+a.service-tile {
+  color: inherit;
+  text-decoration: none;
+  font: inherit;
+}
+
 .service-no {
   width: 46px;
   height: 40px;
