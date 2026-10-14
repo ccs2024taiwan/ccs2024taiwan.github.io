@@ -298,6 +298,8 @@ const renderServices = (data) => {
     );
     document.getElementById(emptyId).hidden = items.length > 0;
   });
+  const adminTile = document.getElementById('adminClaimTile'); // 秘書處管理員才看得到「秘書處請款」
+  if (adminTile) adminTile.hidden = !data.admin;
   const links = document.getElementById('resourceLinks');
   if (links) {
     const entries = data.links || [];
@@ -1069,59 +1071,9 @@ if (volunteerLoginForm) {
     });
   });
 
-  // 請款：一張收據的所有品項填在同一張申請
-  const itemRows = document.getElementById('expenseItems');
-  const money = (n) => `NT$ ${Math.round(n).toLocaleString('en-US')}`;
-  const recalc = () => {
-    let total = 0;
-    itemRows.querySelectorAll('.item-row').forEach((row) => {
-      const sub = (Number(row.querySelector('[data-f="price"]').value) || 0) * (Number(row.querySelector('[data-f="qty"]').value) || 0);
-      row.querySelector('.item-sub').textContent = money(sub);
-      total += Math.round(sub);
-    });
-    document.getElementById('expenseTotal').textContent = money(total);
-  };
-  const addItemRow = () => {
-    const row = el('div', 'item-row');
-    const mk = (f, type, placeholder, label) => {
-      const input = el('input');
-      input.type = type;
-      input.dataset.f = f;
-      input.placeholder = placeholder;
-      input.setAttribute('aria-label', label);
-      if (type === 'number') {
-        input.min = 0;
-        input.step = f === 'qty' ? 1 : 'any';
-        input.inputMode = 'decimal';
-      }
-      input.addEventListener('input', recalc);
-      return input;
-    };
-    const remove = el('button', 'item-remove', '×');
-    remove.type = 'button';
-    remove.setAttribute('aria-label', '刪除這一項');
-    remove.addEventListener('click', () => {
-      if (itemRows.querySelectorAll('.item-row').length > 1) row.remove();
-      recalc();
-    });
-    const qty = mk('qty', 'number', '數量', '數量');
-    qty.value = 1;
-    row.append(mk('name', 'text', '品名，例：A4 影印紙', '品名'), mk('price', 'number', '單價', '單價'), qty, el('span', 'item-sub', money(0)), remove);
-    itemRows.append(row);
-  };
-  document.getElementById('addExpenseItem').addEventListener('click', addItemRow);
-  addItemRow();
-
+  // 請款表單已搬到 claim.html（志工與秘書處共用），這裡只剩任務報名
   const gather = {
     signup: (form) => ({ tasks: Array.from(form.querySelectorAll('[name="tasks"]:checked')).map((box) => box.value), note: form.querySelector('[name="note"]').value }),
-    expense: (form) => ({
-      task: form.querySelector('[name="task"]').value,
-      spent: form.querySelector('[name="spent"]').value,
-      receiptType: form.querySelector('[name="receiptType"]:checked')?.value || '',
-      method: form.querySelector('[name="method"]:checked').value,
-      note: form.querySelector('[name="note"]').value,
-      items: Array.from(itemRows.querySelectorAll('.item-row')).map((row) => ({ name: row.querySelector('[data-f="name"]').value.trim(), price: row.querySelector('[data-f="price"]').value, qty: row.querySelector('[data-f="qty"]').value })).filter((it) => it.name),
-    }),
   };
 
   document.querySelectorAll('form[data-volunteer-form]').forEach((form) => {
@@ -1133,10 +1085,7 @@ if (volunteerLoginForm) {
       error.hidden = true;
       const kind = form.dataset.volunteerForm;
       const fields = gather[kind](form);
-      const problem =
-        kind === 'signup' && !fields.tasks.length ? 'nothing_selected'
-        : kind === 'expense' && (!fields.task.trim() || !fields.spent || !fields.items.length) ? 'missing_fields'
-        : '';
+      const problem = kind === 'signup' && !fields.tasks.length ? 'nothing_selected' : '';
       if (problem) {
         error.textContent = errorMessage(problem);
         error.hidden = false;
@@ -1148,11 +1097,6 @@ if (volunteerLoginForm) {
       setBusy(button, false);
       if (result.ok) {
         form.reset();
-        if (kind === 'expense') {
-          itemRows.replaceChildren();
-          addItemRow();
-          recalc();
-        }
         if (result.volunteer) render(result);
         success.classList.add('visible');
       } else if (result.error === 'unauthorized') {
@@ -1163,6 +1107,111 @@ if (volunteerLoginForm) {
       }
     });
   });
+}
+
+// ── 請款頁（志工與秘書處管理員共用，見 claim.html）──
+const claimBoard = document.getElementById('claimBoard');
+if (claimBoard) {
+  const $ = (id) => document.getElementById(id);
+  const money = (n) => `NT$ ${Math.round(Number(n) || 0).toLocaleString('en-US')}`;
+  const el = (tag, className, text) => { const node = document.createElement(tag); if (className) node.className = className; if (text != null) node.textContent = text; return node; };
+  // 同器材頁：?as=member 用會員（秘書處）憑證，否則志工優先
+  const readSession = (key, audience) => { try { const s = JSON.parse(localStorage.getItem(key)); if (s && s.token) return { token: s.token, audience }; } catch { /* 壞掉的 localStorage */ } return null; };
+  const as = new URLSearchParams(location.search).get('as');
+  const order = as === 'member' ? [['memberSession', 'member'], ['volunteerSession', 'volunteer']] : [['volunteerSession', 'volunteer'], ['memberSession', 'member']];
+  let session = null;
+  for (const [key, audience] of order) { session = readSession(key, audience); if (session) break; }
+  if (!session) {
+    $('claimGuest').hidden = false;
+  } else {
+    $('claimGuest').hidden = true;
+    let home = { receiptTypes: ['發票', '收據', '領據', '支出證明單', '無'], tasks: [] };
+    const items = $('claimItems');
+    const recalc = () => {
+      let total = 0;
+      items.querySelectorAll('.claim-row').forEach((row) => { total += Math.round(Number(row.querySelector('[data-f="amount"]').value) || 0); });
+      $('claimTotal').textContent = money(total);
+    };
+    const addRow = () => {
+      const row = el('div', 'claim-row');
+      const mk = (f, type, placeholder, label) => {
+        const input = el('input');
+        input.type = type;
+        input.dataset.f = f;
+        if (placeholder) input.placeholder = placeholder;
+        input.setAttribute('aria-label', label);
+        if (type === 'number') { input.min = 1; input.step = 1; input.inputMode = 'numeric'; }
+        input.addEventListener('input', recalc);
+        return input;
+      };
+      const type = el('select');
+      type.dataset.f = 'receiptType';
+      type.setAttribute('aria-label', '單據種類');
+      type.append(...home.receiptTypes.map((t) => new Option(t, t)));
+      const task = mk('task', 'text', '任務／活動（同上可留空）', '任務');
+      task.setAttribute('list', 'claimTaskList');
+      const remove = el('button', 'item-remove', '×');
+      remove.type = 'button';
+      remove.setAttribute('aria-label', '刪除這一項');
+      remove.addEventListener('click', () => { if (items.querySelectorAll('.claim-row').length > 1) row.remove(); recalc(); });
+      row.append(mk('name', 'text', '品名／事由，例：A4 影印紙', '品名'), mk('amount', 'number', '金額', '金額'), mk('spent', 'date', '', '消費日期'), type, task, remove);
+      items.append(row);
+    };
+    $('claimAddItem').addEventListener('click', addRow);
+    const renderMine = (list) => {
+      $('claimMine').replaceChildren(...list.map((c) => {
+        const li = el('li');
+        li.textContent = `${c.id}｜${c.submitted}｜${c.items} 項｜${money(c.total)}${c.paidOn ? `｜${c.paidOn} 已付款` : ''}`;
+        const tag = el('b', c.status === '已付款' ? 'ok' : '', c.status);
+        li.append(tag);
+        return li;
+      }));
+      $('claimMineEmpty').hidden = list.length > 0;
+    };
+    const boot = async () => {
+      $('claimGreeting').textContent = '載入中…';
+      const r = await api({ action: 'claimHome', token: session.token });
+      if (!r.ok) {
+        if (r.error === 'unauthorized') { $('claimGuest').hidden = false; claimBoard.hidden = true; $('claimGuest').querySelector('p').textContent = session.audience === 'member' ? '這個會員帳號沒有秘書處請款的權限（要列在管理員名單）。志工請到志工專區登入。' : '登入已過期，請重新登入。'; return; }
+        $('claimGreeting').textContent = '資料暫時載入不了，請稍後再重新整理一次。';
+        return;
+      }
+      home = r;
+      claimBoard.hidden = false;
+      $('claimGreeting').textContent = `${r.name} 您好，您是以「${r.kind}」身分請款。`;
+      $('claimReceiptAddress').textContent = r.receiptAddress || '（請洽秘書長）';
+      $('claimTaskList').replaceChildren(...(r.tasks || []).map((t) => new Option(t)));
+      if (!items.children.length) addRow();
+      recalc();
+      renderMine(r.mine || []);
+    };
+    $('claimForm').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const error = $('claimError');
+      error.hidden = true;
+      $('claimSuccess').classList.remove('visible');
+      const rows = Array.from(items.querySelectorAll('.claim-row')).map((row) => ({
+        name: row.querySelector('[data-f="name"]').value.trim(), amount: row.querySelector('[data-f="amount"]').value, spent: row.querySelector('[data-f="spent"]').value,
+        receiptType: row.querySelector('[data-f="receiptType"]').value, task: row.querySelector('[data-f="task"]').value.trim(),
+      })).filter((it) => it.name || it.amount || it.spent);
+      const fail = (code) => { error.textContent = errorMessage(code); error.hidden = false; error.scrollIntoView?.({ behavior: 'smooth', block: 'center' }); };
+      if (!rows.length || !rows[0].task) return fail('missing_fields');
+      if (rows.some((it) => !it.name || !(Number(it.amount) > 0) || !it.spent)) return fail('missing_fields');
+      const button = event.target.querySelector('[type="submit"]');
+      setBusy(button, true);
+      const r = await api({ action: 'claimSubmit', token: session.token, fields: { items: rows, method: event.target.querySelector('[name="method"]:checked').value, note: $('claimNote').value } });
+      setBusy(button, false);
+      if (!r.ok) return fail(r.error);
+      items.replaceChildren();
+      addRow();
+      $('claimNote').value = '';
+      recalc();
+      $('claimSuccess').textContent = `已送出請款單 ${r.claimId}，共 ${money(r.total)}。秘書處逐項審核後會通知你；請記得把單據正本交給秘書長。`;
+      $('claimSuccess').classList.add('visible');
+      boot();
+    });
+    boot();
+  }
 }
 
 // ── 我的器材（志工專區與會員專區共用，見 equipment.html）──

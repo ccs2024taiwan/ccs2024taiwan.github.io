@@ -3135,6 +3135,56 @@ blockquote {
   font-weight: 700;
 }
 
+/* 請款頁（claim.html）：一項一列，品名／金額／消費日期／單據種類／任務／刪除 */
+.claim-head,
+.claim-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) 88px 136px 118px minmax(0, 1fr) 36px;
+  gap: 8px;
+  align-items: center;
+}
+
+.claim-head {
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.claim-row {
+  margin-bottom: 8px;
+}
+
+.form-group .claim-row input,
+.form-group .claim-row select {
+  min-height: 44px;
+  padding: 0.5rem 0.6rem;
+}
+
+@media (max-width: 760px) {
+  .claim-head {
+    display: none;
+  }
+
+  .claim-row {
+    grid-template-columns: 1fr 1fr;
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+  }
+
+  .claim-row [data-f="name"],
+  .claim-row [data-f="task"] {
+    grid-column: 1 / -1;
+  }
+
+  .claim-row .item-remove {
+    justify-self: end;
+  }
+}
+
+.service-tile[hidden] {
+  display: none;
+}
+
 .item-remove {
   width: 34px;
   height: 34px;
