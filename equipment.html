@@ -65,14 +65,14 @@
 
             <div class="form-card zone-card">
               <h3>新增借用申請</h3>
-              <p class="form-note" style="margin-top: 0">勾選需要的品項，按 ＋ 調整數量。<span id="equipMemberHint" hidden>會員只能借「可出借」的品項。</span></p>
+              <p class="form-note" style="margin-top: 0">勾選需要的品項，按 ＋ 調整數量；成組的品項（例如印章）可以單借幾顆或「整組借」。線上會議室是預約制：填日期與時間，核准後會收到 Google Meet 連結。<span id="equipMemberHint" hidden>會員只能借「可出借」的品項。</span></p>
               <form id="equipRequestForm">
                 <div id="equipCartList" class="cart-list"></div>
                 <p id="equipCartEmpty" class="form-note" hidden>目前沒有可以借的品項，請洽 LINE「寓委聯小幫手」。</p>
                 <div class="form-group"><label class="required" for="eqPurpose">用途／任務</label><input id="eqPurpose" type="text" placeholder="例：○○社區中秋晚會" required /></div>
                 <div class="form-row">
-                  <div class="form-group"><label class="required" for="eqPickup">預計取件日</label><input id="eqPickup" type="date" required /></div>
-                  <div class="form-group"><label class="required" for="eqDue">預計歸還日</label><input id="eqDue" type="date" required /></div>
+                  <div class="form-group"><label for="eqPickup">預計取件日<small>只借線上會議室可不填</small></label><input id="eqPickup" type="date" /></div>
+                  <div class="form-group"><label for="eqDue">預計歸還日<small>只借線上會議室可不填</small></label><input id="eqDue" type="date" /></div>
                 </div>
                 <button class="btn btn-primary" type="submit">送出申請</button>
               </form>

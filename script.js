@@ -102,6 +102,9 @@ const ERROR_MESSAGES = {
   invalid_last5: '帳號後五碼請填 5 個數字。',
   order_not_found: '找不到這筆訂單，請確認訂單編號與下單時填的手機。',
   item_not_found: '找不到這個品項，請重新整理頁面後再選一次。',
+  booking_conflict: '那個時段已經有人預約了，請換一個時間（頁面上有列出已被預約的時段）。',
+  booking_too_long: '線上會議室一次最長 4 小時，請縮短時間或分兩次預約。',
+  booking_invalid: '預約的日期或時間不完整，或結束時間沒有在開始時間之後。',
   member_restricted_item: '這個品項目前只開放志工借用，會員還不能借。',
   forbidden: '你目前沒有權限做這個動作，請重新整理頁面確認狀態。',
   archive_not_ready: '活動建檔的雲端硬碟資料夾還沒設定，請洽秘書處（試算表「設定」的〈活動建檔資料夾 ID〉）。',
@@ -1340,12 +1343,20 @@ if (equipBoard) {
     const meta = [];
     if (opts.showBorrower) meta.push(`借用人：${item.borrower}${item.borrowerRole ? `（${item.borrowerRole}）` : ''}`);
     if (item.purpose) meta.push(`用途：${item.purpose}`);
-    if (item.pickup) meta.push(`取件：${item.pickup}`);
-    if (item.due) meta.push(`歸還：${item.due}`);
+    if (item.booking) meta.push(`時間：${item.pickup} ${item.startTime}–${item.endTime}${item.people ? `（約 ${item.people} 人）` : ''}`);
+    else {
+      if (item.pickup) meta.push(`取件：${item.pickup}`);
+      if (item.due) meta.push(`歸還：${item.due}`);
+    }
     if (item.holder) meta.push(`保管人：${item.holder}`);
     if (item.status === '歸還申請' && item.recipient) meta.push(`歸還方式：${item.returnMethod}${item.returnMethod === RETURN_METHOD_LABELS.keep ? '' : `（給 ${item.recipient}）`}`);
     if (meta.length) row.append(el('p', 'equip-meta', meta.join('｜')));
     if (item.overdueDays) row.append(el('p', 'warn', `已逾期 ${item.overdueDays} 天，請盡快處理`));
+    if (item.booking && item.meetUrl) {
+      const link = el('a', 'btn btn-primary meet-link', '進入 Google Meet');
+      link.href = item.meetUrl; link.target = '_blank'; link.rel = 'noopener';
+      row.append(link, el('p', 'equip-meta', '把這個連結轉給與會者即可；時間到直接進入，不用等主持人。'));
+    }
 
     const actions = el('div', 'equip-actions');
     (item.actions || []).forEach((action) => {
@@ -1364,11 +1375,60 @@ if (equipBoard) {
   };
 
   // 新增申請：跟志工專區舊版一樣，像購物車勾選、調整數量
+  // 線上會議室（預約制）：不是數量，而是日期＋起訖時間
+  const renderBookingRow = (item) => {
+    const row = el('div', 'cart-row booking-row');
+    const info = el('div');
+    info.append(el('strong', '', item.name), el('small', '', '預約制：填日期與時間，一次最長 ' + ((lastView && lastView.bookingMaxHours) || 4) + ' 小時；核准後會收到 Google Meet 連結'));
+    const taken = ((lastView && lastView.booked) || []).filter((b) => b.item === item.name);
+    if (taken.length) info.append(el('small', 'booking-taken', '已被預約：' + taken.map((b) => b.label).join('、')));
+    const fields = el('div', 'booking-fields');
+    const mk = (type, f, label, extra) => { const i = el('input'); i.type = type; i.dataset.bookingField = f; i.setAttribute('aria-label', label); Object.assign(i, extra || {}); return i; };
+    const date = mk('date', 'date', item.name + ' 日期');
+    const start = mk('time', 'start', '開始時間', { step: 300 });
+    const end = mk('time', 'end', '結束時間', { step: 300 });
+    const people = mk('number', 'people', '預計人數', { min: 1, placeholder: '人數' });
+    const use = el('label', 'choice booking-on');
+    const box = el('input'); box.type = 'checkbox'; box.dataset.bookingItem = item.name;
+    use.append(box, el('span', '', '我要預約'));
+    fields.append(use, date, el('span', 'booking-sep', '從'), start, el('span', 'booking-sep', '到'), end, people);
+    [date, start, end, people].forEach((i) => i.addEventListener('input', () => { box.checked = Boolean(date.value || start.value || end.value); row.classList.toggle('in-cart', box.checked); }));
+    box.addEventListener('change', () => row.classList.toggle('in-cart', box.checked));
+    row.append(info, fields);
+    return row;
+  };
+
+  // 同前綴（「印章：」）的品項折成一組，加「整組借」
+  const groupKey = (name) => { const m = /^([^：:]+)[：:]/.exec(name); return m ? m[1] : ''; };
   const renderCatalog = (items) => {
     const list = document.getElementById('equipCartList');
-    list.replaceChildren(
-      ...items.map((item) => {
-        const row = el('div', 'cart-row');
+    const counts = {};
+    items.forEach((it) => { const k = groupKey(it.name); if (k && !it.booking) counts[k] = (counts[k] || 0) + 1; });
+    const seen = {};
+    const nodes = [];
+    items.forEach((item) => {
+      if (item.booking) { nodes.push(renderBookingRow(item)); return; }
+      const k = groupKey(item.name);
+      if (k && counts[k] > 1 && !seen[k]) {
+        seen[k] = true;
+        const head = el('div', 'cart-group');
+        head.append(el('strong', '', k + '（共 ' + counts[k] + ' 項，可單借）'));
+        const all = el('button', 'small-btn', '整組借');
+        all.type = 'button';
+        all.addEventListener('click', () => {
+          list.querySelectorAll('[data-cart-item]').forEach((q) => { if (groupKey(q.dataset.cartItem) === k) { q.value = Math.min(Number(q.max) || 1, 1); q.dispatchEvent(new Event('input', { bubbles: true })); } });
+        });
+        head.append(all);
+        nodes.push(head);
+      }
+      nodes.push(renderCartRow(item, k && counts[k] > 1));
+    });
+    list.replaceChildren(...nodes);
+    document.getElementById('equipCartEmpty').hidden = items.length > 0;
+  };
+
+  const renderCartRow = (item, grouped) => {
+    const row = el('div', 'cart-row' + (grouped ? ' is-grouped' : ''));
         const info = el('div');
         info.append(el('strong', '', item.name), el('small', '', [item.quantity ? `現有 ${item.quantity}` : '', item.place].filter(Boolean).join('｜')));
         const stepper = el('div', 'stepper');
@@ -1392,9 +1452,6 @@ if (equipBoard) {
         stepper.append(minus, qty, plus);
         row.append(info, stepper);
         return row;
-      })
-    );
-    document.getElementById('equipCartEmpty').hidden = items.length > 0;
   };
 
   const render = (data) => {
@@ -1459,17 +1516,21 @@ if (equipBoard) {
     const items = Array.from(requestForm.querySelectorAll('[data-cart-item]'))
       .map((q) => ({ name: q.dataset.cartItem, qty: Number(q.value) || 0 }))
       .filter((it) => it.qty > 0);
+    const bookings = Array.from(requestForm.querySelectorAll('[data-booking-item]:checked')).map((box) => {
+      const row = box.closest('.booking-row');
+      const f = (name) => row.querySelector(`[data-booking-field="${name}"]`).value;
+      return { name: box.dataset.bookingItem, date: f('date'), start: f('start'), end: f('end'), people: f('people') };
+    });
     const purpose = document.getElementById('eqPurpose').value;
     const pickup = document.getElementById('eqPickup').value;
     const due = document.getElementById('eqDue').value;
-    if (!items.length || !purpose.trim() || !pickup || !due) {
-      reqError.textContent = errorMessage('missing_fields');
-      reqError.hidden = false;
-      return;
-    }
+    const fail = (code) => { reqError.textContent = errorMessage(code); reqError.hidden = false; };
+    if ((!items.length && !bookings.length) || !purpose.trim()) return fail('missing_fields');
+    if (items.length && (!pickup || !due)) return fail('missing_fields');
+    if (bookings.some((b) => !b.date || !b.start || !b.end)) return fail('booking_invalid');
     const button = requestForm.querySelector('[type="submit"]');
     setBusy(button, true);
-    const result = await api({ action: 'equipmentRequest', token, purpose, pickup, due, items });
+    const result = await api({ action: 'equipmentRequest', token, purpose, pickup, due, items, bookings });
     setBusy(button, false);
     if (!result.ok) {
       if (result.error === 'unauthorized') {

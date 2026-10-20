@@ -3245,6 +3245,59 @@ a.service-tile {
   width: 60px;
 }
 
+/* 成組品項（印章：○○）的組標題＋整組借 */
+.cart-group {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 6px;
+  padding: 4px 6px 0;
+}
+
+.cart-row.is-grouped {
+  margin-left: 18px;
+}
+
+/* 線上會議室預約列 */
+.booking-row {
+  flex-wrap: wrap;
+}
+
+.booking-fields {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.booking-fields input {
+  min-height: 40px;
+  padding: 0.35rem 0.5rem;
+}
+
+.booking-fields input[type="number"] {
+  width: 80px;
+}
+
+.booking-on {
+  padding: 6px 12px;
+}
+
+.booking-sep {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.booking-taken {
+  color: var(--red-deep);
+}
+
+.meet-link {
+  margin: 8px 0 4px;
+}
+
 @media (max-width: 640px) {
   .membership-card {
     grid-template-columns: repeat(2, minmax(0, 1fr));
