@@ -102,6 +102,9 @@ const ERROR_MESSAGES = {
   invalid_last5: '帳號後五碼請填 5 個數字。',
   order_not_found: '找不到這筆訂單，請確認訂單編號與下單時填的手機。',
   item_not_found: '找不到這個品項，請重新整理頁面後再選一次。',
+  forum_name_length: '顯示名稱要 2～10 個字。',
+  forum_name_reserved: '這個名稱含有保留字（秘書長、理事長、寓委聯、匿名…），請換一個。',
+  forum_name_taken: '這個名稱已經有人在用，或跟其他會員的姓名一樣，請換一個。',
   booking_conflict: '那個時段已經有人預約了，請換一個時間（頁面上有列出已被預約的時段）。',
   booking_too_long: '線上會議室一次最長 4 小時，請縮短時間或分兩次預約。',
   booking_invalid: '預約的日期或時間不完整，或結束時間沒有在開始時間之後。',
@@ -521,7 +524,32 @@ const showDashboard = (member, vendors, data = {}) => {
     }
   }
   renderDues(ms && ms.dues);
+  renderForumName(data.forum);
   openService(null);
+};
+
+// 討論串顯示名稱：會員專區「我的會籍」卡裡設定
+const renderForumName = (forum) => {
+  const form = document.getElementById('forumNameForm');
+  if (!form) return;
+  const input = document.getElementById('forumNameInput');
+  const note = document.getElementById('forumNameNote');
+  input.value = forum && forum.custom ? forum.custom : '';
+  note.textContent = forum ? `目前留言顯示為「${forum.name}${forum.community ? '・' + forum.community : ''}」。` : '留言會顯示成「暱稱・你的社區」。';
+  note.classList.remove('is-error');
+  if (form.dataset.bound) return;
+  form.dataset.bound = '1';
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const session = getSession();
+    if (!session) return;
+    const button = form.querySelector('[type="submit"]');
+    setBusy(button, true);
+    const r = await api({ action: 'forumNameSet', token: session.token, name: input.value });
+    setBusy(button, false);
+    note.classList.toggle('is-error', !r.ok);
+    note.textContent = r.ok ? `已儲存，留言會顯示為「${r.forum.name}${r.forum.community ? '・' + r.forum.community : ''}」。` : errorMessage(r.error);
+  });
 };
 
 const logout = (errorCode) => {
@@ -2214,7 +2242,7 @@ if (forumListEl || portalForumList) {
   const wantedId = new URLSearchParams(location.search).get('id');
 
   const renderReplies = (box, topic) => {
-    box.replaceChildren(...topic.replies.map((r) => { const li = el('li', 'forum-reply'); li.append(el('b', '', r.name), el('span', '', r.text), el('small', '', r.when)); return li; }));
+    box.replaceChildren(...topic.replies.map((r) => { const li = el('li', 'forum-reply'); li.append(el('b', '', r.community ? `${r.name}・${r.community}` : r.name), el('span', '', r.text), el('small', '', r.when)); return li; }));
     box.hidden = !topic.replies.length;
   };
 
@@ -2245,7 +2273,7 @@ if (forumListEl || portalForumList) {
       const form = el('form', 'forum-form');
       const ta = el('textarea'); ta.placeholder = '分享你們社區的做法，或補充你的看法…'; ta.maxLength = 1000; ta.required = true;
       const row = el('div', 'forum-form-row');
-      row.append(el('small', '', `以「${session.member.name}」留言`), Object.assign(el('button', 'btn btn-primary', '送出留言'), { type: 'submit' }));
+      row.append(el('small', '', '留言會以你在會員專區設定的顯示名稱呈現'), Object.assign(el('button', 'btn btn-primary', '送出留言'), { type: 'submit' }));
       const err = el('p', 'form-error'); err.hidden = true;
       form.append(ta, row, err);
       form.addEventListener('submit', async (event) => {

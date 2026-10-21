@@ -2566,6 +2566,36 @@ a.service-tile {
   font-size: 1.15rem;
 }
 
+.forum-name-form {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  margin-top: 6px;
+  padding-top: 10px;
+  border-top: 1.5px dashed var(--border);
+}
+
+.forum-name-form label {
+  font-weight: 700;
+}
+
+.forum-name-form input {
+  flex: 1 1 200px;
+  min-height: 40px;
+  padding: 0.4rem 0.7rem;
+}
+
+.forum-name-form small {
+  flex-basis: 100%;
+  color: var(--muted);
+}
+
+.forum-name-form small.is-error {
+  color: var(--red-deep);
+}
+
 .membership-hint {
   grid-column: 1 / -1;
   margin: 10px 0 0;
