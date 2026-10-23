@@ -1983,6 +1983,14 @@ if (eventList) {
     return `會員${session.memberFee ? money(session.memberFee) : '免費'}｜非會員${session.nonMemberFee ? money(session.nonMemberFee) : '免費'}`;
   };
   const seatText = (session) => (session.left == null ? '' : session.left > 0 ? `剩 ${session.left} 個名額` : '已額滿，可登記候補');
+  // 已報名名單（只列勾了「顯示名字」的人；沒人報名就不顯示）
+  const attendeeNode = (session) => {
+    if (!session.attendeeCount) return null;
+    const names = session.attendees || [];
+    const more = session.attendeeCount - names.length;
+    const text = `已報名 ${session.attendeeCount} 人${names.length ? '：' + names.join('、') + (more > 0 ? ' 等' : '') : ''}${session.waitingCount ? `（另有 ${session.waitingCount} 人候補）` : ''}`; // 沒勾顯示的人只算人數，所以名字後面只寫「等」
+    return Object.assign(document.createElement('span'), { className: 'event-attendees', textContent: text });
+  };
 
   const showList = () => {
     current = null;
@@ -2010,6 +2018,8 @@ if (eventList) {
         meta.textContent = [session.speaker && `講師：${session.speaker}`, feeText(session), seatText(session)].filter(Boolean).join('｜');
         li.append(name, meta);
         if (session.note) li.append(Object.assign(document.createElement('span'), { className: 'event-session-note', textContent: session.note }));
+        const who = attendeeNode(session);
+        if (who) li.append(who);
         return li;
       }));
       const foot = document.createElement('div');
@@ -2076,6 +2086,8 @@ if (eventList) {
       small.textContent = [session.speaker && `講師：${session.speaker}`, feeText(session), seatText(session)].filter(Boolean).join('｜');
       text.append(small);
       if (session.note) text.append(Object.assign(document.createElement('small'), { className: 'event-session-note', textContent: session.note }));
+      const who = attendeeNode(session);
+      if (who) { who.className = 'event-attendees event-attendees-small'; text.append(who); }
       label.append(input, text);
       box.append(label);
       if (session.maxFriends > 0) {
@@ -2120,7 +2132,7 @@ if (eventList) {
     setBusy(button, true);
     const result = await api({
       action: 'eventSignup', website: event.target.querySelector('[name="website"]').value,
-      fields: { eventId: current.id, sessions, name: asMember ? '' : $('evName').value, phone: $('evPhone').value, email: asMember ? $('evEmail2').value : $('evEmail').value, memberId: $('evMemberId').value, note: $('evNote').value, consent: true },
+      fields: { eventId: current.id, sessions, name: asMember ? '' : $('evName').value, phone: $('evPhone').value, email: asMember ? $('evEmail2').value : $('evEmail').value, memberId: $('evMemberId').value, note: $('evNote').value, consent: true, showName: $('evShowName') ? $('evShowName').checked : true },
     });
     setBusy(button, false);
     if (!result.ok) return fail(result.error, result.error === 'member_no_email' ? $('evEmail2') : null);

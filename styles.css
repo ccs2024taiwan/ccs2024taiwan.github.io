@@ -4236,6 +4236,18 @@ a.service-tile {
   text-decoration: underline;
 }
 
+/* 活動卡片：已報名名單 */
+.event-attendees {
+  display: block;
+  margin-top: 6px;
+  font-size: 0.9rem;
+  color: var(--teal-deep);
+}
+
+.event-attendees-small {
+  font-size: 0.85rem;
+}
+
 /* 報名卡片與環節：課程活動表「說明」欄 */
 .event-session-note {
   display: block;
