@@ -1983,6 +1983,17 @@ if (eventList) {
     return `會員${session.memberFee ? money(session.memberFee) : '免費'}｜非會員${session.nonMemberFee ? money(session.nonMemberFee) : '免費'}`;
   };
   const seatText = (session) => (session.left == null ? '' : session.left > 0 ? `剩 ${session.left} 個名額` : '已額滿，可登記候補');
+  // 卡片上方的時間：各環節時間相同就直接用；不同就取最早開始～最晚結束（「時間」欄寫 09:30-11:30 這種才算得出來）
+  const eventTimeText = (sessions) => {
+    const times = sessions.map((x) => String(x.time || '').trim()).filter(Boolean);
+    if (!times.length) return '';
+    if (times.every((t) => t === times[0])) return times[0];
+    const parts = times.map((t) => t.match(/(\d{1,2}:\d{2})/g) || []).filter((m) => m.length);
+    if (!parts.length) return times.join('、');
+    const starts = parts.map((m) => m[0]).sort();
+    const ends = parts.map((m) => m[m.length - 1]).sort();
+    return `${starts[0]}–${ends[ends.length - 1]}`;
+  };
   // 已報名名單（只列勾了「顯示名字」的人；沒人報名就不顯示）
   const attendeeNode = (session) => {
     if (!session.attendeeCount) return null;
@@ -2002,7 +2013,7 @@ if (eventList) {
       card.className = 'event-card';
       const date = document.createElement('p');
       date.className = 'event-date';
-      date.textContent = `${event.date}（${event.weekday}）`;
+      date.textContent = [`${event.date}（${event.weekday}）`, eventTimeText(event.sessions)].filter(Boolean).join('　');
       const title = document.createElement('h3');
       title.textContent = event.title;
       const place = document.createElement('p');
@@ -2015,7 +2026,7 @@ if (eventList) {
         const name = document.createElement('strong');
         name.textContent = session.name;
         const meta = document.createElement('span');
-        meta.textContent = [session.speaker && `講師：${session.speaker}`, feeText(session), seatText(session)].filter(Boolean).join('｜');
+        meta.textContent = [session.time, session.speaker && `講師：${session.speaker}`, feeText(session), seatText(session)].filter(Boolean).join('｜');
         li.append(name, meta);
         if (session.note) li.append(Object.assign(document.createElement('span'), { className: 'event-session-note', textContent: session.note }));
         const who = attendeeNode(session);
@@ -2063,7 +2074,7 @@ if (eventList) {
     $('eventDone').hidden = true;
     $('eventError').hidden = true;
     $('evTitle').textContent = current.title;
-    $('evMeta').textContent = [`${current.date}（${current.weekday}）`, current.place, current.deadline && `報名至 ${current.deadline}`].filter(Boolean).join('｜');
+    $('evMeta').textContent = [`${current.date}（${current.weekday}）${eventTimeText(current.sessions) ? ' ' + eventTimeText(current.sessions) : ''}`, current.place, current.deadline && `報名至 ${current.deadline}`].filter(Boolean).join('｜');
     $('evBack').hidden = events.length < 2;
     // 活動地點 Google 地圖：課程活動表有填「地址」就用地址，沒有就用「地點」去找
     const mapQuery = (current.address || current.place || '').trim();
@@ -2083,7 +2094,7 @@ if (eventList) {
       const text = document.createElement('span');
       text.textContent = session.name;
       const small = document.createElement('small');
-      small.textContent = [session.speaker && `講師：${session.speaker}`, feeText(session), seatText(session)].filter(Boolean).join('｜');
+      small.textContent = [session.time, session.speaker && `講師：${session.speaker}`, feeText(session), seatText(session)].filter(Boolean).join('｜');
       text.append(small);
       if (session.note) text.append(Object.assign(document.createElement('small'), { className: 'event-session-note', textContent: session.note }));
       const who = attendeeNode(session);
