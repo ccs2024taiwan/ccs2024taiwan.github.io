@@ -1592,7 +1592,35 @@ if (payCard) {
     document.body.append(form);
     form.submit();
   };
+  // 訂單補繳（no 長得像 B261009019S1）：同一頁，但沒有紀念品，標題與完成文字不同
+  const surcharge = /^B\d{9}S\d+$/i.test(no);
+  if (surcharge) {
+    document.getElementById('giftBox').hidden = true;
+    const paidBox = document.getElementById('payPaid');
+    paidBox.querySelector('h3').textContent = '這筆補繳已經付清';
+    paidBox.querySelector('p').textContent = '謝謝您，我們會儘快重新寄出；有問題請洽 LINE「寓委聯小幫手」。';
+  }
   if (!no) showError('not_found');
+  else if (surcharge) api({ action: 'orderExtraPay', no }).then((result) => {
+    if (!result.ok) return showError(result.error);
+    status.hidden = true;
+    if (result.paid) { document.getElementById('payPaid').hidden = false; return; }
+    document.getElementById('payTitle').textContent = `${result.label} 補繳`;
+    document.getElementById('payItems').replaceChildren(...result.items.map((t) => { const li = document.createElement('li'); li.textContent = t; return li; }));
+    document.getElementById('payMethods').textContent = result.methods.join('、');
+    document.getElementById('payTotal').textContent = money(result.total);
+    document.getElementById('payInfo').hidden = false;
+    document.getElementById('payGo').addEventListener('click', async () => {
+      error.hidden = true;
+      const button = document.getElementById('payGo');
+      setBusy(button, true);
+      const r = await api({ action: 'orderExtraPay', no, start: true });
+      setBusy(button, false);
+      if (!r.ok) return showError(r.error);
+      if (r.paid) { document.getElementById('payInfo').hidden = true; document.getElementById('payPaid').hidden = false; return; }
+      goPay(r.pay);
+    });
+  });
   else api({ action: 'joinPay', no }).then((result) => {
     if (!result.ok) return showError(result.error);
     status.hidden = true;
