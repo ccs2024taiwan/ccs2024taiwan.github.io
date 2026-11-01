@@ -1,0 +1,10 @@
+{
+  // Cloudflare Workers（含靜態網站）設定：整個 repo 就是官網的靜態檔
+  "name": "yuweilian",
+  "compatibility_date": "2026-01-01",
+  "assets": {
+    "directory": "./",
+    "not_found_handling": "404-page",
+    "html_handling": "auto-trailing-slash"
+  }
+}

@@ -15,3 +15,8 @@ facebook-*/
 
 # 後端程式與匯入檔：貼到 Google Apps Script 使用，不需要放上公開網站
 backend/
+
+# LINE 聊天記錄匯出：含個人對話，不可上傳
+[LINE]*.txt
+# Cloudflare 本機設定
+.wrangler/
