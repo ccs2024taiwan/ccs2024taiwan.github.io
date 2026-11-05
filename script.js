@@ -332,7 +332,31 @@ const renderDues = (dues) => {
   card.hidden = !dues;
   if (!dues) return;
   const money = (n) => `NT$ ${Number(n).toLocaleString('en-US')}`;
-  document.getElementById('duesIntro').textContent = `${dues.plans[0].label} ${money(dues.plans[0].amount)}，匯款後在這裡回報後五碼就完成了。`;
+  document.getElementById('duesIntro').textContent = `${dues.plans[0].label} ${money(dues.plans[0].amount)}，${dues.online && dues.online.length ? '可以線上刷卡，或' : ''}匯款後在這裡回報後五碼就完成了。`;
+  const online = document.getElementById('duesOnline');
+  if (online) {
+    online.hidden = !(dues.online && dues.online.length);
+    const btn = document.getElementById('duesPayCard');
+    btn.textContent = `線上付款（${(dues.online || ['信用卡']).join('、')}）`;
+    if (!btn.dataset.bound) {
+      btn.dataset.bound = '1';
+      btn.addEventListener('click', async () => {
+        const session = getSession();
+        const errorBox = document.getElementById('duesError');
+        errorBox.hidden = true;
+        if (!session) return;
+        setBusy(btn, true);
+        const r = await api({ action: 'duesPay', token: session.token, plan: document.querySelector('[name="duesPlan"]:checked')?.value || '' });
+        if (!r.ok) { setBusy(btn, false); errorBox.textContent = errorMessage(r.error); errorBox.hidden = false; return; }
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = r.pay.url;
+        Object.entries(r.pay.fields).forEach(([name, value]) => form.append(Object.assign(document.createElement('input'), { type: 'hidden', name, value })));
+        document.body.append(form);
+        form.submit();
+      });
+    }
+  }
   document.getElementById('duesPending').classList.toggle('visible', Boolean(dues.pending));
   document.getElementById('duesBody').hidden = Boolean(dues.pending);
   document.getElementById('duesBankName').textContent = `${dues.bank.name}（${dues.bank.code}）`;
@@ -525,6 +549,16 @@ const showDashboard = (member, vendors, data = {}) => {
   }
   renderDues(ms && ms.dues);
   renderForumName(data.forum);
+  const paid = new URLSearchParams(location.search).get('paid');
+  if (paid && /^D/i.test(paid) && !document.getElementById('duesPaidNote')) {
+    const ok = new URLSearchParams(location.search).get('status') === 'SUCCESS';
+    const note = document.createElement('div');
+    note.id = 'duesPaidNote';
+    note.className = 'panel ev-paid-note';
+    note.innerHTML = ok ? '<span class="badge badge-teal">付款完成</span><h3>會費已收到，謝謝！</h3><p>會籍已延長，確認信稍後會寄到你的信箱；選 ATM 轉帳的話，轉帳完成後系統會自動確認。</p>'
+      : '<span class="badge badge-red">付款未完成</span><h3>這筆會費還沒付款</h3><p>你可以再按一次「線上付款」，或改用匯款後回報後五碼。</p>';
+    document.getElementById('membershipCard').before(note);
+  }
   openService(null);
 };
 
