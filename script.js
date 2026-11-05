@@ -1,3 +1,5 @@
+// 官網已搬到 Cloudflare：舊的 GitHub Pages 網址自動轉過去（保留頁面、參數與錨點）
+if (location.hostname === 'ccs2024taiwan.github.io') location.replace('https://ccs.ccs2024taiwan.workers.dev' + location.pathname + location.search + location.hash);
 // 後端（Google Apps Script 網頁應用程式）網址。留空 = 示範模式，不會真的驗證或送出資料。
 const API_URL = 'https://script.google.com/macros/s/AKfycbxigcc2shJfw4vbTUrbdPv-qwj6EWj-BWc076FtN6YJxhhx78l6lcJ7yMKwaXWet1NbXA/exec';
 

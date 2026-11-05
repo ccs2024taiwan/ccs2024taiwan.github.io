@@ -2,4 +2,4 @@ User-agent: *
 Allow: /
 Disallow: /admin.html
 
-Sitemap: https://ccs2024taiwan.github.io/sitemap.xml
+Sitemap: https://ccs.ccs2024taiwan.workers.dev/sitemap.xml
