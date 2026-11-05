@@ -1,6 +1,6 @@
 {
   // Cloudflare Workers（含靜態網站）設定：整個 repo 就是官網的靜態檔
-  "name": "yuweilian",
+  "name": "ccs",
   "compatibility_date": "2026-01-01",
   "assets": {
     "directory": "./",
