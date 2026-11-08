@@ -3311,6 +3311,16 @@ a.service-tile {
   width: 80px;
 }
 
+.booking-fields input[type="email"] {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+
+.booking-help {
+  width: 100%;
+  color: var(--muted);
+}
+
 .booking-on {
   padding: 6px 12px;
 }

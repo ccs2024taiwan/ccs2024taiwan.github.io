@@ -110,6 +110,7 @@ const ERROR_MESSAGES = {
   booking_conflict: '那個時段已經有人預約了，請換一個時間（頁面上有列出已被預約的時段）。',
   booking_too_long: '線上會議室一次最長 4 小時，請縮短時間或分兩次預約。',
   booking_invalid: '預約的日期或時間不完整，或結束時間沒有在開始時間之後。',
+  booking_host_invalid: '主持人 Google 帳號的格式不對，請填完整的 Email（例：name@gmail.com），或留空。',
   member_restricted_item: '這個品項目前只開放志工借用，會員還不能借。',
   forbidden: '你目前沒有權限做這個動作，請重新整理頁面確認狀態。',
   archive_not_ready: '活動建檔的雲端硬碟資料夾還沒設定，請洽秘書處（試算表「設定」的〈活動建檔資料夾 ID〉）。',
@@ -1407,7 +1408,7 @@ if (equipBoard) {
     const meta = [];
     if (opts.showBorrower) meta.push(`借用人：${item.borrower}${item.borrowerRole ? `（${item.borrowerRole}）` : ''}`);
     if (item.purpose) meta.push(`用途：${item.purpose}`);
-    if (item.booking) meta.push(`時間：${item.pickup} ${item.startTime}–${item.endTime}${item.people ? `（約 ${item.people} 人）` : ''}`);
+    if (item.booking) meta.push(`時間：${item.pickup} ${item.startTime}–${item.endTime}${item.people ? `（約 ${item.people} 人）` : ''}${item.host ? `・主持人 ${item.host}` : ''}`);
     else {
       if (item.pickup) meta.push(`取件：${item.pickup}`);
       if (item.due) meta.push(`歸還：${item.due}`);
@@ -1452,11 +1453,13 @@ if (equipBoard) {
     const start = mk('time', 'start', '開始時間', { step: 300 });
     const end = mk('time', 'end', '結束時間', { step: 300 });
     const people = mk('number', 'people', '預計人數', { min: 1, placeholder: '人數' });
+    const host = mk('email', 'host', '主持人 Google 帳號', { placeholder: '主持人 Google 帳號（選填）', autocomplete: 'email' });
     const use = el('label', 'choice booking-on');
     const box = el('input'); box.type = 'checkbox'; box.dataset.bookingItem = item.name;
     use.append(box, el('span', '', '我要預約'));
-    fields.append(use, date, el('span', 'booking-sep', '從'), start, el('span', 'booking-sep', '到'), end, people);
-    [date, start, end, people].forEach((i) => i.addEventListener('input', () => { box.checked = Boolean(date.value || start.value || end.value); row.classList.toggle('in-cart', box.checked); }));
+    fields.append(use, date, el('span', 'booking-sep', '從'), start, el('span', 'booking-sep', '到'), end, people, host);
+    fields.append(el('small', 'booking-help', '填了 Google 帳號會設成共同主持人，才能錄影、開分組討論室；沒填只能一般參加。結束後 10 分鐘會議室自動關閉。'));
+    [date, start, end, people, host].forEach((i) => i.addEventListener('input', () => { box.checked = Boolean(date.value || start.value || end.value); row.classList.toggle('in-cart', box.checked); }));
     box.addEventListener('change', () => row.classList.toggle('in-cart', box.checked));
     row.append(info, fields);
     return row;
@@ -1583,7 +1586,7 @@ if (equipBoard) {
     const bookings = Array.from(requestForm.querySelectorAll('[data-booking-item]:checked')).map((box) => {
       const row = box.closest('.booking-row');
       const f = (name) => row.querySelector(`[data-booking-field="${name}"]`).value;
-      return { name: box.dataset.bookingItem, date: f('date'), start: f('start'), end: f('end'), people: f('people') };
+      return { name: box.dataset.bookingItem, date: f('date'), start: f('start'), end: f('end'), people: f('people'), host: f('host') };
     });
     const purpose = document.getElementById('eqPurpose').value;
     const pickup = document.getElementById('eqPickup').value;
