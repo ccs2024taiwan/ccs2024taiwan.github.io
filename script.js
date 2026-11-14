@@ -112,6 +112,7 @@ const ERROR_MESSAGES = {
   booking_invalid: '預約的日期或時間不完整，或結束時間沒有在開始時間之後。',
   booking_host_invalid: '主持人 Google 帳號的格式不對，請填完整的 Email（例：name@gmail.com），或留空。',
   member_restricted_item: '這個品項目前只開放志工借用，會員還不能借。',
+  suspended: '你的會籍目前停權中（到期未繳會費）。到「續會繳費」補繳本年度會費後會立即恢復，其他服務先暫停。',
   forbidden: '你目前沒有權限做這個動作，請重新整理頁面確認狀態。',
   archive_not_ready: '活動建檔的雲端硬碟資料夾還沒設定，請洽秘書處（試算表「設定」的〈活動建檔資料夾 ID〉）。',
   archive_locked: '這份建檔已送交，不能再修改；需要修改請洽秘書處退回。',
@@ -552,6 +553,17 @@ const showDashboard = (member, vendors, data = {}) => {
   }
   renderDues(ms && ms.dues);
   renderForumName(data.forum);
+  // 停權會員：只留會籍卡與續會繳費，其餘服務先收起來
+  const grid = document.querySelector('.service-grid');
+  if (grid) grid.hidden = Boolean(data.suspended);
+  document.getElementById('suspendedNote')?.remove();
+  if (data.suspended) {
+    const note = document.createElement('div');
+    note.id = 'suspendedNote';
+    note.className = 'panel ev-paid-note';
+    note.innerHTML = '<span class="badge badge-red">會籍停權中</span><h3>補繳本年度會費後立即恢復</h3><p>你的會籍到期後，到 1 月 31 日仍未收到常年會費，依章程暫停會員權利。請在下方「續會繳費」線上刷卡，或匯款後回報後五碼；入帳後所有服務會自動恢復。</p>';
+    document.getElementById('membershipCard').before(note);
+  }
   const paid = new URLSearchParams(location.search).get('paid');
   if (paid && /^D/i.test(paid) && !document.getElementById('duesPaidNote')) {
     const ok = new URLSearchParams(location.search).get('status') === 'SUCCESS';
@@ -1495,9 +1507,11 @@ if (equipBoard) {
   };
 
   const renderCartRow = (item, grouped) => {
-    const row = el('div', 'cart-row' + (grouped ? ' is-grouped' : ''));
+    const locked = session.audience === 'member' && item.lendable === false; // 上官網但不開放會員借：只供參考
+    const row = el('div', 'cart-row' + (grouped ? ' is-grouped' : '') + (locked ? ' is-locked' : ''));
         const info = el('div');
-        info.append(el('strong', '', item.name), el('small', '', [item.quantity ? `現有 ${item.quantity}` : '', item.place].filter(Boolean).join('｜')));
+        info.append(el('strong', '', item.name), el('small', '', [item.quantity ? `現有 ${item.quantity}` : '', item.place, locked ? '志工限定，會員不開放借用' : ''].filter(Boolean).join('｜')));
+        if (locked) { row.append(info); return row; }
         const stepper = el('div', 'stepper');
         const minus = el('button', '', '−');
         const plus = el('button', '', '＋');
@@ -1523,7 +1537,7 @@ if (equipBoard) {
 
   const render = (data) => {
     lastView = data;
-    greeting.textContent = (session.audience === 'member' ? '你目前以會員身分登入，只會看到開放給會員借用的品項。' : '') + (data.isManager ? '你同時是器材管理志工，下面多了一個管理區。' : '需要什麼器材，從下面的清單勾選送出就好。');
+    greeting.textContent = (session.audience === 'member' ? '你目前以會員身分登入，標示「志工限定」的品項只供參考、不能選。' : '') + (data.isManager ? '你同時是器材管理志工，下面多了一個管理區。' : '需要什麼器材，從下面的清單勾選送出就好。');
     renderCatalog(data.catalog || []);
     renderList('equipMineList', data.mine || [], { showBorrower: false });
     document.getElementById('equipMineEmpty').hidden = (data.mine || []).length > 0;

@@ -3311,6 +3311,10 @@ a.service-tile {
   width: 80px;
 }
 
+.cart-row.is-locked {
+  opacity: 0.6;
+}
+
 .booking-fields input[type="email"] {
   flex: 1 1 220px;
   min-width: 0;
