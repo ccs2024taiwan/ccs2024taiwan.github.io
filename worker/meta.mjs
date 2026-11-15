@@ -1,0 +1,273 @@
+// 寓委聯：設定庫的內容（物件、欄位、關聯、選單）。
+// 這是「程式只讀設定表運作」的那張設定表的來源；改這裡再跑 seed.mjs 產生 SQL，不改 Worker 程式。
+// 欄位型別與 privacy、lock_after 的意義見 docs/系統規範.md 第三部分。
+
+const F = (key, label, type, more = {}) => ({ key, label, type, ...more });
+const pub = { privacy: 'public' };
+const mem = { privacy: 'member' };
+const stf = { privacy: 'staff' };
+const sec = { privacy: 'secret' };
+const list = { show_in_list: 1 };
+const req = { required: 1 };
+const locked = { lock_after: { mode: 'locked' } };
+const tracked = { lock_after: { mode: 'tracked' } };
+
+export const objects = [
+  {
+    id: 'member', label: '會員', label_plural: '會員名單', icon: 'user', sort: 10,
+    id_rule: '{city}{seq:5}', title_field: 'name', source: 'sheet:表單回應 1',
+    acl: { list: ['member', 'volunteer', 'staff'], read: ['member', 'volunteer', 'staff'], create: ['staff'], update: ['staff'], delete: ['admin'], export: ['staff'] },
+    fields: [
+      F('id', '會員編號', 'sequence', { ...pub, ...list, ...locked, options: { rule: '{city}{seq:5}' } }),
+      F('name', '姓名', 'text', { ...pub, ...list, ...req, ...tracked, help: '官網名單依「名單公開方式」顯示或匿名' }),
+      F('type', '類別', 'select', { ...pub, ...list, ...req, options: { items: ['個人會員', '個人會員（永久）', '團體會員', '贊助會員', '榮譽會員'] } }),
+      F('status', '會員狀態', 'select', { ...pub, ...list, ...req, options: { items: ['待審核', '待繳費', '新入會', '續會', '停權', '除籍'] } }),
+      F('phone', '手機', 'phone', { ...sec, ...req, help: '登入用末三碼比對，任何畫面與 API 都不回傳' }),
+      F('email', 'Email', 'email', stf),
+      F('line_name', 'LINE 顯示名稱', 'text', stf),
+      F('community', '居住社區', 'text', { ...pub, ...list }),
+      F('city', '社區所在地', 'text', pub),
+      F('address', '戶籍或聯絡地址', 'textarea', sec),
+      F('since', '會籍起始日', 'date', { ...mem, options: { roc: true } }),
+      F('until', '會籍到期日', 'date', { ...mem, ...list, ...tracked, options: { roc: true }, help: '永久會員留空' }),
+      F('listing', '名單公開方式', 'select', { ...stf, options: { items: ['公開', '匿名'] } }),
+      F('note', '審核意見', 'textarea', { ...stf, lock_after: { mode: 'append' } }),
+    ],
+  },
+  {
+    id: 'dues', label: '會費繳納', icon: 'coin', sort: 20,
+    id_rule: 'D{member}{roc}{plan}', title_field: 'member_name', source: 'sheet:會費繳納紀錄',
+    acl: { list: ['staff'], read: ['member', 'staff'], create: ['staff'], update: ['staff'], delete: ['admin'] },
+    fields: [
+      F('id', '單號', 'sequence', { ...stf, ...list, ...locked }),
+      F('member_id', '會員編號', 'text', { ...stf, ...list, ...req, ...locked }),
+      F('member_name', '姓名', 'text', { ...stf, ...list }),
+      F('year', '繳費年度', 'number', { ...stf, ...list, ...req, ...locked, options: { roc: true } }),
+      F('plan', '方案', 'select', { ...stf, ...list, ...req, options: { items: ['常年會費', '永久會員'] } }),
+      F('amount', '金額', 'money', { ...stf, ...list, ...req, ...locked }),
+      F('last5', '匯款後五碼', 'text', stf),
+      F('status', '狀態', 'select', { ...stf, ...list, options: { items: ['已回報', '已入帳'] } }),
+      F('paid_at', '確認日期', 'date', { ...stf, ...locked }),
+      F('note', '備註', 'text', stf),
+    ],
+  },
+  {
+    id: 'order', label: '訂單', icon: 'shop', sort: 30,
+    id_rule: 'B{yyMMdd}{seq:3}', title_field: 'name', source: 'sheet:書籍訂單',
+    acl: { list: ['staff'], read: ['staff'], create: ['staff'], update: ['staff'], delete: ['admin'] },
+    fields: [
+      F('id', '訂單編號', 'sequence', { ...stf, ...list, ...locked }),
+      F('created', '訂購時間', 'datetime', { ...stf, ...locked }),
+      F('status', '狀態', 'select', { ...stf, ...list, options: { items: ['待付款', '已回報匯款', '已付款', '已備貨', '已出貨', '已面交', '取消'] } }),
+      F('name', '姓名', 'text', { ...stf, ...list, ...req }),
+      F('phone', '手機', 'phone', sec),
+      F('email', 'Email', 'email', stf),
+      F('buyer_type', '身分', 'select', { ...stf, ...list, options: { items: ['一般', '會員'] } }),
+      F('member_id', '會員編號', 'text', stf),
+      F('volunteer', '志工', 'text', { ...stf, ...list, help: '勾「我是本會志工」並驗證通過才有' }),
+      F('discount', '折扣', 'money', { ...stf, ...locked, help: '志工購書折扣總額（2026-11 起取代推廣補貼）' }),
+      F('quantity', '數量', 'number', { ...stf, ...list, ...req, ...locked }),
+      F('unit', '單價', 'money', { ...stf, ...locked }),
+      F('shipping_fee', '運費', 'money', { ...stf, ...locked }),
+      F('total', '總金額', 'money', { ...stf, ...list, ...locked }),
+      F('shipping', '寄送方式', 'select', { ...stf, ...list, options: { items: ['郵局寄送', '7-11 店到店', '面交（臺中市西屯區國安國小附近）'] } }),
+      F('address', '地址', 'textarea', sec),
+      F('store', '7-11門市', 'text', stf),
+      F('receipt_title', '收據抬頭', 'text', stf),
+      F('note', '備註', 'textarea', stf),
+    ],
+  },
+  {
+    id: 'event', label: '課程活動', icon: 'cal', sort: 40,
+    id_rule: '{code}', title_field: 'title', source: 'sheet:課程活動',
+    acl: { list: ['guest'], read: ['guest'], create: ['staff'], update: ['staff'], delete: ['admin'] },
+    fields: [
+      F('id', '活動代號', 'text', { ...pub, ...list, ...req }),
+      F('title', '活動名稱', 'text', { ...pub, ...list, ...req }),
+      F('session', '環節名稱', 'text', { ...pub, ...list }),
+      F('date', '日期', 'date', { ...pub, ...list, ...req }),
+      F('time', '時間', 'text', { ...pub, ...list }),
+      F('place', '地點', 'text', { ...pub, ...list }),
+      F('speaker', '講師', 'text', pub),
+      F('seats', '名額', 'number', { ...pub, ...list }),
+      F('fee_member', '會員費用', 'money', pub),
+      F('fee_general', '非會員費用', 'money', pub),
+      F('deadline', '報名截止日', 'date', pub),
+      F('status', '狀態', 'select', { ...pub, ...list, options: { items: ['草稿', '開放', '額滿', '結束', '取消'] } }),
+      F('intro', '說明', 'textarea', pub),
+      F('notice', '注意事項', 'textarea', { ...stf, help: '行前提醒信會帶這段；沒填就不自動寄' }),
+    ],
+  },
+  {
+    id: 'claim', label: '請款單', icon: 'receipt', sort: 50,
+    id_rule: 'E{yyMMddHHmmss}{rand:2}', title_field: 'who', source: 'sheet:志工請款紀錄',
+    acl: { list: ['volunteer', 'staff'], read: ['volunteer', 'staff'], create: ['volunteer'], update: ['staff', 'owner'], delete: ['admin'] },
+    fields: [
+      F('id', '請款單號', 'sequence', { ...stf, ...list, ...locked }),
+      F('who', '請款人', 'text', { ...stf, ...list, ...req, ...locked }),
+      F('submitted', '送出時間', 'datetime', { ...stf, ...locked }),
+      F('task', '任務名稱', 'text', { ...stf, ...list }),
+      F('total', '金額', 'money', { ...stf, ...list, lock_after: { status: ['已審核', '已撥款'], mode: 'locked' } }),
+      F('status', '狀態', 'select', { ...stf, ...list, options: { items: ['待審核', '已審核', '已撥款', '退回'] } }),
+      F('method', '付款方式', 'select', { ...stf, options: { items: ['銀行', 'LINE Pay', '其他'] } }),
+      F('batch', '付款批號', 'text', { ...stf, ...locked }),
+      F('paid_at', '撥款日期', 'date', { ...stf, lock_after: { status: ['已撥款'], mode: 'locked' } }),
+      F('reason', '退回原因', 'textarea', { ...stf, lock_after: { mode: 'append' } }),
+    ],
+  },
+  {
+    id: 'claim_item', label: '請款品項', icon: 'rows', sort: 51, status: 'active',
+    title_field: 'name', source: 'sheet:志工請款紀錄',
+    acl: { list: ['volunteer', 'staff'], read: ['volunteer', 'staff'], create: ['volunteer'], update: ['staff', 'owner'], delete: ['admin'] },
+    fields: [
+      F('seq', '序號', 'number', { ...stf, ...list }),
+      F('name', '品名／事由', 'text', { ...stf, ...list, ...req, lock_after: { status: ['已審核', '已撥款'], mode: 'locked' } }),
+      F('spent_at', '消費日期', 'date', { ...stf, ...list, ...tracked }),
+      F('amount', '小計', 'money', { ...stf, ...list, ...req, lock_after: { status: ['已審核', '已撥款'], mode: 'locked' } }),
+      F('voucher', '單據種類', 'select', { ...stf, options: { items: ['收據', '發票', '無單據'] }, help: '選「無單據」會自動產生支出證明單' }),
+      F('code', '會計科目', 'text', { ...stf, ...list }),
+      F('status', '狀態', 'select', { ...stf, ...list, options: { items: ['待審核', '通過', '不通過'] } }),
+    ],
+  },
+  {
+    id: 'asset', label: '器材', icon: 'mic', sort: 60,
+    title_field: 'name', source: 'sheet:協會資產控管表',
+    acl: { list: ['member', 'volunteer', 'staff'], read: ['member', 'volunteer', 'staff'], create: ['staff'], update: ['staff'], delete: ['admin'] },
+    fields: [
+      F('name', '名稱', 'text', { ...pub, ...list, ...req }),
+      F('quantity', '數量', 'number', { ...pub, ...list }),
+      F('lendable', '可出借', 'boolean', { ...pub, ...list, help: '會員能不能借' }),
+      F('on_site', '上官網', 'boolean', { ...pub, ...list, help: '會員在官網看不看得到；與「可出借」分開' }),
+      F('booking', '預約制', 'boolean', { ...pub, help: '線上會議室這類走時段預約，不是數量借用' }),
+      F('holder', '保管人／所在位置', 'text', { ...stf, ...list }),
+      F('status', '狀態', 'select', { ...stf, ...list, options: { items: ['在庫', '借出', '維修', '報廢', '遺失'] } }),
+      F('note', '備註', 'text', stf),
+    ],
+  },
+  {
+    id: 'venue', label: '場地', icon: 'home', sort: 61,
+    id_rule: 'V{seq:3}', title_field: 'name', source: 'sheet:協會可租借場地',
+    acl: { list: ['member', 'volunteer', 'staff'], read: ['member', 'volunteer', 'staff'], create: ['staff'], update: ['staff'], delete: ['admin'] },
+    fields: [
+      F('id', '編號', 'sequence', { ...stf, ...locked }),
+      F('provider', '提供者', 'text', { ...pub, ...list, ...req, help: '社區／公司／團體名稱' }),
+      F('name', '場地名稱', 'text', { ...pub, ...list, ...req }),
+      F('capacity', '可容納人數', 'number', { ...pub, ...list }),
+      F('hours', '可借用時段', 'text', { ...pub, ...list, help: '例 09:00-19:00' }),
+      F('fee_points', '點數收費', 'text', { ...mem, help: '例 200點/1小時；0＝免收' }),
+      F('fee_cash', '現金收費', 'text', { ...mem, ...list, help: '例 200元/1小時；0＝免收' }),
+      F('facilities', '設備', 'multiselect', { ...pub, options: { items: ['有投影機及布幕', '有螢幕顯示設備 (有HDMI孔)', '有麥克風', '有USB播放設備', '有光碟播放設備', '有黑板／白板等大版面可書寫設備', '有牆面鏡', '有隔音裝潢', '獨立空間 (玻璃門窗)', '半開放式空間', '簡易廚房+宴客大圓桌', '有玻璃杯跟餐具可以借用'] } }),
+      F('open_level', '開放層級', 'select', { ...pub, ...list, ...req, options: { items: ['一・僅理監事志工', '二・協會內部不可營利', '三・可作講座場地', '四・成員與非成員不可營利', '五・成員與非成員可營利'] }, help: '決定誰借得到、能不能收費' }),
+      F('note', '備註', 'textarea', mem),
+    ],
+  },
+  {
+    id: 'prospect', label: '潛在會員', icon: 'user', sort: 70,
+    title_field: 'name', source: 'sheet:潛在會員',
+    acl: { list: ['staff'], read: ['staff'], create: ['staff'], update: ['staff'], delete: ['admin'] },
+    fields: [
+      F('created', '建立時間', 'datetime', { ...stf, ...list, ...locked }),
+      F('source', '來源', 'text', { ...stf, ...list, lock_after: { mode: 'append' } }),
+      F('name', '姓名', 'text', { ...stf, ...list, ...req }),
+      F('phone', '電話', 'phone', sec),
+      F('email', 'Email', 'email', stf),
+      F('line_name', 'LINE 名稱', 'text', stf),
+      F('community', '社區', 'text', { ...stf, ...list }),
+      F('intent', '意向／需求', 'textarea', { ...stf, lock_after: { mode: 'append' } }),
+      F('status', '狀態', 'select', { ...stf, ...list, options: { items: ['待聯絡', '已聯絡', '有意願', '已入會', '不再聯絡'] } }),
+      F('opt_out', '已取消訂閱', 'boolean', { ...stf, help: '勾選後不再寄送任何活動資訊' }),
+      F('last_touch', '最後互動', 'date', { ...stf, ...list, help: '滿 3 年系統提醒是否刪除' }),
+    ],
+  },
+  {
+    id: 'journal', label: '日記帳', icon: 'book', sort: 80,
+    title_field: 'summary', source: 'sheet:日記帳',
+    acl: { list: ['staff'], read: ['staff', 'board'], create: ['staff'], update: ['staff'], delete: ['admin'] },
+    fields: [
+      F('date', '日期', 'date', { ...stf, ...list, ...req, lock_after: { mode: 'reverse_only' } }),
+      F('source', '來源', 'text', { ...stf, ...list }),
+      F('no', '單號', 'text', { ...stf, ...list, ...locked }),
+      F('summary', '摘要', 'text', { ...stf, ...list, ...req }),
+      F('code', '科目代號', 'text', { ...stf, ...list, ...req, lock_after: { mode: 'reverse_only' } }),
+      F('code_name', '科目名稱', 'text', { ...stf, ...list }),
+      F('income', '收入', 'money', { ...stf, ...list, lock_after: { mode: 'reverse_only' } }),
+      F('expense', '支出', 'money', { ...stf, ...list, lock_after: { mode: 'reverse_only' } }),
+      F('target', '對象', 'text', stf),
+      F('task', '任務／活動', 'text', { ...stf, ...list }),
+      F('method', '付款方式', 'select', { ...stf, options: { items: ['銀行', 'LINE Pay', '現金', '其他'] } }),
+      F('bank_row', '銀行列號', 'text', stf),
+      F('batch', '付款批號', 'text', stf),
+      F('note', '備註', 'text', stf),
+    ],
+  },
+  {
+    id: 'thread', label: '經典討論串', icon: 'doc', sort: 90,
+    title_field: 'title', source: 'sheet:討論主題',
+    acl: { list: ['guest'], read: ['member'], create: ['staff'], update: ['staff'], delete: ['admin'] },
+    fields: [
+      F('id', '代號', 'text', { ...pub, ...locked }),
+      F('title', '標題', 'text', { ...pub, ...list, ...req }),
+      F('category', '分類', 'text', { ...pub, ...list }),
+      F('date', '日期', 'text', { ...pub, ...list }),
+      F('question', '問題', 'textarea', mem),
+      F('views_text', '觀點', 'textarea', mem),
+      F('takeaway', '結論', 'textarea', mem),
+      F('caveat', '注意', 'textarea', mem),
+      F('quote', '金句', 'text', mem),
+      F('status', '狀態', 'select', { ...stf, ...list, options: { items: ['草稿', '公開'] } }),
+    ],
+  },
+];
+
+export const relations = [
+  { id: 'dues_member', label: '繳費人', from_object: 'dues', to_object: 'member', kind: 'many_to_one', from_label: '繳費人', to_label: '會費紀錄', on_delete: 'restrict', required: 1, embed: 'ref', display: { show: ['id', 'name'], search: ['name', 'id'] } },
+  { id: 'order_member', label: '訂購人', from_object: 'order', to_object: 'member', kind: 'many_to_one', from_label: '訂購人', to_label: '訂單', on_delete: 'set_null', required: 0, embed: 'ref', display: { show: ['id', 'name'], search: ['name', 'id'] } },
+  { id: 'claim_item', label: '品項', from_object: 'claim', to_object: 'claim_item', kind: 'one_to_many', from_label: '請款單', to_label: '品項', on_delete: 'cascade', required: 0, embed: 'child' },
+  { id: 'booking_venue', label: '借用場地', from_object: 'claim', to_object: 'venue', kind: 'many_to_one', from_label: '場地', to_label: '借用紀錄', on_delete: 'restrict', required: 0, embed: 'ref' },
+];
+
+export const menus = [
+  // 行政中心左欄
+  { id: 'adm_dash', area: 'admin', label: '儀表板', icon: 'home', kind: 'page', target: 'dashboard', sort: 10 },
+  { id: 'adm_sign', area: 'admin', label: '待我簽核', icon: 'check', kind: 'view', target: 'sign:mine', sort: 20, roles: ['staff', 'chair'] },
+  { id: 'adm_member', area: 'admin', label: '會員', icon: 'user', kind: 'object', target: 'member', sort: 30 },
+  { id: 'adm_dues', area: 'admin', label: '會費繳納', icon: 'coin', kind: 'object', target: 'dues', sort: 40 },
+  { id: 'adm_order', area: 'admin', label: '訂單', icon: 'shop', kind: 'object', target: 'order', sort: 50 },
+  { id: 'adm_event', area: 'admin', label: '課程活動', icon: 'cal', kind: 'object', target: 'event', sort: 60 },
+  { id: 'adm_claim', area: 'admin', label: '請款單', icon: 'receipt', kind: 'object', target: 'claim', sort: 70 },
+  { id: 'adm_asset', area: 'admin', label: '器材與場地', icon: 'mic', kind: 'object', target: 'asset', sort: 80 },
+  { id: 'adm_journal', area: 'admin', label: '日記帳', icon: 'book', kind: 'object', target: 'journal', sort: 90 },
+  { id: 'adm_setup', area: 'admin', label: '系統設定', icon: 'cube', kind: 'page', target: 'setup', sort: 100, roles: ['admin'] },
+  { id: 'adm_conn', area: 'admin', label: '連線', icon: 'plug', kind: 'page', target: 'connections', sort: 110, roles: ['admin'] },
+  { id: 'adm_audit', area: 'admin', label: '留痕', icon: 'clock', kind: 'page', target: 'audit', sort: 120, roles: ['admin'] },
+  // 官網頂部（對照現況）
+  { id: 'site_about', area: 'site', label: '關於本會', kind: 'page', target: 'about.html', sort: 10 },
+  { id: 'site_activities', area: 'site', label: '活動成果', kind: 'page', target: 'activities.html', sort: 20 },
+  { id: 'site_services', area: 'site', label: '服務項目', kind: 'page', target: 'services.html', sort: 30 },
+  { id: 'site_events', area: 'site', label: '課程報名', kind: 'page', target: 'events.html', sort: 40 },
+  { id: 'site_publications', area: 'site', label: '出版與製作', kind: 'page', target: 'publications.html', sort: 50 },
+  { id: 'site_join', area: 'site', label: '加入我們', kind: 'page', target: 'join.html', sort: 60 },
+  // 會員專區
+  { id: 'portal_membership', area: 'portal', label: '我的會籍', icon: 'user', kind: 'view', target: 'member:me', sort: 10, roles: ['member'] },
+  { id: 'portal_dues', area: 'portal', label: '續會繳費', icon: 'coin', kind: 'action', target: 'dues_pay', sort: 20, roles: ['member'] },
+  { id: 'portal_resources', area: 'portal', label: '會員共享資料下載', icon: 'doc', kind: 'page', target: 'shared', sort: 30, roles: ['member'] },
+  { id: 'portal_vendors', area: 'portal', label: '廠商資料庫查詢', icon: 'shop', kind: 'object', target: 'vendor', sort: 40, roles: ['member'] },
+  { id: 'portal_borrow', area: 'portal', label: '租借道具器材', icon: 'mic', kind: 'page', target: 'equipment.html?as=member', sort: 50, roles: ['member'] },
+  { id: 'portal_forum', area: 'portal', label: '經典討論串', icon: 'doc', kind: 'page', target: 'forum.html', sort: 60, roles: ['member'] },
+];
+
+export const settings = [
+  { key: '信件簽名', group: '通知', type: 'textarea', help: '所有寄給會員／志工／客人的信，結尾自動接上這段。寄給秘書處自己的通知不會加。' },
+  { key: '提醒收件人', group: '通知', type: 'text', help: '秘書處通知信的收件人。' },
+  { key: '管理員會員編號', group: '一般', type: 'text', help: '可進行政中心的會員編號，逗號分隔。' },
+  { key: '線上付款方式', group: '金流', type: 'json', help: '藍新開通的付款方式代碼。填了官網才會出現線上付款。' },
+  { key: '簽核門檻', group: '會籍規則', type: 'number', value: '10000', help: '撥款金額超過這個數字要加理事長簽核。' },
+  { key: '潛在會員保存年限', group: '一般', type: 'number', value: '3', help: '最後一次互動起算幾年；到期系統提醒，不自動刪。' },
+  { key: '會費繳費截止日', group: '會籍規則', type: 'text', value: '01-31', help: '逾期次日自動標示停權。' },
+];
+
+export const lineCommands = [
+  { id: 'task_list', trigger: ['#任務'], label: '任務清單', handler: 'task.list', scope: ['volunteer_group'], reply_template: '目前進行中的任務：\n{{清單}}' },
+  { id: 'my_points', trigger: ['#積分', '#我的積分'], label: '我的積分與等級', handler: 'volunteer.level', scope: ['private'], reply_template: '{{綽號}} 你好：\n年資 {{年資}}、積分 {{積分}}，目前是{{等級}}。\n{{晉級提示}}' },
+  { id: 'equipment', trigger: ['#器材'], label: '可借器材', handler: 'asset.list', scope: ['volunteer_group', 'private'], reply_template: '目前可借的器材：\n{{清單}}\n\n借用請到志工專區填器材申請。' },
+];
