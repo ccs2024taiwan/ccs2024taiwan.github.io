@@ -100,6 +100,7 @@ const ERROR_MESSAGES = {
   upload_too_large: '圖檔太大，請換一張較小的圖片。',
   invalid_quantity: '數量超過上限：郵局與 7-11 寄送每張訂單最多 20 本。需要更多請分開下單、改選面交，或加 LINE「寓委聯小幫手」洽詢。',
   invalid_payment: '這個付款方式目前無法使用，請改選其他方式。',
+  volunteer_not_verified: '志工綽號或手機末三碼不符，請確認後再試；如果你不是本會志工，請取消勾選。',
   member_not_verified: '會員編號與手機末三碼對不起來，無法套用會員價。請確認後再試，或改選「一般訂購」。',
   invalid_last5: '帳號後五碼請填 5 個數字。',
   order_not_found: '找不到這筆訂單，請確認訂單編號與下單時填的手機。',
@@ -1746,7 +1747,11 @@ if (orderForm) {
     qty.max = maxFor();
     if (Number(qty.value) > maxFor()) qty.value = maxFor();
     const product = (config.products || []).find((p) => p.key === val('product')) || config.products?.[0] || config;
-    const unit = member ? product.memberPrice : product.price;
+    const volunteer = orderForm.querySelector('[name="volunteer"]')?.checked;
+    const vd = config.volunteerDiscount || { member: 10, general: 20 };
+    const listPrice = member ? product.memberPrice : product.price;
+    const discount = volunteer ? (member ? vd.member : vd.general) : 0;
+    const unit = Math.max(0, listPrice - discount);
     const fee = config.shipping[shipping].fee;
     orderForm.querySelector('[data-unit="general"]').textContent = product.price;
     orderForm.querySelector('[data-unit="member"]').textContent = product.memberPrice;
@@ -1759,13 +1764,14 @@ if (orderForm) {
       stockEl.textContent = product.stock === 0 ? '這個版本目前已售完。' : product.stock != null ? `目前庫存 ${product.stock} 本` : '';
       submit.disabled = product.stock === 0;
     }
-    document.getElementById('sumBooks').textContent = `${product.name ? product.name.replace('新手委員教戰手冊', '') + ' ' : ''}${money(unit)} × ${n}`;
+    document.getElementById('sumBooks').textContent = `${product.name ? product.name.replace('新手委員教戰手冊', '') + ' ' : ''}${money(unit)} × ${n}${discount ? `（原價 ${money(listPrice)}，志工折 ${money(discount)}）` : ''}`;
     document.getElementById('sumShipping').textContent = `${config.shipping[shipping].label} ${money(fee)}`;
     document.getElementById('sumTotal').textContent = money(unit * n + fee);
     // 依選項顯示對應欄位；隱藏的欄位停用，才不會被當成必填
     orderForm.querySelectorAll('[data-show]').forEach((box) => {
       const [field, value] = box.dataset.show.split('=');
-      const active = val(field) === value;
+      const box2 = orderForm.querySelector(`[name="${field}"][type="checkbox"]`);
+      const active = box2 ? (box2.checked ? 'on' : 'off') === value : val(field) === value;
       box.hidden = !active;
       box.querySelectorAll('input, select').forEach((el) => (el.disabled = !active));
     });
@@ -1784,6 +1790,7 @@ if (orderForm) {
     if (result.ok) config = result;
     document.querySelectorAll('[data-fee]').forEach((el) => (el.textContent = config.shipping[el.dataset.fee]?.fee ?? el.textContent));
     document.querySelectorAll('[data-max]').forEach((el) => (el.textContent = config.shipping[el.dataset.max]?.max ?? el.textContent));
+    if (config.volunteerDiscount) Object.keys(config.volunteerDiscount).forEach((k) => { const el = orderForm.querySelector(`[data-vol-discount="${k}"]`); if (el) el.textContent = config.volunteerDiscount[k]; });
     (config.products || []).forEach((p) => { orderForm.querySelector(`[data-product-price="${p.key}"]`) && (orderForm.querySelector(`[data-product-price="${p.key}"]`).textContent = p.price); orderForm.querySelector(`[data-product-member="${p.key}"]`) && (orderForm.querySelector(`[data-product-member="${p.key}"]`).textContent = p.memberPrice); });
     refresh();
   });

@@ -77,6 +77,11 @@
                 <label class="choice"><input type="radio" name="buyer" value="general" checked /><span>一般訂購<small>每本 <b data-unit="general">180</b> 元</small></span></label>
                 <label class="choice"><input type="radio" name="buyer" value="member" /><span>我是會員<small>每本 <b data-unit="member">100</b> 元，需驗證會員編號</small></span></label>
               </div>
+              <label class="choice choice-inline"><input type="checkbox" id="o-volunteer" name="volunteer" /><span>我是本會志工<small>依《志工書籍推廣補貼辦法》折抵推廣費，會員價每本折 <b data-vol-discount="member">10</b> 元、原價每本折 <b data-vol-discount="general">20</b> 元</small></span></label>
+              <div class="form-row" data-show="volunteer=on" hidden>
+                <div class="form-group"><label class="required" for="o-volunteerName">志工綽號</label><input id="o-volunteerName" name="volunteerName" type="text" placeholder="例：小宜" required /></div>
+                <div class="form-group"><label class="required" for="o-volunteerPhone">志工登記手機的末三碼</label><input id="o-volunteerPhone" name="volunteerPhone" type="password" inputmode="numeric" maxlength="3" placeholder="例：678" autocomplete="off" required /></div>
+              </div>
               <div class="form-row" data-show="buyer=member" hidden>
                 <div class="form-group"><label class="required" for="o-memberId">會員編號</label><input id="o-memberId" name="memberId" type="text" placeholder="例：B00012" required /></div>
                 <div class="form-group"><label class="required" for="o-memberPhone">入會登記手機的末三碼</label><input id="o-memberPhone" name="memberPhone" type="password" inputmode="numeric" maxlength="3" placeholder="例：678" autocomplete="off" required /></div>
