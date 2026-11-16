@@ -404,68 +404,83 @@ export const objects = [
   },
 ];
 
+// 關聯。match 是「用哪個欄位的值對上」，section 是在主檔明細裡顯示的段落標題。
+// 有 section 的關聯，點開一筆主檔時會自動把相關紀錄帶出來（見 Worker 的 /api/related）。
 export const relations = [
-  { id: 'dues_member', label: '繳費人', from_object: 'dues', to_object: 'member', kind: 'many_to_one', from_label: '繳費人', to_label: '會費紀錄', on_delete: 'restrict', required: 1, embed: 'ref', display: { show: ['id', 'name'], search: ['name', 'id'] } },
-  { id: 'order_member', label: '訂購人', from_object: 'order', to_object: 'member', kind: 'many_to_one', from_label: '訂購人', to_label: '訂單', on_delete: 'set_null', required: 0, embed: 'ref', display: { show: ['id', 'name'], search: ['name', 'id'] } },
-  { id: 'claim_item', label: '品項', from_object: 'claim', to_object: 'claim_item', kind: 'one_to_many', from_label: '請款單', to_label: '品項', on_delete: 'cascade', required: 0, embed: 'child' },
-  { id: 'booking_venue', label: '借用場地', from_object: 'claim', to_object: 'venue', kind: 'many_to_one', from_label: '場地', to_label: '借用紀錄', on_delete: 'restrict', required: 0, embed: 'ref' },
-];
+  // 任務：點開一個任務，底下帶出工作進度、參與者、請款、建檔
+  { id: 'task_work', label: '工作進度', from_object: 'task', to_object: 'work', kind: 'one_to_many', on_delete: 'cascade', embed: 'child', section: '工作進度', match: { from: 'name', to: 'task' } },
+  { id: 'task_participation', label: '參與者', from_object: 'task', to_object: 'participation', kind: 'one_to_many', on_delete: 'cascade', embed: 'child', section: '參與者與積分', match: { from: 'name', to: 'task' } },
+  { id: 'task_claim', label: '請款', from_object: 'task', to_object: 'claim_item', kind: 'one_to_many', on_delete: 'restrict', embed: 'ref', section: '相關請款', match: { from: 'name', to: 'task' } },
+  { id: 'task_archive', label: '活動建檔', from_object: 'task', to_object: 'archive', kind: 'one_to_many', on_delete: 'restrict', embed: 'ref', section: '活動建檔', match: { from: 'name', to: 'task' } },
+  { id: 'task_journal', label: '帳務', from_object: 'task', to_object: 'journal', kind: 'one_to_many', on_delete: 'restrict', embed: 'ref', section: '帳務', match: { from: 'name', to: 'task' } },
 
+  // 會議：點開一場會議，帶出出席紀錄與花費
+  { id: 'meeting_participation', label: '出席', from_object: 'meeting', to_object: 'participation', kind: 'one_to_many', on_delete: 'cascade', embed: 'child', section: '出席紀錄', match: { from: 'name', to: 'task' } },
+  { id: 'meeting_journal', label: '花費', from_object: 'meeting', to_object: 'journal', kind: 'one_to_many', on_delete: 'restrict', embed: 'ref', section: '花費', match: { from: 'name', to: 'task' } },
+
+  // 請款單：底下的品項（子表）
+  { id: 'claim_item', label: '品項', from_object: 'claim', to_object: 'claim_item', kind: 'one_to_many', on_delete: 'cascade', embed: 'child', section: '品項明細', match: { from: 'id', to: 'claim_id' } },
+
+  // 會員：點開一位會員，帶出會費、訂單、報名、留言（會員 360）
+  { id: 'member_dues', label: '會費紀錄', from_object: 'member', to_object: 'dues', kind: 'one_to_many', on_delete: 'restrict', embed: 'ref', section: '會費紀錄', match: { from: 'id', to: 'member_id' } },
+  { id: 'member_order', label: '購買紀錄', from_object: 'member', to_object: 'order', kind: 'one_to_many', on_delete: 'set_null', embed: 'ref', section: '購買紀錄', match: { from: 'id', to: 'member_id' } },
+
+  // 志工：點開一位志工，帶出參與紀錄與請款
+  { id: 'volunteer_participation', label: '參與紀錄', from_object: 'volunteer', to_object: 'participation', kind: 'one_to_many', on_delete: 'restrict', embed: 'ref', section: '參與紀錄與積分', match: { from: 'nickname', to: 'who' } },
+  { id: 'volunteer_claim', label: '請款紀錄', from_object: 'volunteer', to_object: 'claim', kind: 'one_to_many', on_delete: 'restrict', embed: 'ref', section: '請款紀錄', match: { from: 'nickname', to: 'who' } },
+  { id: 'volunteer_work', label: '負責的工作', from_object: 'volunteer', to_object: 'work', kind: 'one_to_many', on_delete: 'restrict', embed: 'ref', section: '負責的工作', match: { from: 'nickname', to: 'owner' } },
+
+  // 課程活動：點開一場活動，帶出各環節
+  { id: 'event_session', label: '環節', from_object: 'event', to_object: 'event', kind: 'one_to_many', on_delete: 'cascade', embed: 'child', display: { note: '同一個活動代號的多個環節' } },
+];
 export const menus = [
   // 管理台左欄。依「秘書處的工作」分組，不是依「官網有哪些頁」分組。
   // 沒列在這裡的物件不會出現在左欄（例如公開會員名單、開放報名的活動、請款品項，
   // 那些是系統為了給官網用而算出來的中繼資料，不是行政工作項目）。
-  { id: 'g_work', area: 'admin', label: '工作', kind: 'group', sort: 10 },
-  { id: 'adm_dash', area: 'admin', parent_id: 'g_work', label: '儀表板', icon: 'home', kind: 'page', target: 'dashboard', sort: 11 },
-  { id: 'adm_approve', area: 'admin', parent_id: 'g_work', label: '申請審核', icon: 'check', kind: 'page', target: 'approvals', sort: 12 },
+  // 主項目＝左欄的項目（照 ERP+CRM.xlsx 的分類）；子項目收在主項目裡面，
+  // 不另外佔左欄的位置。例如「工作進度」是點開某個任務之後才出現的段落。
+  { id: 'adm_dash', area: 'admin', label: '儀表板', icon: 'home', kind: 'page', target: 'dashboard', sort: 10 },
+  { id: 'adm_approve', area: 'admin', label: '申請審核', icon: 'check', kind: 'page', target: 'approvals', sort: 11 },
+  { id: 'adm_member', area: 'admin', label: '會員管理', icon: 'user', kind: 'object', target: 'member', sort: 20 },
+  { id: 'adm_prospect', area: 'admin', label: '潛在會員管理', icon: 'user', kind: 'object', target: 'prospect', sort: 21 },
+  { id: 'adm_volunteer', area: 'admin', label: '志工管理', icon: 'user', kind: 'object', target: 'volunteer', sort: 22 },
+  { id: 'adm_order', area: 'admin', label: '書籍訂購', icon: 'shop', kind: 'object', target: 'order', sort: 23 },
+  { id: 'adm_event', area: 'admin', label: '課程活動報名', icon: 'cal', kind: 'object', target: 'event', sort: 24 },
+  { id: 'adm_task', area: 'admin', label: '任務管理', icon: 'check', kind: 'object', target: 'task', sort: 25 },
+  { id: 'adm_meeting', area: 'admin', label: '會議管理', icon: 'cal', kind: 'object', target: 'meeting', sort: 26 },
+  { id: 'adm_asset', area: 'admin', label: '器材管理', icon: 'mic', kind: 'object', target: 'asset', sort: 27 },
+  { id: 'adm_proposal', area: 'admin', label: '外部提案', icon: 'doc', kind: 'object', target: 'proposal', sort: 28 },
 
-  { id: 'g_people', area: 'admin', label: '會員與志工', kind: 'group', sort: 20 },
-  { id: 'adm_member', area: 'admin', parent_id: 'g_people', label: '會員', icon: 'user', kind: 'object', target: 'member', sort: 21 },
-  { id: 'adm_dues', area: 'admin', parent_id: 'g_people', label: '會費繳納', icon: 'coin', kind: 'object', target: 'dues', sort: 22 },
-  { id: 'adm_volunteer', area: 'admin', parent_id: 'g_people', label: '志工', icon: 'user', kind: 'object', target: 'volunteer', sort: 23 },
-  { id: 'adm_participation', area: 'admin', parent_id: 'g_people', label: '參與紀錄', icon: 'check', kind: 'object', target: 'participation', sort: 24 },
-  { id: 'adm_prospect', area: 'admin', parent_id: 'g_people', label: '潛在會員', icon: 'user', kind: 'object', target: 'prospect', sort: 25 },
+  // 資料管理：四個子項目收在裡面
+  { id: 'g_lib', area: 'admin', label: '資料管理', icon: 'db', kind: 'group', sort: 30 },
+  { id: 'lib_shared', area: 'admin', parent_id: 'g_lib', label: '經營管理資料', icon: 'doc', kind: 'page', target: 'soon:經營管理資料:會員共享資料夾裡的表單、公告範本、課程簡報。在這裡管理上下架與分類，官網會員專區直接讀。', sort: 31 },
+  { id: 'lib_community', area: 'admin', parent_id: 'g_lib', label: '社區資料', icon: 'home', kind: 'page', target: 'soon:社區資料:各社區的戶數、管理費、物業與廠商配合情形（來自「社區委員會聯誼交流群組分享資料」113 筆）。含各社區敏感資訊，上線前要先決定誰看得到。', sort: 32 },
+  { id: 'lib_vendor', area: 'admin', parent_id: 'g_lib', label: '廠商資料', icon: 'shop', kind: 'object', target: 'vendor', sort: 33 },
+  { id: 'lib_results', area: 'admin', parent_id: 'g_lib', label: '過往成果', icon: 'doc', kind: 'object', target: 'archive', sort: 34 },
 
-  { id: 'g_run', area: 'admin', label: '活動與任務', kind: 'group', sort: 30 },
-  { id: 'adm_event', area: 'admin', parent_id: 'g_run', label: '課程活動', icon: 'cal', kind: 'object', target: 'event', sort: 31 },
-  { id: 'adm_task', area: 'admin', parent_id: 'g_run', label: '任務', icon: 'check', kind: 'object', target: 'task', sort: 32 },
-  { id: 'adm_work', area: 'admin', parent_id: 'g_run', label: '工作進度', icon: 'rows', kind: 'object', target: 'work', sort: 33 },
-  { id: 'adm_meeting', area: 'admin', parent_id: 'g_run', label: '會議', icon: 'cal', kind: 'object', target: 'meeting', sort: 34 },
-  { id: 'adm_archive', area: 'admin', parent_id: 'g_run', label: '活動建檔', icon: 'doc', kind: 'object', target: 'archive', sort: 35 },
-  { id: 'adm_asset', area: 'admin', parent_id: 'g_run', label: '器材', icon: 'mic', kind: 'object', target: 'asset', sort: 36 },
-  { id: 'adm_venue', area: 'admin', parent_id: 'g_run', label: '場地', icon: 'home', kind: 'object', target: 'venue', sort: 37 },
+  // 財務管理：十個子項目收在裡面
+  { id: 'g_money', area: 'admin', label: '財務管理', icon: 'book', kind: 'group', sort: 40 },
+  { id: 'fin_claim', area: 'admin', parent_id: 'g_money', label: '志工請款', icon: 'receipt', kind: 'object', target: 'claim', sort: 41 },
+  { id: 'fin_expense', area: 'admin', parent_id: 'g_money', label: '支出登錄', icon: 'receipt', kind: 'page', target: 'soon:支出登錄:本會帳戶直接付出去的錢（網銀轉帳廠商、自動扣繳、秘書薪資）在這裡登錄，寫進日記帳。志工或秘書長先墊的錢走「志工請款」—— 以「錢從誰口袋出」區分。', sort: 42 },
+  { id: 'fin_forms', area: 'admin', parent_id: 'g_money', label: '表單管理', icon: 'doc', kind: 'page', target: 'soon:表單管理:支出證明單、講師費領據、印領清冊、補助金領據。之後會由系統帶入資料後直接產生，不用手填。', sort: 43 },
+  { id: 'fin_income', area: 'admin', parent_id: 'g_money', label: '收入登錄', icon: 'coin', kind: 'page', target: 'soon:收入登錄:官網來的訂單、報名、會費會自動入帳；贊助、補助、捐款在這裡手動登錄，寫進日記帳並登記收據編號。', sort: 44 },
+  { id: 'fin_journal', area: 'admin', parent_id: 'g_money', label: '日記帳', icon: 'book', kind: 'object', target: 'journal', sort: 45 },
+  { id: 'fin_statement', area: 'admin', parent_id: 'g_money', label: '收支表', icon: 'book', kind: 'page', target: 'soon:收支表:依月／年彙總的收支，含預算執行率。目前在試算表用公式算，之後搬到這裡。', sort: 46 },
+  { id: 'fin_pl', area: 'admin', parent_id: 'g_money', label: '年度結餘表', icon: 'book', kind: 'page', target: 'soon:年度結餘表:本會是現金收支制，所以不做損益表，改做年度收支結餘。待預算表建好後一起做。', sort: 47 },
+  { id: 'fin_cash', area: 'admin', parent_id: 'g_money', label: '現金收支餘額表', icon: 'book', kind: 'page', target: 'soon:現金收支餘額表:取代資產負債表（現金收支制不適用）。列出各帳戶期初、收入、支出、期末。', sort: 48 },
+  { id: 'fin_account', area: 'admin', parent_id: 'g_money', label: '會計科目一覽', icon: 'book', kind: 'object', target: 'account', sort: 49 },
+  { id: 'fin_budget', area: 'admin', parent_id: 'g_money', label: '會計科目預算表', icon: 'book', kind: 'page', target: 'soon:會計科目預算表:年度預算（會員大會決議後由秘書長輸入），與實際支出對照顯示執行率，超支提醒。來源是「寓委聯115年度計畫甘特圖與預算表」。', sort: 50 },
 
-  // 財務：請款與日記帳是現成的資料；支出／收入登錄是輸入表單、報表是算出來的，標成下一批
-  { id: 'g_money', area: 'admin', label: '財務', kind: 'group', sort: 40 },
-  { id: 'adm_claim', area: 'admin', parent_id: 'g_money', label: '請款單', icon: 'receipt', kind: 'object', target: 'claim', sort: 41 },
-  { id: 'adm_expense', area: 'admin', parent_id: 'g_money', label: '支出登錄', icon: 'receipt', kind: 'page', target: 'soon:支出登錄:本會帳戶直接付出去的錢（網銀轉帳廠商、自動扣繳、秘書薪資）在這裡登錄，寫進日記帳。志工或秘書長先墊的錢走「請款單」，不走這裡 —— 以「錢從誰口袋出」區分。', sort: 42 },
-  { id: 'adm_income', area: 'admin', parent_id: 'g_money', label: '收入登錄', icon: 'coin', kind: 'page', target: 'soon:收入登錄:官網來的訂單、報名、會費會自動入帳；贊助、補助、捐款在這裡手動登錄，寫進日記帳並登記收據編號。', sort: 43 },
-  { id: 'adm_order', area: 'admin', parent_id: 'g_money', label: '訂單', icon: 'shop', kind: 'object', target: 'order', sort: 44 },
-  { id: 'adm_journal', area: 'admin', parent_id: 'g_money', label: '日記帳', icon: 'book', kind: 'object', target: 'journal', sort: 45 },
-  { id: 'adm_statement', area: 'admin', parent_id: 'g_money', label: '收支表', icon: 'book', kind: 'page', target: 'soon:收支表:依月／年彙總的收支，含預算執行率。目前在試算表用公式算，之後搬到這裡。', sort: 46 },
-  { id: 'adm_pl', area: 'admin', parent_id: 'g_money', label: '年度結餘表', icon: 'book', kind: 'page', target: 'soon:年度結餘表:本會是現金收支制，所以不做損益表，改做年度收支結餘。待預算表建好後一起做。', sort: 47 },
-  { id: 'adm_cash', area: 'admin', parent_id: 'g_money', label: '現金收支餘額表', icon: 'book', kind: 'page', target: 'soon:現金收支餘額表:取代資產負債表（現金收支制不適用）。列出各帳戶期初、收入、支出、期末。', sort: 48 },
-  { id: 'adm_account', area: 'admin', parent_id: 'g_money', label: '會計科目一覽', icon: 'book', kind: 'object', target: 'account', sort: 49 },
-  { id: 'adm_budget', area: 'admin', parent_id: 'g_money', label: '會計科目預算表', icon: 'book', kind: 'page', target: 'soon:會計科目預算表:年度預算（會員大會決議後由秘書長輸入），與實際支出對照顯示執行率，超支提醒。來源是「寓委聯115年度計畫甘特圖與預算表」。', sort: 50 },
-  { id: 'adm_forms', area: 'admin', parent_id: 'g_money', label: '空白表單', icon: 'doc', kind: 'page', target: 'soon:空白表單:支出證明單、講師費領據、印領清冊、補助金領據。之後會改成系統自動帶入資料後產生，不用手填。', sort: 51 },
+  // LINE 小幫手：兩個子項目
+  { id: 'g_line', area: 'admin', label: 'LINE 小幫手', icon: 'menu', kind: 'group', sort: 55 },
+  { id: 'line_cmd', area: 'admin', parent_id: 'g_line', label: '功能一覽', icon: 'rows', kind: 'page', target: 'soon:LINE 功能一覽:每個指令的觸發詞、回應文案、適用範圍與開關。測試期間可以單獨關掉某個指令，不用停整個機器人。資料表已經在設定庫裡（line_command）。', sort: 56 },
+  { id: 'line_auto', area: 'admin', parent_id: 'g_line', label: '自動回應', icon: 'doc', kind: 'page', target: 'soon:自動回應:關鍵字自動回覆的文案設定，改文字不用改程式。', sort: 57 },
 
-  // 資料管理：官網與會員服務要用的各種資料庫
-  { id: 'g_lib', area: 'admin', label: '資料管理', kind: 'group', sort: 55 },
-  { id: 'adm_shared', area: 'admin', parent_id: 'g_lib', label: '經營管理資料', icon: 'doc', kind: 'page', target: 'soon:經營管理資料:會員共享資料夾裡的表單、公告範本、課程簡報。現在放在 Google 雲端硬碟，之後在這裡管理上下架與分類，官網會員專區直接讀。', sort: 56 },
-  { id: 'adm_community', area: 'admin', parent_id: 'g_lib', label: '社區資料', icon: 'home', kind: 'page', target: 'soon:社區資料:各社區的戶數、管理費、物業與廠商配合情形（來自「社區委員會聯誼交流群組分享資料」113 筆）。這份含各社區的敏感資訊，上線前要先決定誰看得到。', sort: 57 },
-  { id: 'adm_vendor', area: 'admin', parent_id: 'g_lib', label: '廠商資料', icon: 'shop', kind: 'object', target: 'vendor', sort: 58 },
-  { id: 'adm_results', area: 'admin', parent_id: 'g_lib', label: '過往成果', icon: 'doc', kind: 'page', target: 'soon:過往成果:由「活動建檔」結案後的資料產生，供官網活動成果頁使用。建檔資料已經在左邊的「活動建檔」裡，這一頁之後做上下架與排序。', sort: 59 },
-
-  { id: 'g_out', area: 'admin', label: '對外', kind: 'group', sort: 60 },
-  { id: 'adm_proposal', area: 'admin', parent_id: 'g_out', label: '外部提案', icon: 'doc', kind: 'object', target: 'proposal', sort: 61 },
-  { id: 'adm_thread', area: 'admin', parent_id: 'g_out', label: '經典討論串', icon: 'doc', kind: 'object', target: 'thread', sort: 62 },
-  { id: 'adm_line', area: 'admin', parent_id: 'g_out', label: 'LINE 小幫手', icon: 'menu', kind: 'page', target: 'line', sort: 63 },
-
-  { id: 'g_sys', area: 'admin', label: '設定', kind: 'group', sort: 70 },
-  { id: 'adm_setup', area: 'admin', parent_id: 'g_sys', label: '系統設定', icon: 'cube', kind: 'page', target: 'setup', sort: 71, roles: ['admin'] },
-  { id: 'adm_sync', area: 'admin', parent_id: 'g_sys', label: '同步狀態', icon: 'db', kind: 'page', target: 'sync', sort: 72, roles: ['admin'] },
-  { id: 'adm_conn', area: 'admin', parent_id: 'g_sys', label: '連線', icon: 'plug', kind: 'page', target: 'connections', sort: 73, roles: ['admin'] },
-  { id: 'adm_audit', area: 'admin', parent_id: 'g_sys', label: '留痕', icon: 'clock', kind: 'page', target: 'audit', sort: 74, roles: ['admin'] },
+  { id: 'g_sys', area: 'admin', label: '系統', icon: 'gear', kind: 'group', sort: 60 },
+  { id: 'adm_setup', area: 'admin', parent_id: 'g_sys', label: '系統設定', icon: 'cube', kind: 'page', target: 'setup', sort: 61, roles: ['admin'] },
+  { id: 'adm_sync', area: 'admin', parent_id: 'g_sys', label: '同步狀態', icon: 'db', kind: 'page', target: 'sync', sort: 62, roles: ['admin'] },
+  { id: 'adm_conn', area: 'admin', parent_id: 'g_sys', label: '連線', icon: 'plug', kind: 'page', target: 'connections', sort: 63, roles: ['admin'] },
+  { id: 'adm_audit', area: 'admin', parent_id: 'g_sys', label: '留痕', icon: 'clock', kind: 'page', target: 'audit', sort: 64, roles: ['admin'] },
   // 官網頂部（對照現況）
   { id: 'site_about', area: 'site', label: '關於本會', kind: 'page', target: 'about.html', sort: 10 },
   { id: 'site_activities', area: 'site', label: '活動成果', kind: 'page', target: 'activities.html', sort: 20 },

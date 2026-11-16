@@ -47,6 +47,8 @@ export const SCHEMA = [
   on_delete   TEXT NOT NULL DEFAULT 'restrict',
   required    INTEGER NOT NULL DEFAULT 0,
   embed       TEXT NOT NULL DEFAULT 'ref',
+  match_on    TEXT,
+  section     TEXT,
   display     TEXT
 )`,
   `CREATE TABLE IF NOT EXISTS meta_menu (

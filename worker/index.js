@@ -16,6 +16,7 @@
  *   POST /api/sync              Apps Script 把工作表推進來（要金鑰）
  *   POST /api/share-secret      Apps Script 把通行證的簽章密鑰交過來（要金鑰，只能設一次）
  *   POST /api/settings          Apps Script 把「設定」工作表推進來（要金鑰）
+ *   POST /api/related          點開一筆資料時，一起帶出相關紀錄（設定庫決定怎麼對上）
  *   GET  /api/pending         申請審核：所有還沒處理的申請（秘書處才看得到）
  *   GET  /api/stats           管理台首頁：各物件筆數與最近同步時間
  *   GET  /api/me                我是誰、看得到哪些資料（帶 Authorization: Bearer <通行證>）
@@ -63,7 +64,7 @@ async function loadMeta(env) {
     relations: (relations.results || []).map((r) => ({
       id: r.id, label: r.label, from: r.from_object, to: r.to_object, kind: r.kind,
       fromLabel: r.from_label, toLabel: r.to_label, onDelete: r.on_delete,
-      required: !!r.required, embed: r.embed, display: parse(r.display),
+      required: !!r.required, embed: r.embed, match: parse(r.match_on), section: r.section, display: parse(r.display),
     })),
     menus: (menus.results || []).map((m) => ({
       id: m.id, area: m.area, parent: m.parent_id, label: m.label, icon: m.icon,
@@ -94,6 +95,8 @@ async function keyOk(request, env) {
 async function seedMeta(env) {
   // 舊資料庫可能還沒有 extras 欄（CREATE TABLE IF NOT EXISTS 不會補欄位）
   try { await env.DB.prepare('ALTER TABLE meta_object ADD COLUMN extras TEXT').run(); } catch (err) { /* 已經有了 */ }
+  try { await env.DB.prepare('ALTER TABLE meta_relation ADD COLUMN match_on TEXT').run(); } catch (err) { /* 已經有了 */ }
+  try { await env.DB.prepare('ALTER TABLE meta_relation ADD COLUMN section TEXT').run(); } catch (err) { /* 已經有了 */ }
   const now = new Date().toISOString();
   const J = (v) => (v == null ? null : JSON.stringify(v));
   const batch = [];
@@ -113,9 +116,9 @@ async function seedMeta(env) {
       f.privacy || 'staff', J(f.lock_after), f.show_in_list ? 1 : 0, (i + 1) * 10, f.help || null)));
   });
   SEED_RELATIONS.forEach((r) => batch.push(env.DB.prepare(
-    'INSERT INTO meta_relation (id,label,from_object,to_object,kind,from_label,to_label,on_delete,required,embed,display) VALUES (?,?,?,?,?,?,?,?,?,?,?)'
+    'INSERT INTO meta_relation (id,label,from_object,to_object,kind,from_label,to_label,on_delete,required,embed,match_on,section,display) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)'
   ).bind(r.id, r.label, r.from_object, r.to_object, r.kind, r.from_label || null, r.to_label || null,
-    r.on_delete || 'restrict', r.required ? 1 : 0, r.embed || 'ref', J(r.display))));
+    r.on_delete || 'restrict', r.required ? 1 : 0, r.embed || 'ref', J(r.match || null), r.section || null, J(r.display))));
   SEED_MENUS.forEach((m) => batch.push(env.DB.prepare(
     'INSERT INTO meta_menu (id,area,parent_id,label,icon,kind,target,roles,badge,sort,visible) VALUES (?,?,?,?,?,?,?,?,?,?,?)'
   ).bind(m.id, m.area, m.parent_id || null, m.label, m.icon || null, m.kind, m.target || null,
@@ -359,6 +362,35 @@ async function api(request, env, url) {
       words: words,
       rows: (rows.results || []).map((r) => Object.assign({}, r, labels[r.object_id] || { label: r.object_id, icon: 'rows' })),
     });
+  }
+
+  // 點開一筆資料時，把相關的紀錄一起帶出來（例如任務底下的工作進度、參與者、請款、建檔）。
+  // 怎麼對上是設定庫決定的（meta_relation 的 match_on），程式不認識任何業務欄位。
+  if (path === 'related') {
+    const meta = await loadMeta(env);
+    const object = meta.objects.find((o) => o.id === body.object);
+    if (!object) return fail('object_not_found', 404);
+    if (!canList(object, role)) return fail('forbidden', 403);
+    const row = await env.DB.prepare('SELECT * FROM record WHERE object_id = ? AND id = ? AND deleted_at IS NULL').bind(object.id, String(body.id || '')).first();
+    if (!row) return fail('not_found', 404);
+    const data = parse(row.data) || {};
+    const rels = meta.relations.filter((r) => r.from === object.id && r.match && r.section);
+    const out = [];
+    for (const rel of rels) {
+      const target = meta.objects.find((o) => o.id === rel.to);
+      if (!target || !canList(target, role)) continue;
+      const value = data[rel.match.from];
+      if (value == null || value === '') continue;
+      const found = await env.DB.prepare(
+        "SELECT * FROM record WHERE object_id = ? AND deleted_at IS NULL AND json_extract(data, '$.' || ?) = ? ORDER BY id LIMIT 200"
+      ).bind(target.id, rel.match.to, String(value)).all();
+      out.push({
+        relation: rel.id, section: rel.section, object: target.id, label: target.label, icon: target.icon,
+        fields: target.fields.filter((f) => f.inList && f.privacy !== 'secret' && (VISIBLE[role] || VISIBLE.guest).includes(f.privacy)),
+        rows: (found.results || []).map((r) => shape(target, r, role)),
+      });
+    }
+    return ok({ object: object.id, id: row.id, sections: out });
   }
 
   if (path === 'meta') {

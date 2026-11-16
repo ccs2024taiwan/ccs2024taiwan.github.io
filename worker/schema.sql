@@ -53,6 +53,8 @@ CREATE TABLE IF NOT EXISTS meta_relation (
   on_delete   TEXT NOT NULL DEFAULT 'restrict',
   required    INTEGER NOT NULL DEFAULT 0,
   embed       TEXT NOT NULL DEFAULT 'ref',   -- child（子表）／ref（獨立物件）
+  match_on    TEXT,                          -- JSON：用欄位值對上，例 {"from":"name","to":"task"}（鏡像期沒有真正的外鍵）
+  section     TEXT,                          -- 在主檔明細裡顯示的段落標題；空＝不顯示
   display     TEXT                           -- JSON
 );
 

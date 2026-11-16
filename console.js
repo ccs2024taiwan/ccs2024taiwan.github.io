@@ -126,8 +126,9 @@ function showError(message) {
   $('main').replaceChildren(el('p', 'err', message));
 }
 
-// 左欄完全由設定庫的選單決定（meta_menu 的 area=admin）：分組、順序、誰看得到都在那裡設。
-// 沒列進選單的物件不會出現在這裡 —— 那些是系統算給官網用的中繼資料，不是行政工作項目。
+// 左欄完全由設定庫的選單決定（meta_menu 的 area=admin）。主項目一行；有子項目的會收起來，點一下展開。
+// 子項目不會另外佔一行 —— 像「工作進度」是點開某個任務之後才出現的段落，不是左欄項目。
+let OPEN_GROUP = null;
 function buildNav() {
   const list = $('navList');
   list.replaceChildren();
@@ -137,42 +138,45 @@ function buildNav() {
   };
   const visible = (m) => !m.roles || !m.roles.length || m.roles.indexOf(ME.role) !== -1;
   const admin = (META.menus || []).filter((m) => m.area === 'admin' && visible(m)).sort((x, y) => (x.sort || 0) - (y.sort || 0));
-  const item = (key, label, iconName, count) => {
-    const b = el('button', 'nav');
+  const keyOf = (m) => {
+    if (m.kind === 'object') return 'o:' + m.target;
+    if (m.target === 'dashboard') return 'dash';
+    return m.target;
+  };
+  const item = (m, sub) => {
+    if (m.kind === 'object' && !(META.objects || []).some((o) => o.id === m.target)) return;
+    const key = keyOf(m);
+    const b = el('button', 'nav' + (sub ? ' sub' : ''));
     b.type = 'button';
     b.dataset.key = key;
-    b.append(icon(iconName), el('span', '', label));
-    if (count != null) b.append(el('span', 'n', String(count)));
+    b.append(icon(m.icon), el('span', '', m.label));
+    const n = m.kind === 'object' ? countOf(m.target) : key === 'approvals' ? PENDING_COUNT : null;
+    if (n != null) b.append(el('span', 'n', String(n)));
     b.addEventListener('click', () => go(key));
     list.append(b);
   };
-  const render = (m) => {
-    if (m.kind === 'object') {
-      const obj = (META.objects || []).find((o) => o.id === m.target);
-      if (!obj) return;
-      item('o:' + obj.id, m.label || obj.label, m.icon || obj.icon, countOf(obj.id));
-    } else if (m.kind === 'page') {
-      const key = m.target === 'dashboard' ? 'dash' : m.target;
-      item(key, m.label, m.icon, key === 'approvals' ? PENDING_COUNT : null);
-    }
+  const group = (g, kids) => {
+    const b = el('button', 'nav group' + (OPEN_GROUP === g.id ? ' open' : ''));
+    b.type = 'button';
+    b.dataset.group = g.id;
+    b.append(icon(g.icon), el('span', '', g.label), el('span', 'caret', OPEN_GROUP === g.id ? '－' : '＋'));
+    b.addEventListener('click', () => { OPEN_GROUP = OPEN_GROUP === g.id ? null : g.id; buildNav(); });
+    list.append(b);
+    if (OPEN_GROUP === g.id) kids.forEach((k) => item(k, true));
   };
-  const groups = admin.filter((m) => m.kind === 'group');
-  if (groups.length) {
-    groups.forEach((g) => {
-      const kids = admin.filter((m) => m.parent_id === g.id);
-      if (!kids.length) return;
-      list.append(el('div', 'grp', g.label));
-      kids.forEach(render);
-    });
-    const orphan = admin.filter((m) => m.kind !== 'group' && !m.parent_id);
-    if (orphan.length) { list.append(el('div', 'grp', '其他')); orphan.forEach(render); }
-  } else {
-    admin.forEach(render);
-  }
+  admin.filter((m) => !m.parent_id).forEach((m) => {
+    if (m.kind === 'group') group(m, admin.filter((k) => k.parent_id === m.id));
+    else item(m, false);
+  });
+  document.querySelectorAll('.nav').forEach((x) => x.classList.toggle('on', x.dataset.key === current));
 }
 function go(key) {
   current = key;
   location.hash = key;
+  if (META && META.menus) {
+    const hit = META.menus.find((m) => m.area === 'admin' && m.parent_id && (m.kind === 'object' ? 'o:' + m.target : m.target === 'dashboard' ? 'dash' : m.target) === key);
+    if (hit && OPEN_GROUP !== hit.parent_id) { OPEN_GROUP = hit.parent_id; buildNav(); }
+  }
   document.querySelectorAll('.nav').forEach((b) => b.classList.toggle('on', b.dataset.key === key));
   $('q').value = '';
   if (key === 'dash') return viewDash();
@@ -370,6 +374,29 @@ function showDetail(obj, row, box) {
   const foot = el('p', 'hint');
   foot.append(icon('info'), el('span', '', '這一版只能看。修改、簽核與留痕會在下一批加上。'));
   box.append(foot);
+  loadRelated(obj, row, box);
+}
+
+// 相關紀錄：哪些資料要跟著帶出來、用哪個欄位對上，都是設定庫決定的
+async function loadRelated(obj, row, box) {
+  const holder = el('div');
+  box.append(holder);
+  const result = await db('related', { object: obj.id, id: row.id });
+  if (!result.ok || !result.sections || !result.sections.length) return;
+  result.sections.forEach((sec) => {
+    if (!sec.rows.length) return;
+    const h = el('h3', '', '');
+    h.style.margin = '14px 0 6px';
+    h.style.fontSize = '13.5px';
+    h.append(icon(sec.icon), el('span', '', sec.section + '（' + sec.rows.length + '）'));
+    holder.append(h);
+    const cols = sec.fields.length ? sec.fields.slice(0, 4) : [{ key: 'title', label: '內容' }];
+    holder.append(tableOf(cols.map((f) => f.label), sec.rows.slice(0, 20).map((r) => cols.map((f) => {
+      const v = r.data ? r.data[f.key] : '';
+      return v == null ? '' : Array.isArray(v) ? v.length + ' 項' : String(v);
+    }))));
+    if (sec.rows.length > 20) holder.append(el('p', 'hint', '…共 ' + sec.rows.length + ' 筆'));
+  });
 }
 
 // ── 系統設定（唯讀）────────────────────────────────────
