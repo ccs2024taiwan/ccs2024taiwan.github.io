@@ -108,6 +108,7 @@ async function start(me) {
   if (!META || !META.ok) throw new Error('讀不到設定庫：' + ((META && (META.message || META.error)) || '未知原因'));
   $('gate').hidden = true;
   $('app').hidden = false;
+  window.scrollTo(0, 0);
   const s = session.get();
   const name = (s && s.member && s.member.name) || me.name || me.id || '';
   $('whoName').textContent = name + '　·　' + (me.role === 'admin' ? '系統管理員' : '秘書處');

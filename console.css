@@ -9,6 +9,7 @@
   --line:#e6e1d8;
   --line-soft:#f1eee8;
   --accent:#2b7489;
+  --on-accent:#ffffff;
   --accent-soft:#e8f1f4;
   --ok:#3f7d4e;
   --ok-soft:#e8f0e9;
@@ -21,15 +22,16 @@
 }
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
   --paper:#17120d; --sub:#1d1812; --panel:#201a14; --ink:#f2e9dc; --muted:#b9a992; --faint:#8d7f6c;
-  --line:#352c22; --line-soft:#2a221a; --accent:#7cc3d6; --accent-soft:#1c333b;
+  --line:#352c22; --line-soft:#2a221a; --accent:#7cc3d6; --on-accent:#10242b; --accent-soft:#1c333b;
   --ok:#8fcf9d; --ok-soft:#1f3326; --warn:#d9ab63; --warn-soft:#352a17; --alert:#e5a189; --alert-soft:#38241d;
 }}
 :root[data-theme="dark"]{
   --paper:#17120d; --sub:#1d1812; --panel:#201a14; --ink:#f2e9dc; --muted:#b9a992; --faint:#8d7f6c;
-  --line:#352c22; --line-soft:#2a221a; --accent:#7cc3d6; --accent-soft:#1c333b;
+  --line:#352c22; --line-soft:#2a221a; --accent:#7cc3d6; --on-accent:#10242b; --accent-soft:#1c333b;
   --ok:#8fcf9d; --ok-soft:#1f3326; --warn:#d9ab63; --warn-soft:#352a17; --alert:#e5a189; --alert-soft:#38241d;
 }
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 html,body{height:100%}
 body{margin:0;background:var(--paper);color:var(--ink);font-family:"Noto Sans TC","Microsoft JhengHei",sans-serif;font-size:14.5px;font-weight:450;line-height:1.68}
 a{color:var(--accent)}
@@ -89,8 +91,8 @@ h1.page{font-family:"Noto Serif TC",serif;font-weight:600;font-size:22px;margin:
 .btn{all:unset;display:inline-flex;align-items:center;gap:6px;padding:6px 13px;border-radius:8px;border:1px solid var(--line);cursor:pointer;font-size:13px;font-weight:450;color:var(--ink);background:var(--panel);white-space:nowrap}
 .btn svg{width:14px;height:14px;color:var(--muted)}
 .btn:hover{border-color:var(--faint)}
-.btn.pri{background:var(--accent);border-color:var(--accent);color:#fff}
-.btn.pri svg{color:#fff}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:var(--on-accent);font-weight:500}
+.btn.pri svg{color:var(--on-accent)}
 .btn.quiet{border-color:transparent;color:var(--muted);padding-inline:8px}
 .btn.quiet:hover{background:var(--line-soft);color:var(--ink)}
 .btn[disabled]{opacity:.5;cursor:default}
