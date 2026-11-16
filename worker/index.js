@@ -10,7 +10,10 @@
  *   GET  /api/meta              物件、欄位、關聯、選單（依 privacy 過濾）
  *   POST /api/list              { object, view, where, limit, cursor }
  *   POST /api/get               { object, id }
- *   POST /api/sync              Apps Script 把工作表推進來（要 SYNC_KEY）
+ *   POST /api/claim-key         第一次連線：Apps Script 自己產生金鑰存進來（只能跑一次）
+ *   POST /api/reseed            改過 meta.mjs 部署後重灌設定庫（要金鑰，不碰 record）
+ *   GET  /api/sync-map          要同步哪些物件、每個欄位對應工作表的哪一欄（要金鑰）
+ *   POST /api/sync              Apps Script 把工作表推進來（要金鑰）
  *
  * 權限：這一版只開放 privacy=public 的欄位給所有人（官網讀取加速用）。
  *       會員／志工／秘書處的身分驗證在下一批接上（沿用 Apps Script 既有的 token）。
@@ -66,6 +69,64 @@ async function loadMeta(env) {
 
 const parse = (s) => { try { return s == null ? null : JSON.parse(s); } catch (e) { return null; } };
 
+async function sha256(text) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+// 回傳 true＝這次請求帶的金鑰是對的
+async function keyOk(request, env) {
+  const header = request.headers.get('authorization') || '';
+  const key = header.startsWith('Bearer ') ? header.slice(7) : '';
+  if (!key) return false;
+  if (env.SYNC_KEY) return key === env.SYNC_KEY;
+  const row = await env.DB.prepare('SELECT value FROM settings WHERE "key" = ?').bind('__sync_key_hash').first();
+  if (!row || !row.value) return false;
+  return row.value === (await sha256(key));
+}
+
+// 把 worker/meta.mjs 的定義寫進設定庫。meta_* 整批換掉；settings 與 line_command 只補沒有的，不蓋掉改過的文案。
+async function seedMeta(env) {
+  const now = new Date().toISOString();
+  const J = (v) => (v == null ? null : JSON.stringify(v));
+  const batch = [];
+  ['meta_field', 'meta_relation', 'meta_menu', 'meta_object'].forEach((t) => batch.push(env.DB.prepare('DELETE FROM ' + t)));
+  SEED_OBJECTS.forEach((o) => {
+    batch.push(env.DB.prepare(
+      'INSERT INTO meta_object (id,label,label_plural,icon,id_rule,title_field,source,soft_delete,audit_level,acl,sort,status,updated_at,updated_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
+    ).bind(o.id, o.label, o.label_plural || null, o.icon || null, o.id_rule || null, o.title_field || null,
+      o.sync ? 'sheet:' + o.sync.sheet : (o.source || 'd1'),
+      o.soft_delete === 0 ? 0 : 1, o.audit_level || 'full', J(o.acl), o.sort || 0, o.status || 'active', now, 'seed'));
+    o.fields.forEach((f, i) => batch.push(env.DB.prepare(
+      'INSERT INTO meta_field (id,object_id,"key",label,type,options,required,is_unique,default_value,validate,privacy,lock_after,show_in_list,sort,help) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
+    ).bind(o.id + '.' + f.key, o.id, f.key, f.label, f.type,
+      J(f.from ? Object.assign({}, f.options || {}, { from: f.from }) : f.options),
+      f.required ? 1 : 0, f.is_unique ? 1 : 0, f.default_value || null, f.validate || null,
+      f.privacy || 'staff', J(f.lock_after), f.show_in_list ? 1 : 0, (i + 1) * 10, f.help || null)));
+  });
+  SEED_RELATIONS.forEach((r) => batch.push(env.DB.prepare(
+    'INSERT INTO meta_relation (id,label,from_object,to_object,kind,from_label,to_label,on_delete,required,embed,display) VALUES (?,?,?,?,?,?,?,?,?,?,?)'
+  ).bind(r.id, r.label, r.from_object, r.to_object, r.kind, r.from_label || null, r.to_label || null,
+    r.on_delete || 'restrict', r.required ? 1 : 0, r.embed || 'ref', J(r.display))));
+  SEED_MENUS.forEach((m) => batch.push(env.DB.prepare(
+    'INSERT INTO meta_menu (id,area,parent_id,label,icon,kind,target,roles,badge,sort,visible) VALUES (?,?,?,?,?,?,?,?,?,?,?)'
+  ).bind(m.id, m.area, m.parent_id || null, m.label, m.icon || null, m.kind, m.target || null,
+    J(m.roles), m.badge || null, m.sort || 0, m.visible === 0 ? 0 : 1)));
+  SEED_SETTINGS.forEach((x, i) => batch.push(env.DB.prepare(
+    'INSERT OR IGNORE INTO settings ("key",group_name,type,value,help,sort,updated_at,updated_by) VALUES (?,?,?,?,?,?,?,?)'
+  ).bind(x.key, x.group || '一般', x.type || 'text', x.value || null, x.help || null, (i + 1) * 10, now, 'seed')));
+  SEED_LINE.forEach((c, i) => batch.push(env.DB.prepare(
+    'INSERT OR IGNORE INTO line_command (id,trigger_words,label,reply_template,handler,scope,roles,enabled,sort) VALUES (?,?,?,?,?,?,?,?,?)'
+  ).bind(c.id, J(c.trigger), c.label, c.reply_template || null, c.handler || null, J(c.scope), J(c.roles), 1, (i + 1) * 10)));
+  await env.DB.batch(batch);
+  return {
+    tables: SCHEMA.length,
+    objects: SEED_OBJECTS.length,
+    fields: SEED_OBJECTS.reduce((t, o) => t + o.fields.length, 0),
+    relations: SEED_RELATIONS.length, menus: SEED_MENUS.length,
+    settings: SEED_SETTINGS.length, lineCommands: SEED_LINE.length,
+  };
+}
 // 這一版只有 guest；之後接上 token 會回傳 member／volunteer／staff／admin
 function roleOf() { return 'guest'; }
 
@@ -104,41 +165,47 @@ async function api(request, env, url) {
   if (path === 'setup') {
     for (const sql of SCHEMA) await env.DB.prepare(sql).run();
     const already = await env.DB.prepare('SELECT COUNT(*) AS n FROM meta_object').first();
-    if (already && already.n > 0) return fail('already_initialized', 409, '設定庫已經有 ' + already.n + ' 個物件；要重灌請用 wrangler 跑 worker/seed.sql');
-    const now = new Date().toISOString();
-    const J = (v) => (v == null ? null : JSON.stringify(v));
-    const batch = [];
-    SEED_OBJECTS.forEach((o) => {
-      batch.push(env.DB.prepare(
-        'INSERT INTO meta_object (id,label,label_plural,icon,id_rule,title_field,source,soft_delete,audit_level,acl,sort,status,updated_at,updated_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
-      ).bind(o.id, o.label, o.label_plural || null, o.icon || null, o.id_rule || null, o.title_field || null, o.source || 'd1',
-        o.soft_delete === 0 ? 0 : 1, o.audit_level || 'full', J(o.acl), o.sort || 0, o.status || 'active', now, 'setup'));
-      o.fields.forEach((f, i) => batch.push(env.DB.prepare(
-        'INSERT INTO meta_field (id,object_id,"key",label,type,options,required,is_unique,default_value,validate,privacy,lock_after,show_in_list,sort,help) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
-      ).bind(o.id + '.' + f.key, o.id, f.key, f.label, f.type, J(f.options), f.required ? 1 : 0, f.is_unique ? 1 : 0,
-        f.default_value || null, f.validate || null, f.privacy || 'staff', J(f.lock_after), f.show_in_list ? 1 : 0, (i + 1) * 10, f.help || null)));
+    if (already && already.n > 0) return fail('already_initialized', 409, '設定庫已經有 ' + already.n + ' 個物件；要重灌請用 POST /api/reseed（要金鑰）');
+    return ok(await seedMeta(env));
+  }
+
+  // 改過 worker/meta.mjs、部署之後呼叫這個，把設定庫重灌成新的定義。
+  // 只動 meta_*，不碰 record 裡的實際資料；settings 與 line_command 既有的值也不會被蓋掉。
+  if (path === 'reseed') {
+    if (!(await keyOk(request, env))) return fail('unauthorized', 401);
+    for (const sql of SCHEMA) await env.DB.prepare(sql).run();
+    return ok(await seedMeta(env));
+  }
+  if (path === 'claim-key') {
+    if (env.SYNC_KEY) return fail('already_initialized', 409, 'Worker 已經設了 SYNC_KEY 環境變數，不需要 claim-key');
+    const exists = await env.DB.prepare('SELECT value FROM settings WHERE "key" = ?').bind('__sync_key_hash').first();
+    if (exists && exists.value) return fail('already_initialized', 409, '金鑰已經設定過了；要重設請先到 Cloudflare 後台把 settings 的 __sync_key_hash 清掉');
+    const body0 = await request.json().catch(() => ({}));
+    const key = String(body0.key || '');
+    if (key.length < 24) return fail('weak_key', 400, '金鑰至少 24 個字');
+    await env.DB.prepare(
+      'INSERT INTO settings ("key",group_name,type,value,help,sort,updated_at,updated_by) VALUES (?,?,?,?,?,?,?,?)'
+    ).bind('__sync_key_hash', '系統', 'text', await sha256(key), '資料同步金鑰的雜湊；原文只存在 Apps Script 的指令碼屬性。', 999, new Date().toISOString(), 'claim').run();
+    return ok({ claimed: true });
+  }
+
+  // 同步對照表：哪些物件要從試算表同步、每個欄位對應哪一欄
+  if (path === 'sync-map') {
+    if (!(await keyOk(request, env))) return fail('unauthorized', 401);
+    const objects = await env.DB.prepare("SELECT id, label, source, title_field FROM meta_object WHERE source LIKE 'sheet:%' AND status = 'active' ORDER BY sort").all();
+    // privacy=secret 的欄位（手機、地址）不鏡像到 D1：唯讀 API 本來就不會回傳，多放一份個資沒必要。
+    // 之後登入搬到 Worker 時再改成同步加鹽雜湊。
+    const fields = await env.DB.prepare('SELECT object_id, "key", type, options FROM meta_field WHERE privacy <> ? ORDER BY object_id, sort').bind('secret').all();
+    const byObject = {};
+    (fields.results || []).forEach((f) => {
+      const opt = parse(f.options) || {};
+      if (!opt.from) return;
+      (byObject[f.object_id] = byObject[f.object_id] || []).push({ key: f.key, type: f.type, from: opt.from });
     });
-    SEED_RELATIONS.forEach((r) => batch.push(env.DB.prepare(
-      'INSERT INTO meta_relation (id,label,from_object,to_object,kind,from_label,to_label,on_delete,required,embed,display) VALUES (?,?,?,?,?,?,?,?,?,?,?)'
-    ).bind(r.id, r.label, r.from_object, r.to_object, r.kind, r.from_label || null, r.to_label || null,
-      r.on_delete || 'restrict', r.required ? 1 : 0, r.embed || 'ref', J(r.display))));
-    SEED_MENUS.forEach((m) => batch.push(env.DB.prepare(
-      'INSERT INTO meta_menu (id,area,parent_id,label,icon,kind,target,roles,badge,sort,visible) VALUES (?,?,?,?,?,?,?,?,?,?,?)'
-    ).bind(m.id, m.area, m.parent_id || null, m.label, m.icon || null, m.kind, m.target || null,
-      J(m.roles), m.badge || null, m.sort || 0, m.visible === 0 ? 0 : 1)));
-    SEED_SETTINGS.forEach((s, i) => batch.push(env.DB.prepare(
-      'INSERT OR IGNORE INTO settings ("key",group_name,type,value,help,sort,updated_at,updated_by) VALUES (?,?,?,?,?,?,?,?)'
-    ).bind(s.key, s.group || '一般', s.type || 'text', s.value || null, s.help || null, (i + 1) * 10, now, 'setup')));
-    SEED_LINE.forEach((c, i) => batch.push(env.DB.prepare(
-      'INSERT OR IGNORE INTO line_command (id,trigger_words,label,reply_template,handler,scope,roles,enabled,sort) VALUES (?,?,?,?,?,?,?,?,?)'
-    ).bind(c.id, J(c.trigger), c.label, c.reply_template || null, c.handler || null, J(c.scope), J(c.roles), 1, (i + 1) * 10)));
-    await env.DB.batch(batch);
     return ok({
-      tables: SCHEMA.length,
-      objects: SEED_OBJECTS.length,
-      fields: SEED_OBJECTS.reduce((t, o) => t + o.fields.length, 0),
-      relations: SEED_RELATIONS.length, menus: SEED_MENUS.length,
-      settings: SEED_SETTINGS.length, lineCommands: SEED_LINE.length,
+      objects: (objects.results || []).map((o) => ({
+        id: o.id, label: o.label, sheet: String(o.source).slice(6), titleField: o.title_field, fields: byObject[o.id] || [],
+      })).filter((o) => o.fields.length),
     });
   }
 
@@ -185,8 +252,7 @@ async function api(request, env, url) {
 
   // Apps Script 推資料進來：一次一個物件的整批列。需要 SYNC_KEY。
   if (path === 'sync') {
-    const key = request.headers.get('authorization') || '';
-    if (!env.SYNC_KEY || key !== 'Bearer ' + env.SYNC_KEY) return fail('unauthorized', 401);
+    if (!(await keyOk(request, env))) return fail('unauthorized', 401);
     const objectId = String(body.object || '').trim();
     const rows = Array.isArray(body.rows) ? body.rows : [];
     if (!objectId || !rows.length) return fail('missing_fields');
