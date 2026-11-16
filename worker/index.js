@@ -336,7 +336,9 @@ async function api(request, env, url) {
       return ok({ object: object.id, row: shape(object, row, role) });
     }
 
-    const limit = Math.min(200, Math.max(1, Number(body.limit) || 50));
+    // acl.guestLimit：訪客只拿得到前幾列（例如討論串前 3 則），其餘要登入
+    const guestCap = role === 'guest' && Number(object.acl.guestLimit) > 0 ? Number(object.acl.guestLimit) : 0;
+    const limit = Math.min(guestCap || 200, Math.max(1, Number(body.limit) || 50));
     const cursor = body.cursor ? String(body.cursor) : null;
     const args = [object.id];
     let where = 'object_id = ? AND deleted_at IS NULL';
@@ -346,12 +348,18 @@ async function api(request, env, url) {
     const got = rows.results || [];
     const more = got.length > limit;
     const page = more ? got.slice(0, limit) : got;
-    return ok({
+    const out = {
       object: object.id,
       fields: object.fields.filter((f) => f.inList && f.privacy !== 'secret' && (VISIBLE[role] || VISIBLE.guest).includes(f.privacy)),
       rows: page.map((r) => shape(object, r, role)),
-      nextCursor: more ? page[page.length - 1].id : null,
-    });
+      nextCursor: more || guestCap ? (page.length ? page[page.length - 1].id : null) : null,
+    };
+    if (Number(object.acl.guestLimit) > 0) { // 讓前端知道「還有幾則要登入才看得到」
+      const all = await env.DB.prepare('SELECT COUNT(*) AS n FROM record WHERE object_id = ? AND deleted_at IS NULL').bind(object.id).first();
+      out.total = all ? all.n : out.rows.length;
+      out.locked = guestCap > 0 && out.total > out.rows.length;
+    }
+    return ok(out);
   }
 
   // Apps Script 推資料進來：一次一個物件的整批列。需要 SYNC_KEY。

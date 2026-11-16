@@ -198,19 +198,22 @@ const api = API_URL ? callApi : demoApi;
 // ── 官網資料庫（Cloudflare D1）：公開資料改從這裡讀，快很多；讀不到就退回 Apps Script ──
 // 寫入一律還是走 Apps Script，這裡只負責「讀」。
 const DB_URL = location.hostname.endsWith('workers.dev') || location.hostname.endsWith('ccs2024taiwan.github.io') ? 'https://ccs.ccs2024taiwan.workers.dev' : '';
-const dbList = async (object, limit = 500) => {
+const dbQuery = async (object, { limit = 500, token = '' } = {}) => {
   if (!DB_URL) return null;
   try {
-    const res = await fetch(DB_URL + '/api/list', {
-      method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ object, limit }),
-    });
+    const headers = { 'content-type': 'application/json' };
+    if (token) headers.authorization = 'Bearer ' + token; // 登入過就帶著，D1 會依身分決定給多少
+    const res = await fetch(DB_URL + '/api/list', { method: 'POST', headers, body: JSON.stringify({ object, limit }) });
     if (!res.ok) return null;
     const json = await res.json();
-    return json.ok && Array.isArray(json.rows) ? json.rows.map((r) => r.data) : null;
+    return json.ok && Array.isArray(json.rows) ? json : null;
   } catch (err) {
     return null; // 連不上就當作沒有，由呼叫端退回 Apps Script
   }
+};
+const dbList = async (object, limit = 500) => {
+  const json = await dbQuery(object, { limit });
+  return json ? json.rows.map((r) => r.data) : null;
 };
 
 // ── 共用：年份與手機版選單 ──
@@ -2444,8 +2447,21 @@ if (forumListEl || portalForumList) {
     document.getElementById('forumEmpty').hidden = shown.length > 0;
   };
 
-  // 有會員憑證就帶上：後端會給全部；沒登入只給前幾則（其餘要加入會員）
-  api({ action: 'forum', token: getSession()?.token || '' }).then((result) => {
+  // 有會員憑證就帶上：會給全部；沒登入只給前幾則（其餘要加入會員）
+  // 先問官網資料庫（快很多），連不上才退回 Apps Script
+  const forumToken = getSession()?.token || '';
+  const forumFromDb = () => dbQuery('thread', { token: forumToken }).then((json) => {
+    if (!json) return null;
+    return {
+      ok: true,
+      topics: json.rows.map((r) => Object.assign({}, r.data, { id: r.data.topic_id })),
+      total: json.total != null ? json.total : json.rows.length,
+      locked: Boolean(json.locked),
+    };
+  });
+  forumFromDb()
+    .then((fromDb) => fromDb || api({ action: 'forum', token: forumToken }))
+    .then((result) => {
     topics = result.ok ? result.topics || [] : [];
     const status = document.getElementById('forumStatus');
     if (status) status.hidden = true;

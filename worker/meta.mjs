@@ -214,20 +214,23 @@ export const objects = [
     ],
   },
   {
+    // 經典討論串。內容由 Apps Script 的 forumPayload() 算好推上來（含依最新暱稱重算的留言）。
+    // guestLimit：沒登入只看得到前 3 則，其餘要加入會員 —— 這是「限制筆數」不是「隱藏欄位」，
+    // 所以欄位都是 public，由 acl.guestLimit 控制訪客拿得到幾列。
     id: 'thread', label: '經典討論串', icon: 'doc', sort: 90,
-    title_field: 'title', source: 'sheet:討論主題', sync: { sheet: '討論主題', key: 'id', statusField: 'status' },
-    acl: { list: ['guest'], read: ['member'], create: ['staff'], update: ['staff'], delete: ['admin'] },
+    title_field: 'title', sync: { compute: 'forumPayload' },
+    acl: { list: ['guest'], read: ['guest'], create: ['staff'], update: ['staff'], delete: ['admin'], guestLimit: 3 },
     fields: [
-      F('id', '代號', 'text', { ...pub, ...locked, from: '代號' }),
-      F('title', '標題', 'text', { ...pub, ...list, ...req, from: '標題' }),
-      F('category', '分類', 'text', { ...pub, ...list, from: '分類' }),
-      F('date', '日期', 'text', { ...pub, ...list, from: '日期' }),
-      F('question', '問題', 'textarea', { ...mem, from: '問題' }),
-      F('views_text', '觀點', 'textarea', { ...mem, from: '觀點' }),
-      F('takeaway', '結論', 'textarea', { ...mem, from: '結論' }),
-      F('caveat', '注意', 'textarea', { ...mem, from: '注意' }),
-      F('quote', '金句', 'text', { ...mem, from: '金句' }),
-      F('status', '狀態', 'select', { ...stf, ...list, from: '狀態', options: { items: ['草稿', '公開'] } }),
+      F('topic_id', '代號', 'text', { ...pub, ...locked, from: 'id' }),
+      F('title', '標題', 'text', { ...pub, ...list, ...req, from: 'title' }),
+      F('category', '分類', 'text', { ...pub, ...list, from: 'category' }),
+      F('date', '日期', 'text', { ...pub, ...list, from: 'date' }),
+      F('question', '問題', 'textarea', { ...pub, from: 'question' }),
+      F('views', '觀點', 'json', { ...pub, from: 'views' }),
+      F('takeaway', '結論', 'textarea', { ...pub, from: 'takeaway' }),
+      F('caveat', '注意', 'textarea', { ...pub, from: 'caveat' }),
+      F('quote', '金句', 'text', { ...pub, from: 'quote' }),
+      F('replies', '留言', 'json', { ...pub, from: 'replies', help: '依最新暱稱重算；下架的留言不會推上來' }),
     ],
   },
 ];
