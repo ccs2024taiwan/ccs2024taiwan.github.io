@@ -95,7 +95,7 @@ async function seedMeta(env) {
     batch.push(env.DB.prepare(
       'INSERT INTO meta_object (id,label,label_plural,icon,id_rule,title_field,source,soft_delete,audit_level,acl,sort,status,updated_at,updated_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
     ).bind(o.id, o.label, o.label_plural || null, o.icon || null, o.id_rule || null, o.title_field || null,
-      o.sync ? 'sheet:' + o.sync.sheet : (o.source || 'd1'),
+      o.sync ? (o.sync.compute ? 'compute:' + o.sync.compute : 'sheet:' + o.sync.sheet) : (o.source || 'd1'),
       o.soft_delete === 0 ? 0 : 1, o.audit_level || 'full', J(o.acl), o.sort || 0, o.status || 'active', now, 'seed'));
     o.fields.forEach((f, i) => batch.push(env.DB.prepare(
       'INSERT INTO meta_field (id,object_id,"key",label,type,options,required,is_unique,default_value,validate,privacy,lock_after,show_in_list,sort,help) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
@@ -191,7 +191,7 @@ async function api(request, env, url) {
   // 同步對照表：哪些物件要從試算表同步、每個欄位對應哪一欄
   if (path === 'sync-map') {
     if (!(await keyOk(request, env))) return fail('unauthorized', 401);
-    const objects = await env.DB.prepare("SELECT id, label, source, title_field FROM meta_object WHERE source LIKE 'sheet:%' AND status = 'active' ORDER BY sort").all();
+    const objects = await env.DB.prepare("SELECT id, label, source, title_field FROM meta_object WHERE (source LIKE 'sheet:%' OR source LIKE 'compute:%') AND status = 'active' ORDER BY sort").all();
     // 所有欄位都同步，含 privacy=secret 的手機：CRM 要靠它把同一個人的會員與志工身分合起來，
     // 登入搬到 Worker 之後也要用它比對末三碼。保護靠的是「誰讀得到」：secret 欄位任何角色、任何 API 都拿不到（見 shape()）。
     const fields = await env.DB.prepare('SELECT object_id, "key", type, options FROM meta_field ORDER BY object_id, sort').all();
@@ -203,7 +203,9 @@ async function api(request, env, url) {
     });
     return ok({
       objects: (objects.results || []).map((o) => ({
-        id: o.id, label: o.label, sheet: String(o.source).slice(6), titleField: o.title_field, fields: byObject[o.id] || [],
+        id: o.id, label: o.label, titleField: o.title_field, fields: byObject[o.id] || [],
+        sheet: String(o.source).indexOf('sheet:') === 0 ? String(o.source).slice(6) : '',
+        compute: String(o.source).indexOf('compute:') === 0 ? String(o.source).slice(8) : '',
       })).filter((o) => o.fields.length),
     });
   }

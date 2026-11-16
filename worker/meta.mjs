@@ -35,6 +35,19 @@ export const objects = [
     ],
   },
   {
+    // 官網「會員名單」頁用的公開名單。內容由 Apps Script 的 publicMembers() 算好推上來
+    // （含公告對照的改名、匿名、榮譽會員與入會順序），這裡只負責存與讀。
+    id: 'public_member', label: '公開會員名單', icon: 'user', sort: 11,
+    title_field: 'name', sync: { compute: 'publicMembers' },
+    acl: { list: ['guest'], read: ['guest'], create: ['staff'], update: ['staff'], delete: ['admin'] },
+    fields: [
+      F('type', '類別', 'text', { ...pub, ...list, from: 'type' }),
+      F('member_id', '會員編號', 'text', { ...pub, ...list, from: 'id' }),
+      F('name', '姓名', 'text', { ...pub, ...list, from: 'name' }),
+      F('community', '社區', 'text', { ...pub, ...list, from: 'community' }),
+    ],
+  },
+  {
     id: 'dues', label: '會費繳納', icon: 'coin', sort: 20,
     id_rule: 'D{member}{roc}{plan}', title_field: 'member_name', source: 'sheet:會費繳納紀錄',
     acl: { list: ['staff'], read: ['member', 'staff'], create: ['staff'], update: ['staff'], delete: ['admin'] },

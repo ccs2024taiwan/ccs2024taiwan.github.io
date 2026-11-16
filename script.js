@@ -195,6 +195,24 @@ const demoApi = async (payload) => {
 
 const api = API_URL ? callApi : demoApi;
 
+// ── 官網資料庫（Cloudflare D1）：公開資料改從這裡讀，快很多；讀不到就退回 Apps Script ──
+// 寫入一律還是走 Apps Script，這裡只負責「讀」。
+const DB_URL = location.hostname.endsWith('workers.dev') || location.hostname.endsWith('ccs2024taiwan.github.io') ? 'https://ccs.ccs2024taiwan.workers.dev' : '';
+const dbList = async (object, limit = 500) => {
+  if (!DB_URL) return null;
+  try {
+    const res = await fetch(DB_URL + '/api/list', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ object, limit }),
+    });
+    if (!res.ok) return null;
+    const json = await res.json();
+    return json.ok && Array.isArray(json.rows) ? json.rows.map((r) => r.data) : null;
+  } catch (err) {
+    return null; // 連不上就當作沒有，由呼叫端退回 Apps Script
+  }
+};
+
 // ── 共用：年份與手機版選單 ──
 const toggle = document.querySelector('.menu-toggle');
 const nav = document.querySelector('.main-nav');
@@ -687,10 +705,10 @@ if (memberTableBody) {
     });
   });
 
-  api({ action: 'members' }).then((result) => {
-    if (!result.ok || !result.members?.length) return;
+  const fillMembers = (members) => {
+    if (!members?.length) return false;
     memberTableBody.replaceChildren(
-      ...result.members.map((member) => {
+      ...members.map((member) => {
         const row = document.createElement('tr');
         row.dataset.type = member.type;
         [member.type, member.id, member.name, member.community || '—'].forEach((text, i) => {
@@ -703,6 +721,13 @@ if (memberTableBody) {
       })
     );
     applyFilter();
+    return true;
+  };
+
+  // 先問官網資料庫（0.1 秒），沒有才退回 Apps Script（3 秒以上）
+  dbList('public_member').then((rows) => {
+    if (rows && fillMembers(rows.map((r) => ({ type: r.type, id: r.member_id, name: r.name, community: r.community })))) return;
+    return api({ action: 'members' }).then((result) => { if (result.ok) fillMembers(result.members); });
   });
 }
 

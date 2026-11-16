@@ -24,7 +24,7 @@ out.push('');
 
 objects.forEach((o) => {
   out.push(`INSERT INTO meta_object (id,label,label_plural,icon,id_rule,title_field,source,soft_delete,audit_level,acl,sort,status,updated_at,updated_by) VALUES (${[
-    q(o.id), q(o.label), q(o.label_plural), q(o.icon), q(o.id_rule), q(o.title_field), q(o.sync ? 'sheet:' + o.sync.sheet : (o.source || 'd1')),
+    q(o.id), q(o.label), q(o.label_plural), q(o.icon), q(o.id_rule), q(o.title_field), q(o.sync ? (o.sync.compute ? 'compute:' + o.sync.compute : 'sheet:' + o.sync.sheet) : (o.source || 'd1')),
     o.soft_delete === 0 ? 0 : 1, q(o.audit_level || 'full'), j(o.acl), n(o.sort), q(o.status || 'active'), q(now), q('seed'),
   ].join(',')});`);
   o.fields.forEach((f, i) => {
