@@ -16,6 +16,9 @@
  *   POST /api/sync              Apps Script 把工作表推進來（要金鑰）
  *   POST /api/share-secret      Apps Script 把通行證的簽章密鑰交過來（要金鑰，只能設一次）
  *   POST /api/settings          Apps Script 把「設定」工作表推進來（要金鑰）
+ *   GET  /api/settings-list    設定與文案（秘書處才看得到）
+ *   POST /api/audit            記一筆留痕（Apps Script 用，要金鑰）
+ *   GET  /api/audit            查留痕（秘書處才看得到）
  *   POST /api/related          點開一筆資料時，一起帶出相關紀錄（設定庫決定怎麼對上）
  *   GET  /api/pending         申請審核：所有還沒處理的申請（秘書處才看得到）
  *   GET  /api/stats           管理台首頁：各物件筆數與最近同步時間
@@ -391,6 +394,39 @@ async function api(request, env, url) {
       });
     }
     return ok({ object: object.id, id: row.id, sections: out });
+  }
+
+  // 設定與文案：給管理台顯示用。保留鍵（__ 開頭）永遠不回傳。
+  if (path === 'settings-list') {
+    if (role !== 'staff' && role !== 'admin') return fail('forbidden', 403);
+    const rows = await env.DB.prepare(
+      'SELECT "key", group_name, type, value, help, variables, sample, sort FROM settings WHERE "key" NOT LIKE ? ORDER BY group_name, sort, "key"'
+    ).bind('\_\_%').all();
+    return ok({ rows: (rows.results || []).filter((r) => String(r.key).indexOf('__') !== 0) });
+  }
+
+  // 留痕：Apps Script 做完一個動作後記一筆（要金鑰）；秘書處可以查
+  if (path === 'audit') {
+    if (request.method === 'POST') {
+      if (!(await keyOk(request, env))) return fail('unauthorized', 401);
+      const b = await request.json().catch(() => ({}));
+      if (!b.action || !b.scope) return fail('missing_fields');
+      const id = (Date.now().toString(36) + Math.random().toString(36).slice(2, 8)).toUpperCase();
+      await env.DB.prepare(
+        'INSERT INTO audit (id, at, who, role, scope, target, action, before_json, after_json) VALUES (?,?,?,?,?,?,?,?,?)'
+      ).bind(id, new Date().toISOString(), b.who || null, b.role || null, String(b.scope), b.target || null, String(b.action),
+        b.before == null ? null : JSON.stringify(b.before), b.after == null ? null : JSON.stringify(b.after)).run();
+      return ok({ id: id });
+    }
+    if (role !== 'staff' && role !== 'admin') return fail('forbidden', 403);
+    const limit = Math.min(300, Math.max(1, Number(url.searchParams.get('limit')) || 100));
+    const rows = await env.DB.prepare('SELECT * FROM audit ORDER BY at DESC LIMIT ?').bind(limit).all();
+    return ok({
+      rows: (rows.results || []).map((r) => ({
+        id: r.id, at: r.at, who: r.who, role: r.role, scope: r.scope, target: r.target, action: r.action,
+        before: parse(r.before_json), after: parse(r.after_json),
+      })),
+    });
   }
 
   if (path === 'meta') {

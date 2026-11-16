@@ -188,7 +188,8 @@ function go(key) {
   if (key === 'line') return viewSoon('LINE 小幫手', '指令一覽與自動回應的文案會在這裡設定：每個指令可以改觸發詞、回應文字，也能單獨關掉某個指令先停用。資料表已經在設定庫裡（line_command），畫面在下一批加上。');
   if (key === 'connections') return viewSoon('連線', '藍新金流、LINE 官方帳號、Telegram、Google、MCP 的金鑰會在這裡設定。存進去只會顯示末四碼，每個連線都有「測試連線」與「複製 Webhook 網址」。畫面在下一批加上。');
   if (key.indexOf('soon:') === 0) { const p = key.split(':'); return viewSoon(p[1], p.slice(2).join(':')); }
-  if (key === 'audit') return viewSoon('留痕', '誰在什麼時候改了什麼，連改前改後都留著，刪掉的東西可以還原。要等管理台開放「寫入」之後才會有內容，和寫入功能同一批。');
+  if (key === 'audit') return viewAudit();
+  if (key === 'audit_old') return viewSoon('留痕', '誰在什麼時候改了什麼，連改前改後都留著，刪掉的東西可以還原。要等管理台開放「寫入」之後才會有內容，和寫入功能同一批。');
   if (key.indexOf('o:') === 0) return viewObject(key.slice(2));
   viewDash();
 }
@@ -505,7 +506,32 @@ function viewSetup() {
       return wrap;
     },
   };
-  const names = { objects: ['物件', 'cube'], fields: ['欄位', 'rows'], relations: ['關聯', 'link'], menus: ['選單', 'menu'] };
+  panes.settings = () => {
+    const wrap = el('div');
+    wrap.append(hint('這些是「換個值就好」的設定：文案、天數、金額門檻、開關。改了按儲存，會寫回試算表的「設定」工作表並同步到這裡，同時留下紀錄。'));
+    const holder = el('div');
+    wrap.append(holder);
+    db('settings-list').then((result) => {
+      holder.replaceChildren();
+      if (!result.ok) return holder.append(el('p', 'err', '讀不到：' + (result.message || result.error)));
+      const groups = {};
+      const order = [];
+      result.rows.forEach((r) => {
+        const g = r.group_name || '一般';
+        if (!groups[g]) { groups[g] = []; order.push(g); }
+        groups[g].push(r);
+      });
+      order.forEach((g) => {
+        const h = el('h3', '', g);
+        h.style.margin = '18px 0 8px';
+        h.style.fontSize = '14px';
+        holder.append(h);
+        groups[g].forEach((r) => holder.append(settingRow(r)));
+      });
+    });
+    return wrap;
+  };
+  const names = { objects: ['物件', 'cube'], fields: ['欄位', 'rows'], relations: ['關聯', 'link'], menus: ['選單', 'menu'], settings: ['設定與文案', 'gear'] };
   Object.keys(panes).forEach((key, i) => {
     const b = el('button', 'tab' + (i ? '' : ' on'));
     b.type = 'button';
@@ -659,4 +685,82 @@ function viewSoon(title, what) {
   sheet.style.borderRadius = 'var(--r)';
   sheet.append(hint(what));
   main.append(head, sheet);
+}
+
+// 一列設定：長文用多行框，其餘用單行；改了才會出現儲存按鈕
+function settingRow(r) {
+  const box = el('div', 'fld');
+  box.style.marginBottom = '12px';
+  const label = el('label');
+  label.append(el('span', '', r.key));
+  if (r.type) label.append(el('span', 'chip', r.type === 'template' ? '文案' : r.type));
+  box.append(label);
+  const long = r.type === 'template' || r.type === 'textarea' || String(r.value || '').length > 60 || String(r.value || '').indexOf('\n') !== -1;
+  const input = el(long ? 'textarea' : 'input');
+  input.value = r.value == null ? '' : String(r.value);
+  if (long) input.rows = Math.min(10, Math.max(3, input.value.split('\n').length + 1));
+  input.style.cssText = 'font:inherit;font-size:13.5px;line-height:1.7;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--sub);color:var(--ink);width:100%;resize:vertical';
+  box.append(input);
+  if (r.help) box.append(el('small', '', r.help)).style.cssText = 'color:var(--muted);font-size:12px;line-height:1.6';
+  const bar = el('div');
+  bar.style.cssText = 'display:flex;gap:8px;align-items:center;margin-top:6px';
+  bar.hidden = true;
+  const save = el('button', 'btn pri');
+  save.type = 'button';
+  save.textContent = '儲存';
+  const cancel = el('button', 'btn quiet');
+  cancel.type = 'button';
+  cancel.textContent = '取消';
+  const note = el('span', '', '');
+  note.style.cssText = 'font-size:12.5px;color:var(--muted)';
+  bar.append(save, cancel, note);
+  box.append(bar);
+  const original = input.value;
+  input.addEventListener('input', () => { bar.hidden = input.value === original; note.textContent = ''; });
+  cancel.addEventListener('click', () => { input.value = original; bar.hidden = true; });
+  save.addEventListener('click', async () => {
+    save.disabled = true;
+    note.textContent = '儲存中…';
+    const session = sessionStorageToken();
+    const result = await appsScript({ action: 'settingSet', token: session, key: r.key, value: input.value });
+    save.disabled = false;
+    if (!result || !result.ok) { note.textContent = '沒存成功：' + ((result && (result.message || result.error)) || '未知原因'); return; }
+    note.textContent = '已儲存' + (result.pushed ? '，官網資料庫也更新了' : '（官網資料庫稍後由排程更新）');
+    bar.hidden = true;
+  });
+  return box;
+}
+
+function sessionStorageToken() {
+  const s = session.get();
+  return s && s.token ? s.token : '';
+}
+
+// ── 留痕 ────────────────────────────────────────────────
+async function viewAudit() {
+  $('crumb').textContent = '系統 › 留痕';
+  const main = $('main');
+  main.replaceChildren();
+  const head = el('div', 'head');
+  const box = el('div');
+  const sub = el('p', '', '讀取中…');
+  box.append(el('h1', 'page', '留痕'), sub);
+  head.append(box);
+  main.append(head);
+  const sheet = el('div', 'sheet');
+  sheet.style.borderRadius = 'var(--r)';
+  main.append(sheet);
+  const result = await db('audit');
+  if (!result.ok) { sub.textContent = ''; sheet.append(el('p', 'err', '讀不到：' + (result.message || result.error))); return; }
+  sub.textContent = result.rows.length + ' 筆';
+  sheet.append(hint('誰、什麼時候、改了什麼，連改前改後都留著。目前記錄設定與文案的修改；等管理台開放改資料之後，資料的異動也會進來。'));
+  if (!result.rows.length) {
+    sheet.append(el('div', 'empty', '還沒有紀錄。到「系統設定 → 設定與文案」改一項，這裡就會出現。'));
+    return;
+  }
+  const short = (v) => { const t = v == null ? '' : typeof v === 'object' ? (v.value != null ? String(v.value) : JSON.stringify(v)) : String(v); return t.length > 60 ? t.slice(0, 60) + '…' : t; };
+  sheet.append(tableOf(['時間', '誰', '動作', '對象', '改前', '改後'], result.rows.map((r) => [
+    mono(fmtDate(r.at)), r.who || '', tagOf(r.action === 'delete' ? 'alert' : r.action === 'create' ? 'ok' : 'plain', { update: '修改', create: '新增', delete: '刪除', restore: '還原' }[r.action] || r.action),
+    r.target || r.scope, short(r.before), short(r.after),
+  ])));
 }
