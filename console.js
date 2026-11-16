@@ -137,6 +137,7 @@ function buildNav() {
     return found ? found.count : null;
   };
   const visible = (m) => !m.roles || !m.roles.length || m.roles.indexOf(ME.role) !== -1;
+  const parentOf = (m) => m.parent || m.parent_id || null; // Worker 回傳的是 parent，設定庫裡寫 parent_id
   const admin = (META.menus || []).filter((m) => m.area === 'admin' && visible(m)).sort((x, y) => (x.sort || 0) - (y.sort || 0));
   const keyOf = (m) => {
     if (m.kind === 'object') return 'o:' + m.target;
@@ -164,18 +165,19 @@ function buildNav() {
     list.append(b);
     if (OPEN_GROUP === g.id) kids.forEach((k) => item(k, true));
   };
-  admin.filter((m) => !m.parent_id).forEach((m) => {
-    if (m.kind === 'group') group(m, admin.filter((k) => k.parent_id === m.id));
+  admin.filter((m) => !parentOf(m)).forEach((m) => {
+    if (m.kind === 'group') group(m, admin.filter((k) => parentOf(k) === m.id));
     else item(m, false);
   });
-  document.querySelectorAll('.nav').forEach((x) => x.classList.toggle('on', x.dataset.key === current));
+  document.querySelectorAll('.nav').forEach((x) => x.classList.toggle('on', Boolean(x.dataset.key) && x.dataset.key === current));
 }
 function go(key) {
   current = key;
   location.hash = key;
   if (META && META.menus) {
-    const hit = META.menus.find((m) => m.area === 'admin' && m.parent_id && (m.kind === 'object' ? 'o:' + m.target : m.target === 'dashboard' ? 'dash' : m.target) === key);
-    if (hit && OPEN_GROUP !== hit.parent_id) { OPEN_GROUP = hit.parent_id; buildNav(); }
+    const hit = META.menus.find((m) => m.area === 'admin' && (m.parent || m.parent_id) && (m.kind === 'object' ? 'o:' + m.target : m.target === 'dashboard' ? 'dash' : m.target) === key);
+    const owner = hit ? (hit.parent || hit.parent_id) : null;
+    if (owner && OPEN_GROUP !== owner) { OPEN_GROUP = owner; buildNav(); }
   }
   document.querySelectorAll('.nav').forEach((b) => b.classList.toggle('on', b.dataset.key === key));
   $('q').value = '';
