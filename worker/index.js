@@ -218,7 +218,8 @@ function shape(object, row, role) {
 async function api(request, env, url) {
   const path = url.pathname.replace(/^\/api\/?/, '');
   const who = await roleOf(request, env);
-  const role = who.role;
+  // 停權會員只剩繳費：權限一律降到訪客，但 /api/me 仍照實回報他的身分
+  const role = who.suspended ? 'guest' : who.role;
 
   if (path === 'health') {
     const r = await env.DB.prepare('SELECT COUNT(*) AS n FROM meta_object').first();
