@@ -184,9 +184,20 @@ async function roleOf(request, env) {
 
 const VISIBLE = { guest: ['public'], member: ['public', 'member'], volunteer: ['public', 'member'], staff: ['public', 'member', 'staff'], admin: ['public', 'member', 'staff'] };
 
+// 身分的涵蓋範圍：登入的人至少看得到訪客看得到的東西；秘書處涵蓋會員與志工。
+const COVERS = {
+  guest: ['guest'],
+  member: ['guest', 'member'],
+  volunteer: ['guest', 'volunteer'],
+  staff: ['guest', 'member', 'volunteer', 'staff'],
+  admin: ['guest', 'member', 'volunteer', 'staff', 'admin'],
+};
+
 function canList(object, role) {
+  if (role === 'admin') return true;
   const allow = (object.acl && object.acl.list) || [];
-  return role === 'admin' || allow.includes(role) || (role === 'guest' && allow.includes('guest'));
+  const mine = COVERS[role] || COVERS.guest;
+  return allow.some((r) => mine.indexOf(r) !== -1);
 }
 
 // 依角色把看不到的欄位拿掉；secret 永遠不回傳
