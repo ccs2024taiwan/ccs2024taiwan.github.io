@@ -13,6 +13,7 @@ export const SCHEMA = [
   acl           TEXT,
   sort          INTEGER NOT NULL DEFAULT 0,
   status        TEXT NOT NULL DEFAULT 'active',
+  extras        TEXT,
   updated_at    TEXT,
   updated_by    TEXT
 )`,

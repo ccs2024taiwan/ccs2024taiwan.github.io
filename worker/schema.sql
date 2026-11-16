@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS meta_object (
   acl           TEXT,                        -- JSON：誰能看／建／改／刪
   sort          INTEGER NOT NULL DEFAULT 0,
   status        TEXT NOT NULL DEFAULT 'active', -- active／draft／hidden／archived
+  extras        TEXT,                        -- JSON：同步設定等額外資訊（sync.key 等）
   updated_at    TEXT,
   updated_by    TEXT
 );
