@@ -270,6 +270,8 @@ const headerRow = (labels) => {
 };
 
 // ── 任一物件的列表（欄位全部來自設定庫）────────────────────
+// 任一物件的列表。欄位、權限、要顯示哪幾欄全部來自設定庫；
+// 資料多的時候先載入前 200 筆，按「載入更多」再接下去（日記帳這類會越長越多）。
 async function viewObject(objectId) {
   const obj = (META.objects || []).find((o) => o.id === objectId);
   const main = $('main');
@@ -279,31 +281,31 @@ async function viewObject(objectId) {
 
   const head = el('div', 'head');
   const box = el('div');
-  const info = el('p', '', '欄位與權限都讀自設定庫');
+  const info = el('p', '', '讀取中…');
   box.append(el('h1', 'page', obj.label), info);
   head.append(box, el('span', 'sp'));
   main.append(head);
 
   const sheet = el('div', 'sheet');
   sheet.style.borderRadius = 'var(--r)';
-  sheet.append(el('p', 'hint', '讀取中…'));
   main.append(sheet);
 
-  const result = await db('list', { object: objectId, limit: 500 });
-  sheet.replaceChildren();
-  if (!result.ok) return sheet.append(el('p', 'err', '讀不到：' + (result.message || result.error)));
-  info.textContent = result.rows.length + ' 筆' + (obj.fields.length ? '　·　' + obj.fields.length + ' 個欄位' : '');
-  if (!result.rows.length) {
-    sheet.append(el('div', 'empty', '這個項目還沒有資料。試算表那邊同步過來之後就會出現。'));
-    return;
-  }
-
-  const cols = (result.fields && result.fields.length ? result.fields : obj.fields.slice(0, 6));
+  const rows = [];
+  let cols = null;
+  let cursor = null;
+  let total = null;
   const tw = el('div', 'tw');
   const table = el('table');
-  table.append(headerRow(cols.map((f) => f.label)));
   const body = el('tbody');
-  const rows = result.rows;
+  const moreBox = el('div');
+  moreBox.style.marginTop = '12px';
+
+  const cellOf = (r, f, i) => {
+    const raw = r.data[f.key];
+    const text = raw == null ? '' : Array.isArray(raw) ? raw.length + ' 項' : typeof raw === 'object' ? JSON.stringify(raw).slice(0, 40) : String(raw);
+    const kind = /date|datetime/.test(f.type) || i === 0 ? 'mono' : /money|number/.test(f.type) ? 'num mono' : /textarea|text/.test(f.type) ? 'wrap-ok' : '';
+    return el('td', kind, text);
+  };
 
   const paint = (keyword) => {
     body.replaceChildren();
@@ -313,12 +315,7 @@ async function viewObject(objectId) {
       : rows;
     shown.forEach((r) => {
       const tr = el('tr');
-      cols.forEach((f, i) => {
-        const raw = r.data[f.key];
-        const text = raw == null ? '' : Array.isArray(raw) ? raw.length + ' 項' : typeof raw === 'object' ? JSON.stringify(raw).slice(0, 40) : String(raw);
-        const kind = /date|datetime/.test(f.type) || i === 0 ? 'mono' : /money|number/.test(f.type) ? 'num mono' : /textarea|text/.test(f.type) ? 'wrap-ok' : '';
-        tr.append(el('td', kind, text));
-      });
+      cols.forEach((f, i) => tr.append(cellOf(r, f, i)));
       tr.style.cursor = 'pointer';
       tr.addEventListener('click', () => openDrawer(obj, r));
       body.append(tr);
@@ -330,16 +327,46 @@ async function viewObject(objectId) {
       tr.append(td);
       body.append(tr);
     }
+    info.textContent = (total != null ? total + ' 筆' : rows.length + ' 筆')
+      + (total != null && rows.length < total ? '（已載入 ' + rows.length + '）' : '')
+      + (lower ? '　·　符合「' + keyword + '」' + shown.length + ' 筆' : '')
+      + '　·　' + obj.fields.length + ' 個欄位';
   };
-  paint('');
-  table.append(body);
-  tw.append(table);
-  sheet.append(tw);
-  sheet.append(hint('點任何一列可以看完整內容與相關紀錄。'));
 
-  $('q').oninput = () => { if (current === 'o:' + objectId) paint($('q').value); };
+  const loadMore = async () => {
+    const result = await db('list', { object: objectId, limit: 200, cursor: cursor });
+    if (!result.ok) { sheet.replaceChildren(el('p', 'err', '讀不到：' + (result.message || result.error))); return; }
+    if (!cols) {
+      cols = (result.fields && result.fields.length ? result.fields : obj.fields.slice(0, 6));
+      table.append(headerRow(cols.map((f) => f.label)));
+      table.append(body);
+      tw.append(table);
+      sheet.replaceChildren(tw, moreBox);
+    }
+    rows.push.apply(rows, result.rows);
+    cursor = result.nextCursor;
+    total = result.total != null ? result.total : rows.length;
+    paint($('q').value);
+    moreBox.replaceChildren();
+    if (cursor && rows.length < total) {
+      const more = el('button', 'btn');
+      more.type = 'button';
+      more.textContent = '載入更多（還有 ' + (total - rows.length) + ' 筆）';
+      more.addEventListener('click', async () => { more.disabled = true; more.textContent = '載入中…'; await loadMore(); });
+      moreBox.append(more);
+    } else if (rows.length) {
+      moreBox.append(hint('全部 ' + rows.length + ' 筆都載入了。點任何一列可以看完整內容與相關紀錄。'));
+    }
+    if (!rows.length) {
+      sheet.replaceChildren(el('div', 'empty', '這個項目還沒有資料。試算表那邊同步過來之後就會出現。'));
+      info.textContent = '0 筆';
+    }
+  };
+
+  sheet.append(el('p', 'hint', '讀取中…'));
+  await loadMore();
+  $('q').oninput = () => { if (current === 'o:' + objectId && cols) paint($('q').value); };
 }
-
 const PRIVACY = { public: ['公開', 'pub'], member: ['登入後', 'mem'], staff: ['秘書處', 'stf'], secret: ['只比對', 'sec'] };
 
 // 明細抽屜：從右邊滑出，蓋在列表上，所以表格可以用滿整個寬度
