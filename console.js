@@ -181,6 +181,7 @@ function go(key) {
   if (key === 'approvals') return viewApprovals();
   if (key === 'line') return viewSoon('LINE 小幫手', '指令一覽與自動回應的文案會在這裡設定：每個指令可以改觸發詞、回應文字，也能單獨關掉某個指令先停用。資料表已經在設定庫裡（line_command），畫面在下一批加上。');
   if (key === 'connections') return viewSoon('連線', '藍新金流、LINE 官方帳號、Telegram、Google、MCP 的金鑰會在這裡設定。存進去只會顯示末四碼，每個連線都有「測試連線」與「複製 Webhook 網址」。畫面在下一批加上。');
+  if (key.indexOf('soon:') === 0) { const p = key.split(':'); return viewSoon(p[1], p.slice(2).join(':')); }
   if (key === 'audit') return viewSoon('留痕', '誰在什麼時候改了什麼，連改前改後都留著，刪掉的東西可以還原。要等管理台開放「寫入」之後才會有內容，和寫入功能同一批。');
   if (key.indexOf('o:') === 0) return viewObject(key.slice(2));
   viewDash();
