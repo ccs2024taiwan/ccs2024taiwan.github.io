@@ -1,10 +1,20 @@
 {
-  // Cloudflare Workers（含靜態網站）設定：整個 repo 就是官網的靜態檔
+  // Cloudflare Workers：靜態官網 ＋ /api/* 的 Worker（worker/index.js）＋ D1 資料庫
+  // 靜態檔優先：/ 與各 .html 由 assets 直接送出，只有對不到檔案的路徑（/api/*）才進 Worker
   "name": "ccs",
   "compatibility_date": "2026-01-01",
+  "main": "worker/index.js",
   "assets": {
     "directory": "./",
+    "binding": "ASSETS",
     "not_found_handling": "404-page",
     "html_handling": "none"
-  }
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "ccs",
+      "database_id": "2e0b8785-cd78-453a-8e3e-2f9e6ddd42a1"
+    }
+  ]
 }

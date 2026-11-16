@@ -6,6 +6,7 @@
  *
  * 路由（只處理 /api/*，其餘交給靜態檔）：
  *   GET  /api/health            活著嗎、設定庫有幾個物件
+ *   POST /api/setup             建表＋灌設定庫。只有在設定庫還空的時候能跑，跑過一次就拒絕
  *   GET  /api/meta              物件、欄位、關聯、選單（依 privacy 過濾）
  *   POST /api/list              { object, view, where, limit, cursor }
  *   POST /api/get               { object, id }
@@ -14,6 +15,9 @@
  * 權限：這一版只開放 privacy=public 的欄位給所有人（官網讀取加速用）。
  *       會員／志工／秘書處的身分驗證在下一批接上（沿用 Apps Script 既有的 token）。
  */
+
+import { SCHEMA } from './schema.js';
+import { objects as SEED_OBJECTS, relations as SEED_RELATIONS, menus as SEED_MENUS, settings as SEED_SETTINGS, lineCommands as SEED_LINE } from './meta.mjs';
 
 const JSON_HEADERS = {
   'content-type': 'application/json; charset=utf-8',
@@ -94,6 +98,48 @@ async function api(request, env, url) {
     const r = await env.DB.prepare('SELECT COUNT(*) AS n FROM meta_object').first();
     const s = await env.DB.prepare('SELECT COUNT(*) AS n FROM record WHERE deleted_at IS NULL').first();
     return ok({ service: 'ccs-worker', objects: r ? r.n : 0, records: s ? s.n : 0, at: new Date().toISOString() });
+  }
+
+  // 第一次上線：建表＋灌設定庫。設定庫已經有東西就拒絕，避免有人重跑把設定洗掉。
+  if (path === 'setup') {
+    for (const sql of SCHEMA) await env.DB.prepare(sql).run();
+    const already = await env.DB.prepare('SELECT COUNT(*) AS n FROM meta_object').first();
+    if (already && already.n > 0) return fail('already_initialized', 409, '設定庫已經有 ' + already.n + ' 個物件；要重灌請用 wrangler 跑 worker/seed.sql');
+    const now = new Date().toISOString();
+    const J = (v) => (v == null ? null : JSON.stringify(v));
+    const batch = [];
+    SEED_OBJECTS.forEach((o) => {
+      batch.push(env.DB.prepare(
+        'INSERT INTO meta_object (id,label,label_plural,icon,id_rule,title_field,source,soft_delete,audit_level,acl,sort,status,updated_at,updated_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
+      ).bind(o.id, o.label, o.label_plural || null, o.icon || null, o.id_rule || null, o.title_field || null, o.source || 'd1',
+        o.soft_delete === 0 ? 0 : 1, o.audit_level || 'full', J(o.acl), o.sort || 0, o.status || 'active', now, 'setup'));
+      o.fields.forEach((f, i) => batch.push(env.DB.prepare(
+        'INSERT INTO meta_field (id,object_id,"key",label,type,options,required,is_unique,default_value,validate,privacy,lock_after,show_in_list,sort,help) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
+      ).bind(o.id + '.' + f.key, o.id, f.key, f.label, f.type, J(f.options), f.required ? 1 : 0, f.is_unique ? 1 : 0,
+        f.default_value || null, f.validate || null, f.privacy || 'staff', J(f.lock_after), f.show_in_list ? 1 : 0, (i + 1) * 10, f.help || null)));
+    });
+    SEED_RELATIONS.forEach((r) => batch.push(env.DB.prepare(
+      'INSERT INTO meta_relation (id,label,from_object,to_object,kind,from_label,to_label,on_delete,required,embed,display) VALUES (?,?,?,?,?,?,?,?,?,?,?)'
+    ).bind(r.id, r.label, r.from_object, r.to_object, r.kind, r.from_label || null, r.to_label || null,
+      r.on_delete || 'restrict', r.required ? 1 : 0, r.embed || 'ref', J(r.display))));
+    SEED_MENUS.forEach((m) => batch.push(env.DB.prepare(
+      'INSERT INTO meta_menu (id,area,parent_id,label,icon,kind,target,roles,badge,sort,visible) VALUES (?,?,?,?,?,?,?,?,?,?,?)'
+    ).bind(m.id, m.area, m.parent_id || null, m.label, m.icon || null, m.kind, m.target || null,
+      J(m.roles), m.badge || null, m.sort || 0, m.visible === 0 ? 0 : 1)));
+    SEED_SETTINGS.forEach((s, i) => batch.push(env.DB.prepare(
+      'INSERT OR IGNORE INTO settings ("key",group_name,type,value,help,sort,updated_at,updated_by) VALUES (?,?,?,?,?,?,?,?)'
+    ).bind(s.key, s.group || '一般', s.type || 'text', s.value || null, s.help || null, (i + 1) * 10, now, 'setup')));
+    SEED_LINE.forEach((c, i) => batch.push(env.DB.prepare(
+      'INSERT OR IGNORE INTO line_command (id,trigger_words,label,reply_template,handler,scope,roles,enabled,sort) VALUES (?,?,?,?,?,?,?,?,?)'
+    ).bind(c.id, J(c.trigger), c.label, c.reply_template || null, c.handler || null, J(c.scope), J(c.roles), 1, (i + 1) * 10)));
+    await env.DB.batch(batch);
+    return ok({
+      tables: SCHEMA.length,
+      objects: SEED_OBJECTS.length,
+      fields: SEED_OBJECTS.reduce((t, o) => t + o.fields.length, 0),
+      relations: SEED_RELATIONS.length, menus: SEED_MENUS.length,
+      settings: SEED_SETTINGS.length, lineCommands: SEED_LINE.length,
+    });
   }
 
   if (path === 'meta') {
