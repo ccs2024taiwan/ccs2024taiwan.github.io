@@ -112,6 +112,23 @@ export const objects = [
     ],
   },
   {
+    // 官網「課程報名」頁用的公開活動。由 Apps Script 的 openEvents() 算好推上來（含環節、名額、已報名的名字）。
+    // 剩餘名額會隨報名變動，所以前端是「先用這裡畫出來，再向 Apps Script 要權威資料更新」。
+    id: 'event_open', label: '開放報名的活動', icon: 'cal', sort: 41,
+    title_field: 'title', sync: { compute: 'openEventsPayload' },
+    acl: { list: ['guest'], read: ['guest'], create: ['staff'], update: ['staff'], delete: ['admin'] },
+    fields: [
+      F('event_id', '活動代號', 'text', { ...pub, ...list, ...req, from: 'id' }),
+      F('title', '活動名稱', 'text', { ...pub, ...list, ...req, from: 'title' }),
+      F('date', '日期', 'text', { ...pub, ...list, from: 'date' }),
+      F('weekday', '星期', 'text', { ...pub, from: 'weekday' }),
+      F('place', '地點', 'text', { ...pub, ...list, from: 'place' }),
+      F('address', '地址', 'text', { ...pub, from: 'address', help: '有填就在卡片上顯示 Google 地圖連結' }),
+      F('deadline', '報名截止日', 'text', { ...pub, ...list, from: 'deadline' }),
+      F('sessions', '環節', 'json', { ...pub, from: 'sessions', help: '每個環節的時間、費用、名額、已報名人數' }),
+    ],
+  },
+  {
     id: 'claim', label: '請款單', icon: 'receipt', sort: 50,
     id_rule: 'E{yyMMddHHmmss}{rand:2}', title_field: 'who', source: 'sheet:志工請款紀錄',
     acl: { list: ['volunteer', 'staff'], read: ['volunteer', 'staff'], create: ['volunteer'], update: ['staff', 'owner'], delete: ['admin'] },

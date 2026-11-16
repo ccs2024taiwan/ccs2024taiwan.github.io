@@ -2356,18 +2356,42 @@ if (eventList) {
     $('erId').value = paidId.replace(/R\d{6}$/, '');
   }
 
-  api({ action: 'events' }).then((result) => {
+  // 先用官網資料庫把畫面畫出來（快），同時向 Apps Script 要權威資料；
+  // 名額會隨報名變動，所以後者回來時一定會再覆蓋一次。
+  let painted = false;
+  let touched = false; // 使用者點過畫面就不要把他拉回列表
+  document.addEventListener('click', () => { touched = true; }, { once: true, capture: true });
+  const paintEvents = (list) => {
+    events = list;
+    const wanted = params.get('id');
+    if (wanted && events.some((e) => e.id === wanted)) openEvent(wanted);
+    else if (events.length === 1 && !params.get('report') && !paidId) openEvent(events[0].id);
+    else showList();
     $('eventStatus').hidden = true;
-    events = result.ok ? result.events || [] : [];
+    painted = true;
+  };
+
+  const today = new Date().toISOString().slice(0, 10);
+  dbQuery('event_open').then((json) => {
+    if (!json || painted) return;
+    const list = json.rows
+      .map((r) => Object.assign({}, r.data, { id: r.data.event_id }))
+      .filter((e) => !e.deadline || e.deadline >= today) // 截止日過了就不顯示（同步是每天一次，這裡自己擋）
+      .sort((a, b) => (a.date < b.date ? -1 : 1));
+    if (list.length) paintEvents(list);
+  });
+
+  api({ action: 'events' }).then((result) => {
     bank = result.bank || null;
     online = result.online || [];
     $('erPayCard').hidden = !online.length;
     if (online.length) $('erPayCard').textContent = `改用線上付款（${online.join('、')}）`;
     else $('evPayStep').textContent = '送出後會顯示匯款帳號，匯款並回報後五碼，才算報名成功。';
-    const wanted = params.get('id');
-    if (wanted && events.some((e) => e.id === wanted)) openEvent(wanted);
-    else if (events.length === 1 && !params.get('report') && !paidId) openEvent(events[0].id);
-    else showList();
+    const authoritative = result.ok ? result.events || [] : [];
+    const same = painted && JSON.stringify(authoritative) === JSON.stringify(events);
+    if (!painted) paintEvents(authoritative);
+    else if (!same && !touched) paintEvents(authoritative); // 名額以 Apps Script 為準
+    else if (!same) events = authoritative; // 已經在操作了：只更新資料，不重畫
   });
 }
 
