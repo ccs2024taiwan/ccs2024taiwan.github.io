@@ -101,10 +101,14 @@ let META = null;
 let STATS = null;
 let ME = null;
 let current = null;
+let PENDING_COUNT = null;
 
 async function start(me) {
   ME = me;
-  [META, STATS] = await Promise.all([db('meta'), db('stats')]);
+  const [meta, stats, pending] = await Promise.all([db('meta'), db('stats'), db('pending').catch(() => null)]);
+  META = meta;
+  STATS = stats;
+  PENDING_COUNT = pending && pending.ok ? pending.rows.length : null;
   if (!META || !META.ok) throw new Error('讀不到設定庫：' + ((META && (META.message || META.error)) || '未知原因'));
   $('gate').hidden = true;
   $('app').hidden = false;
@@ -122,7 +126,8 @@ function showError(message) {
   $('main').replaceChildren(el('p', 'err', message));
 }
 
-// 左欄：資料項目來自設定庫的選單（area=admin）
+// 左欄完全由設定庫的選單決定（meta_menu 的 area=admin）：分組、順序、誰看得到都在那裡設。
+// 沒列進選單的物件不會出現在這裡 —— 那些是系統算給官網用的中繼資料，不是行政工作項目。
 function buildNav() {
   const list = $('navList');
   list.replaceChildren();
@@ -130,7 +135,8 @@ function buildNav() {
     const found = STATS.ok ? STATS.objects.find((o) => o.id === id) : null;
     return found ? found.count : null;
   };
-  const section = (label) => list.append(el('div', 'grp', label));
+  const visible = (m) => !m.roles || !m.roles.length || m.roles.indexOf(ME.role) !== -1;
+  const admin = (META.menus || []).filter((m) => m.area === 'admin' && visible(m)).sort((x, y) => (x.sort || 0) - (y.sort || 0));
   const item = (key, label, iconName, count) => {
     const b = el('button', 'nav');
     b.type = 'button';
@@ -139,29 +145,31 @@ function buildNav() {
     if (count != null) b.append(el('span', 'n', String(count)));
     b.addEventListener('click', () => go(key));
     list.append(b);
-    return b;
   };
-
-  section('今天');
-  item('dash', '儀表板', 'home');
-
-  section('資料');
-  const menus = (META.menus || []).filter((m) => m.area === 'admin' && m.kind === 'object');
-  const seen = {};
-  menus.forEach((m) => {
-    const obj = META.objects.find((o) => o.id === m.target);
-    if (!obj) return;
-    seen[obj.id] = true;
-    item('o:' + obj.id, m.label || obj.label, m.icon || obj.icon, countOf(obj.id));
-  });
-  // 設定庫有、但選單沒列到的物件（例如新加的）也列出來，才不會「加了卻看不到」
-  META.objects.filter((o) => !seen[o.id]).forEach((o) => item('o:' + o.id, o.label, o.icon, countOf(o.id)));
-
-  section('設定');
-  item('setup', '系統設定', 'cube');
-  item('sync', '同步狀態', 'db');
+  const render = (m) => {
+    if (m.kind === 'object') {
+      const obj = (META.objects || []).find((o) => o.id === m.target);
+      if (!obj) return;
+      item('o:' + obj.id, m.label || obj.label, m.icon || obj.icon, countOf(obj.id));
+    } else if (m.kind === 'page') {
+      const key = m.target === 'dashboard' ? 'dash' : m.target;
+      item(key, m.label, m.icon, key === 'approvals' ? PENDING_COUNT : null);
+    }
+  };
+  const groups = admin.filter((m) => m.kind === 'group');
+  if (groups.length) {
+    groups.forEach((g) => {
+      const kids = admin.filter((m) => m.parent_id === g.id);
+      if (!kids.length) return;
+      list.append(el('div', 'grp', g.label));
+      kids.forEach(render);
+    });
+    const orphan = admin.filter((m) => m.kind !== 'group' && !m.parent_id);
+    if (orphan.length) { list.append(el('div', 'grp', '其他')); orphan.forEach(render); }
+  } else {
+    admin.forEach(render);
+  }
 }
-
 function go(key) {
   current = key;
   location.hash = key;
@@ -170,6 +178,10 @@ function go(key) {
   if (key === 'dash') return viewDash();
   if (key === 'setup') return viewSetup();
   if (key === 'sync') return viewSync();
+  if (key === 'approvals') return viewApprovals();
+  if (key === 'line') return viewSoon('LINE 小幫手', '指令一覽與自動回應的文案會在這裡設定：每個指令可以改觸發詞、回應文字，也能單獨關掉某個指令先停用。資料表已經在設定庫裡（line_command），畫面在下一批加上。');
+  if (key === 'connections') return viewSoon('連線', '藍新金流、LINE 官方帳號、Telegram、Google、MCP 的金鑰會在這裡設定。存進去只會顯示末四碼，每個連線都有「測試連線」與「複製 Webhook 網址」。畫面在下一批加上。');
+  if (key === 'audit') return viewSoon('留痕', '誰在什麼時候改了什麼，連改前改後都留著，刪掉的東西可以還原。要等管理台開放「寫入」之後才會有內容，和寫入功能同一批。');
   if (key.indexOf('o:') === 0) return viewObject(key.slice(2));
   viewDash();
 }
@@ -493,3 +505,61 @@ async function viewSync() {
   if (me && me.ok && (me.role === 'staff' || me.role === 'admin')) start(me);
   else session.clear();
 })();
+
+// ── 申請審核：所有還沒處理的申請集中在這裡 ──────────────
+async function viewApprovals() {
+  $('crumb').textContent = '工作 › 申請審核';
+  const main = $('main');
+  main.replaceChildren();
+  const head = el('div', 'head');
+  const box = el('div');
+  const sub = el('p', '', '讀取中…');
+  box.append(el('h1', 'page', '申請審核'), sub);
+  head.append(box);
+  main.append(head);
+
+  const sheet = el('div', 'sheet');
+  sheet.style.borderRadius = 'var(--r)';
+  main.append(sheet);
+  const result = await db('pending');
+  if (!result.ok) { sub.textContent = ''; sheet.append(el('p', 'err', '讀不到：' + (result.message || result.error))); return; }
+  PENDING_COUNT = result.rows.length;
+  buildNav();
+  document.querySelectorAll('.nav').forEach((b) => b.classList.toggle('on', b.dataset.key === 'approvals'));
+  sub.textContent = result.rows.length + ' 件等著處理';
+  sheet.append(hint('這裡集中所有「還沒處理完」的申請。判斷依據是狀態欄的字詞，清單放在試算表「設定」的〈待辦狀態〉，你可以自己增減，不用改程式。目前認的是：' + result.words.join('、')));
+  if (!result.rows.length) { sheet.append(el('div', 'empty', '目前沒有待處理的申請。')); return; }
+
+  const byKind = {};
+  result.rows.forEach((r) => { (byKind[r.object_id] = byKind[r.object_id] || []).push(r); });
+  Object.keys(byKind).forEach((objectId) => {
+    const rows = byKind[objectId];
+    const title = el('h3', '', rows[0].label + '（' + rows.length + '）');
+    title.style.margin = '18px 0 8px';
+    title.style.fontSize = '14px';
+    sheet.append(title);
+    sheet.append(tableOf(['編號', '內容', '狀態', '最後更新'], rows.map((r) => [
+      mono(r.id), r.title || '', tagOf('warn', r.status || ''), mono(fmtDate(r.updated_at)),
+    ])));
+    const go2 = el('button', 'btn quiet');
+    go2.type = 'button';
+    go2.append(el('span', '', '到「' + rows[0].label + '」看全部'));
+    go2.addEventListener('click', () => go('o:' + objectId));
+    sheet.append(go2);
+  });
+}
+
+// 還沒做的頁面：老實說明會有什麼，不要給一個壞掉的畫面
+function viewSoon(title, what) {
+  $('crumb').textContent = title;
+  const main = $('main');
+  main.replaceChildren();
+  const head = el('div', 'head');
+  const box = el('div');
+  box.append(el('h1', 'page', title), el('p', '', '下一批'));
+  head.append(box);
+  const sheet = el('div', 'sheet');
+  sheet.style.borderRadius = 'var(--r)';
+  sheet.append(hint(what));
+  main.append(head, sheet);
+}

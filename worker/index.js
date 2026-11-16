@@ -16,6 +16,7 @@
  *   POST /api/sync              Apps Script 把工作表推進來（要金鑰）
  *   POST /api/share-secret      Apps Script 把通行證的簽章密鑰交過來（要金鑰，只能設一次）
  *   POST /api/settings          Apps Script 把「設定」工作表推進來（要金鑰）
+ *   GET  /api/pending         申請審核：所有還沒處理的申請（秘書處才看得到）
  *   GET  /api/stats           管理台首頁：各物件筆數與最近同步時間
  *   GET  /api/me                我是誰、看得到哪些資料（帶 Authorization: Bearer <通行證>）
  *
@@ -330,6 +331,29 @@ async function api(request, env, url) {
       role: role,
       objects: mine.map((o) => ({ id: o.id, label: o.label, icon: o.icon, count: byId[o.id] || 0, sync: syncById[o.id] || null })),
       totalRecords: Object.keys(byId).reduce((n, k) => n + byId[k], 0),
+    });
+  }
+
+  // 申請審核：所有還沒處理的申請（會員入會、志工申請、器材借用、請款…）一次撈出來。
+  // 「還沒處理」的狀態字詞放在設定〈待辦狀態〉，秘書處可以自己加字詞，不用改程式。
+  if (path === 'pending') {
+    if (role !== 'staff' && role !== 'admin') return fail('forbidden', 403);
+    const row = await env.DB.prepare('SELECT value FROM settings WHERE "key" = ?').bind('待辦狀態').first();
+    const words = String((row && row.value) || '待審核,待確認,待繳費,已回報,已回報匯款,待對帳,待核准,待回覆,待聯絡')
+      .split(/[s,，、;；]+/).filter(Boolean);
+    const meta = await loadMeta(env);
+    const allowed = meta.objects.filter((o) => canList(o, role)).map((o) => o.id);
+    if (!allowed.length || !words.length) return ok({ words: words, rows: [] });
+    const marks = words.map(() => '?').join(',');
+    const objMarks = allowed.map(() => '?').join(',');
+    const rows = await env.DB.prepare(
+      'SELECT object_id, id, title, status, updated_at FROM record WHERE deleted_at IS NULL AND status IN (' + marks + ') AND object_id IN (' + objMarks + ') ORDER BY updated_at DESC LIMIT 300'
+    ).bind(...words, ...allowed).all();
+    const labels = {};
+    meta.objects.forEach((o) => (labels[o.id] = { label: o.label, icon: o.icon }));
+    return ok({
+      words: words,
+      rows: (rows.results || []).map((r) => Object.assign({}, r, labels[r.object_id] || { label: r.object_id, icon: 'rows' })),
     });
   }
 

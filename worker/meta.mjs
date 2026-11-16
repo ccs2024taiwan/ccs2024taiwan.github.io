@@ -192,6 +192,73 @@ export const objects = [
     ],
   },
   {
+    id: 'volunteer', label: '志工', icon: 'user', sort: 62,
+    title_field: 'nickname', sync: { sheet: '志工資料', key: 'nickname' },
+    acl: { list: ['staff'], read: ['staff'], create: ['staff'], update: ['staff'], delete: ['admin'] },
+    fields: [
+      F('code', '志工編號', 'text', { ...stf, ...list, from: '志工編號' }),
+      F('nickname', '綽號', 'text', { ...stf, ...list, ...req, from: '綽號' }),
+      F('name', '本名', 'text', { ...stf, ...list, from: '本名' }),
+      F('status', '狀態', 'select', { ...stf, ...list, from: '狀態', options: { items: ['待確認', '在職', '暫停', '退出', '未錄取'] } }),
+      F('joined', '加入日期', 'date', { ...stf, ...list, from: '加入日期' }),
+      F('skills', '專長', 'text', { ...stf, from: '專長' }),
+      F('email', 'Email', 'email', { ...stf, from: 'Email' }),
+      F('phone', '手機', 'phone', { ...sec, from: '手機' }),
+      F('line', 'LINE ID', 'text', { ...stf, from: 'LINE ID' }),
+      F('member_id', '會員編號', 'text', { ...stf, ...list, from: '會員編號', help: '同一個人同時是會員與志工時，用這一欄把兩張卡接起來' }),
+      F('note', '備註', 'textarea', { ...stf, from: '備註' }),
+    ],
+  },
+  {
+    id: 'task', label: '任務', icon: 'check', sort: 63,
+    title_field: 'name', sync: { sheet: '任務', key: 'name' },
+    acl: { list: ['volunteer', 'staff'], read: ['volunteer', 'staff'], create: ['staff'], update: ['staff'], delete: ['admin'] },
+    fields: [
+      F('name', '任務名稱', 'text', { ...stf, ...list, ...req, from: '任務名稱' }),
+      F('type', '類型', 'text', { ...stf, ...list, from: '類型' }),
+      F('start', '開始日期', 'date', { ...stf, ...list, from: '開始日期' }),
+      F('end', '結束日期', 'date', { ...stf, ...list, from: '結束日期' }),
+      F('lead', '召集人', 'text', { ...stf, ...list, from: '召集人' }),
+      F('status', '狀態', 'select', { ...stf, ...list, from: '狀態', options: { items: ['籌備中', '招募中', '進行中', '完成', '取消'] } }),
+      F('need', '所需人數', 'number', { ...stf, from: '所需人數' }),
+      F('points', '積分', 'text', { ...stf, from: '積分' }),
+      F('reward', '回饋', 'text', { ...stf, from: '回饋' }),
+      F('intro', '說明', 'textarea', { ...stf, from: '說明' }),
+    ],
+  },
+  {
+    id: 'meeting', label: '會議', icon: 'cal', sort: 64,
+    title_field: 'name', sync: { sheet: '會議', key: ['name', 'date'] },
+    acl: { list: ['staff'], read: ['staff'], create: ['staff'], update: ['staff'], delete: ['admin'] },
+    fields: [
+      F('name', '會議名稱', 'text', { ...stf, ...list, ...req, from: '會議名稱' }),
+      F('type', '類型', 'text', { ...stf, ...list, from: '類型' }),
+      F('date', '日期', 'date', { ...stf, ...list, from: '日期' }),
+      F('time', '時間', 'text', { ...stf, ...list, from: '時間' }),
+      F('place', '地點', 'text', { ...stf, ...list, from: '地點' }),
+      F('invited', '通知對象', 'text', { ...stf, from: '通知對象' }),
+      F('status', '狀態', 'text', { ...stf, ...list, from: '狀態' }),
+      F('doc', '會議文件', 'url', { ...stf, from: '會議文件' }),
+      F('notified', '通知寄出日', 'date', { ...stf, from: '通知寄出日' }),
+      F('note', '備註', 'textarea', { ...stf, from: '備註' }),
+    ],
+  },
+  {
+    // 外部提案：聯絡我們、社區坐一坐申請等，由 Apps Script 併成一份推上來
+    id: 'proposal', label: '外部提案', icon: 'doc', sort: 95,
+    title_field: 'who', sync: { compute: 'proposalsPayload' },
+    acl: { list: ['staff'], read: ['staff'], create: ['staff'], update: ['staff'], delete: ['admin'] },
+    fields: [
+      F('kind', '類型', 'select', { ...stf, ...list, from: 'kind', options: { items: ['聯絡我們', '社區坐一坐', '活動協辦', '場地提供', '廠商自薦'] } }),
+      F('at', '來信時間', 'datetime', { ...stf, ...list, from: 'at' }),
+      F('who', '提案人', 'text', { ...stf, ...list, from: 'who' }),
+      F('contact', '聯絡方式', 'text', { ...stf, ...list, from: 'contact' }),
+      F('content', '內容', 'textarea', { ...stf, from: 'content' }),
+      F('status', '狀態', 'select', { ...stf, ...list, from: 'status', options: { items: ['待回覆', '已回覆', '不處理'] } }),
+      F('reply', '回覆紀錄', 'textarea', { ...stf, from: 'reply', lock_after: { mode: 'append' } }),
+    ],
+  },
+  {
     id: 'prospect', label: '潛在會員', icon: 'user', sort: 70,
     title_field: 'name', source: 'sheet:潛在會員',
     acl: { list: ['staff'], read: ['staff'], create: ['staff'], update: ['staff'], delete: ['admin'] },
@@ -260,19 +327,41 @@ export const relations = [
 ];
 
 export const menus = [
-  // 行政中心左欄
-  { id: 'adm_dash', area: 'admin', label: '儀表板', icon: 'home', kind: 'page', target: 'dashboard', sort: 10 },
-  { id: 'adm_sign', area: 'admin', label: '待我簽核', icon: 'check', kind: 'view', target: 'sign:mine', sort: 20, roles: ['staff', 'chair'] },
-  { id: 'adm_member', area: 'admin', label: '會員', icon: 'user', kind: 'object', target: 'member', sort: 30 },
-  { id: 'adm_dues', area: 'admin', label: '會費繳納', icon: 'coin', kind: 'object', target: 'dues', sort: 40 },
-  { id: 'adm_order', area: 'admin', label: '訂單', icon: 'shop', kind: 'object', target: 'order', sort: 50 },
-  { id: 'adm_event', area: 'admin', label: '課程活動', icon: 'cal', kind: 'object', target: 'event', sort: 60 },
-  { id: 'adm_claim', area: 'admin', label: '請款單', icon: 'receipt', kind: 'object', target: 'claim', sort: 70 },
-  { id: 'adm_asset', area: 'admin', label: '器材與場地', icon: 'mic', kind: 'object', target: 'asset', sort: 80 },
-  { id: 'adm_journal', area: 'admin', label: '日記帳', icon: 'book', kind: 'object', target: 'journal', sort: 90 },
-  { id: 'adm_setup', area: 'admin', label: '系統設定', icon: 'cube', kind: 'page', target: 'setup', sort: 100, roles: ['admin'] },
-  { id: 'adm_conn', area: 'admin', label: '連線', icon: 'plug', kind: 'page', target: 'connections', sort: 110, roles: ['admin'] },
-  { id: 'adm_audit', area: 'admin', label: '留痕', icon: 'clock', kind: 'page', target: 'audit', sort: 120, roles: ['admin'] },
+  // 管理台左欄。依「秘書處的工作」分組，不是依「官網有哪些頁」分組。
+  // 沒列在這裡的物件不會出現在左欄（例如公開會員名單、開放報名的活動、請款品項，
+  // 那些是系統為了給官網用而算出來的中繼資料，不是行政工作項目）。
+  { id: 'g_work', area: 'admin', label: '工作', kind: 'group', sort: 10 },
+  { id: 'adm_dash', area: 'admin', parent_id: 'g_work', label: '儀表板', icon: 'home', kind: 'page', target: 'dashboard', sort: 11 },
+  { id: 'adm_approve', area: 'admin', parent_id: 'g_work', label: '申請審核', icon: 'check', kind: 'page', target: 'approvals', sort: 12 },
+
+  { id: 'g_people', area: 'admin', label: '會員與志工', kind: 'group', sort: 20 },
+  { id: 'adm_member', area: 'admin', parent_id: 'g_people', label: '會員', icon: 'user', kind: 'object', target: 'member', sort: 21 },
+  { id: 'adm_dues', area: 'admin', parent_id: 'g_people', label: '會費繳納', icon: 'coin', kind: 'object', target: 'dues', sort: 22 },
+  { id: 'adm_volunteer', area: 'admin', parent_id: 'g_people', label: '志工', icon: 'user', kind: 'object', target: 'volunteer', sort: 23 },
+  { id: 'adm_prospect', area: 'admin', parent_id: 'g_people', label: '潛在會員', icon: 'user', kind: 'object', target: 'prospect', sort: 24 },
+
+  { id: 'g_run', area: 'admin', label: '活動與任務', kind: 'group', sort: 30 },
+  { id: 'adm_event', area: 'admin', parent_id: 'g_run', label: '課程活動', icon: 'cal', kind: 'object', target: 'event', sort: 31 },
+  { id: 'adm_task', area: 'admin', parent_id: 'g_run', label: '任務', icon: 'check', kind: 'object', target: 'task', sort: 32 },
+  { id: 'adm_meeting', area: 'admin', parent_id: 'g_run', label: '會議', icon: 'cal', kind: 'object', target: 'meeting', sort: 33 },
+  { id: 'adm_asset', area: 'admin', parent_id: 'g_run', label: '器材', icon: 'mic', kind: 'object', target: 'asset', sort: 34 },
+  { id: 'adm_venue', area: 'admin', parent_id: 'g_run', label: '場地', icon: 'home', kind: 'object', target: 'venue', sort: 35 },
+
+  { id: 'g_money', area: 'admin', label: '財務', kind: 'group', sort: 40 },
+  { id: 'adm_claim', area: 'admin', parent_id: 'g_money', label: '請款單', icon: 'receipt', kind: 'object', target: 'claim', sort: 41 },
+  { id: 'adm_order', area: 'admin', parent_id: 'g_money', label: '訂單', icon: 'shop', kind: 'object', target: 'order', sort: 42 },
+  { id: 'adm_journal', area: 'admin', parent_id: 'g_money', label: '日記帳', icon: 'book', kind: 'object', target: 'journal', sort: 43 },
+
+  { id: 'g_out', area: 'admin', label: '對外', kind: 'group', sort: 50 },
+  { id: 'adm_proposal', area: 'admin', parent_id: 'g_out', label: '外部提案', icon: 'doc', kind: 'object', target: 'proposal', sort: 51 },
+  { id: 'adm_thread', area: 'admin', parent_id: 'g_out', label: '經典討論串', icon: 'doc', kind: 'object', target: 'thread', sort: 52 },
+  { id: 'adm_line', area: 'admin', parent_id: 'g_out', label: 'LINE 小幫手', icon: 'menu', kind: 'page', target: 'line', sort: 53 },
+
+  { id: 'g_sys', area: 'admin', label: '設定', kind: 'group', sort: 60 },
+  { id: 'adm_setup', area: 'admin', parent_id: 'g_sys', label: '系統設定', icon: 'cube', kind: 'page', target: 'setup', sort: 61, roles: ['admin'] },
+  { id: 'adm_sync', area: 'admin', parent_id: 'g_sys', label: '同步狀態', icon: 'db', kind: 'page', target: 'sync', sort: 62, roles: ['admin'] },
+  { id: 'adm_conn', area: 'admin', parent_id: 'g_sys', label: '連線', icon: 'plug', kind: 'page', target: 'connections', sort: 63, roles: ['admin'] },
+  { id: 'adm_audit', area: 'admin', parent_id: 'g_sys', label: '留痕', icon: 'clock', kind: 'page', target: 'audit', sort: 64, roles: ['admin'] },
   // 官網頂部（對照現況）
   { id: 'site_about', area: 'site', label: '關於本會', kind: 'page', target: 'about.html', sort: 10 },
   { id: 'site_activities', area: 'site', label: '活動成果', kind: 'page', target: 'activities.html', sort: 20 },
