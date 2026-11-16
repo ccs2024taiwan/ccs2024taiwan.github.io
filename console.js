@@ -594,15 +594,29 @@ async function viewApprovals() {
     title.style.margin = '18px 0 8px';
     title.style.fontSize = '14px';
     sheet.append(title);
-    sheet.append(tableOf(['編號', '內容', '狀態', '最後更新'], rows.map((r) => [
+    const table = tableOf(['編號', '內容', '狀態', '最後更新'], rows.map((r) => [
       mono(r.id), r.title || '', tagOf('warn', r.status || ''), mono(fmtDate(r.updated_at)),
-    ])));
+    ]));
+    // 點一列就從右邊滑出完整內容，跟各資料頁一樣
+    Array.from(table.querySelectorAll('tbody tr')).forEach((tr, i) => {
+      tr.style.cursor = 'pointer';
+      tr.addEventListener('click', () => openById(rows[i].object_id, rows[i].id));
+    });
+    sheet.append(table);
     const go2 = el('button', 'btn quiet');
     go2.type = 'button';
     go2.append(el('span', '', '到「' + rows[0].label + '」看全部'));
     go2.addEventListener('click', () => go('o:' + objectId));
     sheet.append(go2);
   });
+}
+
+// 由物件代號與編號開啟抽屜（申請審核那類「跨物件的清單」會用到）
+async function openById(objectId, id) {
+  const obj = (META.objects || []).find((o) => o.id === objectId);
+  if (!obj) return;
+  const result = await db('get', { object: objectId, id: id });
+  if (result.ok && result.row) openDrawer(obj, result.row);
 }
 
 // 還沒做的頁面：老實說明會有什麼，不要給一個壞掉的畫面

@@ -157,6 +157,16 @@ tbody tr:hover td{background:var(--sub)}
 @media (prefers-reduced-motion:reduce){.drawer,.scrim{transition:none}}
 .two{display:block}
 
+/* 捲軸：細一點、圓角、淡色；軌道透明，滑過去才變明顯 */
+.side,main,.drawer .body,.tw{scrollbar-width:thin;scrollbar-color:var(--line) transparent}
+.side::-webkit-scrollbar,main::-webkit-scrollbar,.drawer .body::-webkit-scrollbar,.tw::-webkit-scrollbar{width:10px;height:10px}
+.side::-webkit-scrollbar-track,main::-webkit-scrollbar-track,.drawer .body::-webkit-scrollbar-track,.tw::-webkit-scrollbar-track{background:transparent}
+.side::-webkit-scrollbar-thumb,main::-webkit-scrollbar-thumb,.drawer .body::-webkit-scrollbar-thumb,.tw::-webkit-scrollbar-thumb{
+  background:var(--line);border-radius:99px;border:3px solid transparent;background-clip:content-box}
+.side:hover::-webkit-scrollbar-thumb,main:hover::-webkit-scrollbar-thumb,.drawer .body:hover::-webkit-scrollbar-thumb,.tw:hover::-webkit-scrollbar-thumb{
+  background:var(--faint);background-clip:content-box;border:3px solid transparent}
+.side::-webkit-scrollbar-corner,main::-webkit-scrollbar-corner{background:transparent}
+
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 @media (max-width:980px){
