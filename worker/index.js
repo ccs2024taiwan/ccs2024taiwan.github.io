@@ -79,10 +79,10 @@ async function keyOk(request, env) {
   const header = request.headers.get('authorization') || '';
   const key = header.startsWith('Bearer ') ? header.slice(7) : '';
   if (!key) return false;
-  if (env.SYNC_KEY) return key === env.SYNC_KEY;
+  if (env.SYNC_KEY && key === env.SYNC_KEY) return true; // Cloudflare 後台設的
   const row = await env.DB.prepare('SELECT value FROM settings WHERE "key" = ?').bind('__sync_key_hash').first();
   if (!row || !row.value) return false;
-  return row.value === (await sha256(key));
+  return row.value === (await sha256(key)); // Apps Script 自己 claim 的
 }
 
 // 把 worker/meta.mjs 的定義寫進設定庫。meta_* 整批換掉；settings 與 line_command 只補沒有的，不蓋掉改過的文案。
@@ -177,7 +177,6 @@ async function api(request, env, url) {
     return ok(await seedMeta(env));
   }
   if (path === 'claim-key') {
-    if (env.SYNC_KEY) return fail('already_initialized', 409, 'Worker 已經設了 SYNC_KEY 環境變數，不需要 claim-key');
     const exists = await env.DB.prepare('SELECT value FROM settings WHERE "key" = ?').bind('__sync_key_hash').first();
     if (exists && exists.value) return fail('already_initialized', 409, '金鑰已經設定過了；要重設請先到 Cloudflare 後台把 settings 的 __sync_key_hash 清掉');
     const body0 = await request.json().catch(() => ({}));
@@ -193,9 +192,9 @@ async function api(request, env, url) {
   if (path === 'sync-map') {
     if (!(await keyOk(request, env))) return fail('unauthorized', 401);
     const objects = await env.DB.prepare("SELECT id, label, source, title_field FROM meta_object WHERE source LIKE 'sheet:%' AND status = 'active' ORDER BY sort").all();
-    // privacy=secret 的欄位（手機、地址）不鏡像到 D1：唯讀 API 本來就不會回傳，多放一份個資沒必要。
-    // 之後登入搬到 Worker 時再改成同步加鹽雜湊。
-    const fields = await env.DB.prepare('SELECT object_id, "key", type, options FROM meta_field WHERE privacy <> ? ORDER BY object_id, sort').bind('secret').all();
+    // 所有欄位都同步，含 privacy=secret 的手機：CRM 要靠它把同一個人的會員與志工身分合起來，
+    // 登入搬到 Worker 之後也要用它比對末三碼。保護靠的是「誰讀得到」：secret 欄位任何角色、任何 API 都拿不到（見 shape()）。
+    const fields = await env.DB.prepare('SELECT object_id, "key", type, options FROM meta_field ORDER BY object_id, sort').all();
     const byObject = {};
     (fields.results || []).forEach((f) => {
       const opt = parse(f.options) || {};

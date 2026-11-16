@@ -27,7 +27,7 @@ export const objects = [
       F('line_name', 'LINE 顯示名稱', 'text', { ...stf, from: 'col:lineName' }),
       F('community', '居住社區', 'text', { ...pub, ...list, from: 'col:community' }),
       F('city', '社區所在地', 'text', { ...pub, from: 'col:city' }),
-      F('address', '戶籍或聯絡地址', 'textarea', { ...sec, from: 'col:address' }),
+      F('address', '戶籍或聯絡地址', 'textarea', { ...stf, from: 'col:address' }),
       F('since', '會籍起始日', 'date', { ...mem, from: 'col:memberSince', options: { roc: true } }),
       F('until', '會籍到期日', 'date', { ...mem, ...list, ...tracked, from: 'col:memberUntil', options: { roc: true }, help: '永久會員留空' }),
       F('listing', '名單公開方式', 'select', { ...stf, from: 'col:listing', options: { items: ['公開', '匿名'] } }),
