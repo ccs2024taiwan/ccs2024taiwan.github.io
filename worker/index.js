@@ -14,9 +14,12 @@
  *   POST /api/reseed            改過 meta.mjs 部署後重灌設定庫（要金鑰，不碰 record）
  *   GET  /api/sync-map          要同步哪些物件、每個欄位對應工作表的哪一欄（要金鑰）
  *   POST /api/sync              Apps Script 把工作表推進來（要金鑰）
+ *   POST /api/share-secret      Apps Script 把通行證的簽章密鑰交過來（要金鑰，只能設一次）
+ *   POST /api/settings          Apps Script 把「設定」工作表推進來（要金鑰）
+ *   GET  /api/me                我是誰、看得到哪些資料（帶 Authorization: Bearer <通行證>）
  *
- * 權限：這一版只開放 privacy=public 的欄位給所有人（官網讀取加速用）。
- *       會員／志工／秘書處的身分驗證在下一批接上（沿用 Apps Script 既有的 token）。
+ * 權限：沿用 Apps Script 發的通行證（同一組密鑰、同一種格式），所以會員與志工在官網登入一次，
+ *       這裡與 Apps Script 都認得。沒帶通行證就是訪客，只看得到 privacy=public 的欄位。
  */
 
 import { SCHEMA } from './schema.js';
@@ -127,8 +130,57 @@ async function seedMeta(env) {
     settings: SEED_SETTINGS.length, lineCommands: SEED_LINE.length,
   };
 }
-// 這一版只有 guest；之後接上 token 會回傳 member／volunteer／staff／admin
-function roleOf() { return 'guest'; }
+// ── 通行證（與 Apps Script 同一種格式：base64url(JSON).HMAC-SHA256）──
+const b64urlFromBytes = (buf) => {
+  let bin = '';
+  new Uint8Array(buf).forEach((b) => (bin += String.fromCharCode(b)));
+  return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_');
+};
+const b64urlToText = (s) => {
+  const b = atob(String(s).replace(/-/g, '+').replace(/_/g, '/'));
+  const bytes = new Uint8Array(b.length);
+  for (let i = 0; i < b.length; i++) bytes[i] = b.charCodeAt(i);
+  return new TextDecoder().decode(bytes);
+};
+
+async function tokenSecret(env) {
+  if (env.TOKEN_SECRET) return env.TOKEN_SECRET;
+  const row = await env.DB.prepare('SELECT value FROM settings WHERE "key" = ?').bind('__token_secret').first();
+  return row && row.value ? row.value : '';
+}
+
+async function readToken(request, env) {
+  const header = request.headers.get('authorization') || '';
+  const token = header.startsWith('Bearer ') ? header.slice(7) : '';
+  const parts = token.split('.');
+  if (parts.length !== 2) return null;
+  const secret = await tokenSecret(env);
+  if (!secret) return null;
+  try {
+    const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+    const mac = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(parts[0]));
+    if (b64urlFromBytes(mac) !== parts[1]) return null;
+    const data = JSON.parse(b64urlToText(parts[0]));
+    if (!data.exp || data.exp < Date.now()) return null;
+    return data;
+  } catch (err) {
+    return null;
+  }
+}
+
+// 通行證 → 角色。VOL: 開頭是志工，其餘是會員編號；在「管理員會員編號」名單裡的再升級為秘書處。
+async function roleOf(request, env) {
+  const data = await readToken(request, env);
+  if (!data) return { role: 'guest' };
+  const id = String(data.id || '');
+  const volunteer = id.indexOf('VOL:') === 0;
+  const who = { role: volunteer ? 'volunteer' : 'member', id: volunteer ? id.slice(4) : id, name: data.name || '', suspended: !!data.s };
+  if (who.suspended) return who; // 停權會員只剩繳費，資料一律不給
+  const row = await env.DB.prepare('SELECT value FROM settings WHERE "key" = ?').bind('管理員會員編號').first();
+  const admins = String((row && row.value) || '').split(/[\s,，、;；]+/).filter(Boolean).map((x) => x.toUpperCase());
+  if (!volunteer && admins.indexOf(who.id.toUpperCase()) !== -1) who.role = 'staff';
+  return who;
+}
 
 const VISIBLE = { guest: ['public'], member: ['public', 'member'], volunteer: ['public', 'member'], staff: ['public', 'member', 'staff'], admin: ['public', 'member', 'staff'] };
 
@@ -150,10 +202,12 @@ function shape(object, row, role) {
   return { id: row.id, title: row.title, status: row.status, updatedAt: row.updated_at, data: out };
 }
 
+// 保留鍵（__ 開頭）只在伺服器內部使用，任何 API 都不會回傳：__sync_key_hash、__token_secret
 // ── 路由 ────────────────────────────────────────────────
 async function api(request, env, url) {
   const path = url.pathname.replace(/^\/api\/?/, '');
-  const role = roleOf();
+  const who = await roleOf(request, env);
+  const role = who.role;
 
   if (path === 'health') {
     const r = await env.DB.prepare('SELECT COUNT(*) AS n FROM meta_object').first();
@@ -208,6 +262,43 @@ async function api(request, env, url) {
         compute: String(o.source).indexOf('compute:') === 0 ? String(o.source).slice(8) : '',
       })).filter((o) => o.fields.length),
     });
+  }
+
+  if (path === 'me') {
+    const meta = await loadMeta(env);
+    return ok({
+      role: who.role, id: who.id || null, name: who.name || null, suspended: !!who.suspended,
+      canList: meta.objects.filter((o) => canList(o, who.role)).map((o) => o.id),
+    });
+  }
+
+  // Apps Script 把通行證的簽章密鑰交過來，兩邊才認得同一張通行證。只能設一次。
+  if (path === 'share-secret') {
+    if (!(await keyOk(request, env))) return fail('unauthorized', 401);
+    const exists = await env.DB.prepare('SELECT value FROM settings WHERE "key" = ?').bind('__token_secret').first();
+    if (exists && exists.value) return fail('already_initialized', 409, '已經設定過了');
+    const b = await request.json().catch(() => ({}));
+    const secret = String(b.secret || '');
+    if (secret.length < 24) return fail('weak_key', 400, '密鑰太短');
+    await env.DB.prepare(
+      'INSERT INTO settings ("key",group_name,type,value,help,sort,updated_at,updated_by) VALUES (?,?,?,?,?,?,?,?)'
+    ).bind('__token_secret', '系統', 'text', secret, '通行證的簽章密鑰，與 Apps Script 的 TOKEN_SECRET 相同。任何 API 都不會回傳。', 998, new Date().toISOString(), 'share').run();
+    return ok({ shared: true });
+  }
+
+  // Apps Script 把「設定」工作表推進來。__ 開頭的保留鍵（金鑰、通行證密鑰）不受影響。
+  if (path === 'settings') {
+    if (!(await keyOk(request, env))) return fail('unauthorized', 401);
+    const b = await request.json().catch(() => ({}));
+    const rows = Array.isArray(b.rows) ? b.rows.filter((r) => r && r.key && String(r.key).indexOf('__') !== 0) : [];
+    if (!rows.length) return fail('missing_fields');
+    const now = new Date().toISOString();
+    await env.DB.batch(rows.slice(0, 200).map((r, i) => env.DB.prepare(
+      `INSERT INTO settings ("key",group_name,type,value,help,sort,updated_at,updated_by)
+       VALUES (?, '試算表', 'text', ?, ?, ?, ?, 'sync')
+       ON CONFLICT ("key") DO UPDATE SET value = excluded.value, help = excluded.help, updated_at = excluded.updated_at, updated_by = 'sync'`
+    ).bind(String(r.key), r.value == null ? null : String(r.value), r.help == null ? null : String(r.help), (i + 1) * 10, now)));
+    return ok({ written: Math.min(rows.length, 200) });
   }
 
   if (path === 'meta') {
