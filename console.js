@@ -299,13 +299,11 @@ async function viewObject(objectId) {
   }
 
   const cols = (result.fields && result.fields.length ? result.fields : obj.fields.slice(0, 6));
-  const two = el('div', 'two');
   const tw = el('div', 'tw');
   const table = el('table');
   table.append(headerRow(cols.map((f) => f.label)));
   const body = el('tbody');
   const rows = result.rows;
-  const detail = el('div', 'detail');
 
   const paint = (keyword) => {
     body.replaceChildren();
@@ -318,11 +316,11 @@ async function viewObject(objectId) {
       cols.forEach((f, i) => {
         const raw = r.data[f.key];
         const text = raw == null ? '' : Array.isArray(raw) ? raw.length + ' 項' : typeof raw === 'object' ? JSON.stringify(raw).slice(0, 40) : String(raw);
-        const td = el('td', i === 0 ? 'mono' : /money|number/.test(f.type) ? 'num mono' : '', text);
-        tr.append(td);
+        const kind = /date|datetime/.test(f.type) || i === 0 ? 'mono' : /money|number/.test(f.type) ? 'num mono' : /textarea|text/.test(f.type) ? 'wrap-ok' : '';
+        tr.append(el('td', kind, text));
       });
       tr.style.cursor = 'pointer';
-      tr.addEventListener('click', () => showDetail(obj, r, detail));
+      tr.addEventListener('click', () => openDrawer(obj, r));
       body.append(tr);
     });
     if (!shown.length) {
@@ -336,21 +334,49 @@ async function viewObject(objectId) {
   paint('');
   table.append(body);
   tw.append(table);
-  showDetail(obj, rows[0], detail);
-  two.append(tw, detail);
-  sheet.append(two);
+  sheet.append(tw);
+  sheet.append(hint('點任何一列可以看完整內容與相關紀錄。'));
 
   $('q').oninput = () => { if (current === 'o:' + objectId) paint($('q').value); };
 }
 
 const PRIVACY = { public: ['公開', 'pub'], member: ['登入後', 'mem'], staff: ['秘書處', 'stf'], secret: ['只比對', 'sec'] };
 
-function showDetail(obj, row, box) {
-  box.replaceChildren();
-  if (!row) return;
+// 明細抽屜：從右邊滑出，蓋在列表上，所以表格可以用滿整個寬度
+let drawerEls = null;
+function ensureDrawer() {
+  if (drawerEls) return drawerEls;
+  const scrim = el('div', 'scrim');
+  const drawer = el('div', 'drawer');
+  const top = el('div', 'top');
   const title = el('h3');
-  title.append(icon(obj.icon), el('span', '', String(row.title || row.id)));
-  box.append(title);
+  const close = el('button', 'btn quiet');
+  close.type = 'button';
+  close.textContent = '關閉';
+  const body = el('div', 'body');
+  top.append(title, close);
+  drawer.append(top, body);
+  document.body.append(scrim, drawer);
+  const hide = () => { scrim.classList.remove('on'); drawer.classList.remove('on'); };
+  scrim.addEventListener('click', hide);
+  close.addEventListener('click', hide);
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') hide(); });
+  drawerEls = { scrim, drawer, title, body, hide };
+  return drawerEls;
+}
+
+function openDrawer(obj, row) {
+  const d = ensureDrawer();
+  d.title.replaceChildren(el('span', '', String(row.title || row.id)));
+  d.body.replaceChildren();
+  showDetail(obj, row, d.body);
+  d.scrim.classList.add('on');
+  d.drawer.classList.add('on');
+  d.body.scrollTop = 0;
+}
+
+function showDetail(obj, row, box) {
+  if (!row) return;
   obj.fields.forEach((f) => {
     const value = row.data[f.key];
     if (value == null || value === '') return;
