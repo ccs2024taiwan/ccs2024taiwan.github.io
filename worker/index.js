@@ -16,6 +16,7 @@
  *   POST /api/sync              Apps Script 把工作表推進來（要金鑰）
  *   POST /api/share-secret      Apps Script 把通行證的簽章密鑰交過來（要金鑰，只能設一次）
  *   POST /api/settings          Apps Script 把「設定」工作表推進來（要金鑰）
+ *   GET  /api/stats           管理台首頁：各物件筆數與最近同步時間
  *   GET  /api/me                我是誰、看得到哪些資料（帶 Authorization: Bearer <通行證>）
  *
  * 權限：沿用 Apps Script 發的通行證（同一組密鑰、同一種格式），所以會員與志工在官網登入一次，
@@ -311,6 +312,25 @@ async function api(request, env, url) {
        ON CONFLICT ("key") DO UPDATE SET value = excluded.value, help = excluded.help, updated_at = excluded.updated_at, updated_by = 'sync'`
     ).bind(String(r.key), r.value == null ? null : String(r.value), r.help == null ? null : String(r.help), (i + 1) * 10, now)));
     return ok({ written: Math.min(rows.length, 200) });
+  }
+
+  // 管理台首頁要的數字：每個物件幾筆、最近同步時間。一次問完，不用一個物件打一次
+  if (path === 'stats') {
+    const meta = await loadMeta(env);
+    const mine = meta.objects.filter((o) => canList(o, role));
+    const counts = await env.DB.prepare(
+      'SELECT object_id, COUNT(*) AS n FROM record WHERE deleted_at IS NULL GROUP BY object_id'
+    ).all();
+    const byId = {};
+    (counts.results || []).forEach((r) => (byId[r.object_id] = r.n));
+    const sync = await env.DB.prepare('SELECT object_id, synced_at, rows, source FROM sync_state').all();
+    const syncById = {};
+    (sync.results || []).forEach((r) => (syncById[r.object_id] = { at: r.synced_at, rows: r.rows, source: r.source }));
+    return ok({
+      role: role,
+      objects: mine.map((o) => ({ id: o.id, label: o.label, icon: o.icon, count: byId[o.id] || 0, sync: syncById[o.id] || null })),
+      totalRecords: Object.keys(byId).reduce((n, k) => n + byId[k], 0),
+    });
   }
 
   if (path === 'meta') {
