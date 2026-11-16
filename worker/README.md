@@ -12,6 +12,18 @@ Cloudflare Workers 的 `/api/*` 與 D1 資料庫。設計依據見 `docs/系統�
 | `seed.sql` | 由 seed.mjs 產生，請勿手改 |
 | `index.js` | Worker 程式。不認識任何業務物件，全部讀設定庫運作 |
 
+## 現況（2026-11-16 已上線）
+
+- D1 資料庫 ccs 建在 **ccs2024taiwan** 帳號（由秘書長從 Cloudflare 後台建立），id 2e0b8785-cd78-453a-8e3e-2f9e6ddd42a1。
+- Worker 已隨 GitHub 自動部署上線，22 張表、11 個物件、127 個欄位、4 個關聯、24 個選單項目都已灌入。
+-  跑過一次後會自我封閉（回 already_initialized），不需另外關閉。
+- 回應時間實測：靜態檔 0.69 秒、D1 查詢 0.77 秒（兩者差約 0.08 秒＝資料庫本身的成本），現行 Apps Script 後端 3.68 秒。
+- **還沒設 SYNC_KEY**，所以  目前一律回 401。設法見下。
+
+### 設定 SYNC_KEY（要用 /api/sync 時才需要）
+
+本機 wrangler 登入的是別的帳號，所以用後台設：Cloudflare → Workers & Pages → **ccs** → Settings → Variables and Secrets → Add → 型別選 Secret、名稱 、值自己想一串夠長的亂碼 → Deploy。同一串之後貼進 Apps Script 的「設定」工作表，兩邊一致即可。**這串密碼不需要讓 Claude 知道。**
+
 ## ⚠ 上線前必須先確認的事
 
 **官網（ccs.ccs2024taiwan.workers.dev）在 `ccs2024taiwan` 這個 Cloudflare 帳號底下，而且是 GitHub 推送就自動部署。**
