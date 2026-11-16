@@ -43,7 +43,12 @@ const db = async (path, body) => {
 };
 
 const appsScript = async (payload) => {
-  const res = await fetch(API_URL, { method: 'POST', body: JSON.stringify(payload) });
+  // 與官網 script.js 相同：用 text/plain 送，才不會觸發 Apps Script 擋掉的預檢請求
+  const res = await fetch(API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify(payload),
+  });
   return res.json();
 };
 
@@ -61,24 +66,34 @@ $('loginForm').addEventListener('submit', async (event) => {
   err.textContent = '';
   btn.disabled = true;
   btn.textContent = '登入中…';
+  let step = '準備送出';
   try {
+    step = '連線到 Apps Script';
     const result = await appsScript({ action: 'login', memberId: $('mid').value.trim(), phone: $('mpw').value.trim() });
-    if (!result.ok) throw new Error(errors[result.error] || '登入失敗：' + (result.error || ''));
+    step = '檢查登入結果';
+    if (!result || typeof result !== 'object') throw new Error('後端回傳的不是預期的格式');
+    if (!result.ok) throw new Error(errors[result.error] || ('登入失敗（' + (result.error || '沒有錯誤代碼') + '）'));
+    if (!result.token) throw new Error('後端沒有給通行證，請通知管理員');
     session.set({ token: result.token, member: result.member });
+    step = '向官網資料庫確認身分';
     const me = await db('me');
-    if (!me.ok || (me.role !== 'staff' && me.role !== 'admin')) {
+    if (!me || !me.ok) { session.clear(); throw new Error('官網資料庫沒有回應身分：' + ((me && (me.message || me.error)) || '未知原因')); }
+    if (me.role !== 'staff' && me.role !== 'admin') {
+      const who = me.role === 'member' ? '一般會員' : me.role === 'volunteer' ? '志工' : me.role;
       session.clear();
-      throw new Error('你不在秘書處管理員名單裡，進不了管理台。請在試算表「設定」的〈管理員會員編號〉加上你的編號，再按一次「同步：更新設定庫」。');
+      throw new Error('你目前的身分是「' + who + '」，不是秘書處管理員，所以進不了管理台。請在試算表「設定」的〈管理員會員編號〉加上 ' + ($('mid').value.trim() || '你的編號') + '，再按一次選單「同步：更新設定庫」。');
     }
-    start(me);
+    step = '載入管理台';
+    await start(me);
   } catch (e) {
-    err.textContent = e.message;
+    const detail = e && e.message ? e.message : String(e);
+    err.textContent = detail.indexOf('登入') === 0 || detail.indexOf('你目前') === 0 ? detail : '在「' + step + '」這一步出錯：' + detail;
+    console.error('[管理台] 登入失敗，步驟：' + step, e);
   } finally {
     btn.disabled = false;
     btn.textContent = '登入';
   }
 });
-
 $('logout').addEventListener('click', () => { session.clear(); location.reload(); });
 
 // ── 啟動 ────────────────────────────────────────────────
@@ -89,14 +104,14 @@ let current = null;
 
 async function start(me) {
   ME = me;
+  [META, STATS] = await Promise.all([db('meta'), db('stats')]);
+  if (!META || !META.ok) throw new Error('讀不到設定庫：' + ((META && (META.message || META.error)) || '未知原因'));
   $('gate').hidden = true;
   $('app').hidden = false;
   const s = session.get();
   const name = (s && s.member && s.member.name) || me.name || me.id || '';
   $('whoName').textContent = name + '　·　' + (me.role === 'admin' ? '系統管理員' : '秘書處');
   $('whoInitial').textContent = name.slice(0, 1) || '·';
-  [META, STATS] = await Promise.all([db('meta'), db('stats')]);
-  if (!META.ok) return showError('讀不到設定庫：' + (META.message || META.error));
   $('dbInfo').textContent = '官網資料庫　' + (STATS.ok ? STATS.totalRecords + ' 筆' : '讀取失敗');
   buildNav();
   go(location.hash.slice(1) || 'dash');
@@ -290,7 +305,13 @@ async function viewObject(objectId) {
       tr.addEventListener('click', () => showDetail(obj, r, detail));
       body.append(tr);
     });
-    if (!shown.length) body.append(el('tr')).append(el('td', 'empty', '沒有符合的資料')).colSpan = cols.length;
+    if (!shown.length) {
+      const tr = el('tr');
+      const td = el('td', 'empty', '沒有符合的資料');
+      td.colSpan = cols.length;
+      tr.append(td);
+      body.append(tr);
+    }
   };
   paint('');
   table.append(body);
