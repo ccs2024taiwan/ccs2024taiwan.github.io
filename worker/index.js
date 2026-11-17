@@ -235,7 +235,9 @@ async function api(request, env, url) {
   if (path === 'health') {
     const r = await env.DB.prepare('SELECT COUNT(*) AS n FROM meta_object').first();
     const s = await env.DB.prepare('SELECT COUNT(*) AS n FROM record WHERE deleted_at IS NULL').first();
-    return ok({ service: 'ccs-worker', objects: r ? r.n : 0, records: s ? s.n : 0, at: new Date().toISOString() });
+    const t = await env.DB.prepare('SELECT COUNT(*) AS n FROM settings').first();
+    const u = await env.DB.prepare('SELECT COUNT(*) AS n FROM audit').first();
+    return ok({ service: 'ccs-worker', objects: r ? r.n : 0, records: s ? s.n : 0, settings: t ? t.n : 0, audit: u ? u.n : 0, at: new Date().toISOString() });
   }
 
   // 第一次上線：建表＋灌設定庫。設定庫已經有東西就拒絕，避免有人重跑把設定洗掉。
