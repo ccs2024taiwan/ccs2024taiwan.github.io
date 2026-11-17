@@ -22,6 +22,7 @@
  *   POST /api/related          點開一筆資料時，一起帶出相關紀錄（設定庫決定怎麼對上）
  *   GET  /api/pending         申請審核：所有還沒處理的申請（秘書處才看得到）
  *   POST /api/actions          Apps Script 把「可以按的動作」推進來（要金鑰）
+ *   POST /api/record-status    審核按下去之後，只改那一筆的狀態並留痕（要金鑰）
  *   GET  /api/stats           管理台首頁：各物件筆數與最近同步時間
  *   GET  /api/me                我是誰、看得到哪些資料（帶 Authorization: Bearer <通行證>）
  *
@@ -380,6 +381,35 @@ async function api(request, env, url) {
       )));
     }
     return ok({ written: list.length });
+  }
+
+  // 審核動作的快路：只改一筆，不必整個物件重新同步（整批同步要重讀整張工作表，慢很多）。
+  // 正本還是試算表，這裡只是把剛剛寫進去的那一筆同步過來；夜裡的全量同步會再對一次。
+  if (path === 'record-status' && request.method === 'POST') {
+    if (!(await keyOk(request, env))) return fail('unauthorized', 401);
+    const b = await request.json().catch(() => ({}));
+    const objectId = String(b.object || '');
+    const recordId = String(b.id || '');
+    if (!objectId || !recordId) return fail('missing_fields');
+    const row = await env.DB.prepare('SELECT data FROM record WHERE object_id = ? AND id = ? AND deleted_at IS NULL').bind(objectId, recordId).first();
+    if (!row) return fail('not_found', 404);
+    const data = Object.assign({}, parse(row.data) || {}, b.patch || {});
+    const status = b.status == null ? '' : String(b.status);
+    if (status) data.status = status;
+    const now = new Date().toISOString();
+    const writes = [env.DB.prepare(
+      'UPDATE record SET status = ?, data = ?, updated_at = ?, updated_by = ? WHERE object_id = ? AND id = ?'
+    ).bind(status, JSON.stringify(data), now, String(b.who || 'console'), objectId, recordId)];
+    if (b.audit && b.audit.action) {
+      const auditId = (Date.now().toString(36) + Math.random().toString(36).slice(2, 8)).toUpperCase();
+      writes.push(env.DB.prepare(
+        'INSERT INTO audit (id, at, who, role, scope, target, action, before_json, after_json) VALUES (?,?,?,?,?,?,?,?,?)'
+      ).bind(auditId, now, b.who || null, b.audit.role || 'staff', objectId, recordId, String(b.audit.action),
+        b.audit.before == null ? null : JSON.stringify(b.audit.before),
+        b.audit.after == null ? null : JSON.stringify(b.audit.after)));
+    }
+    await env.DB.batch(writes);
+    return ok({ updated: true, status: status });
   }
 
   if (path === 'pending') {

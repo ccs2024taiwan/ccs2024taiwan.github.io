@@ -284,7 +284,7 @@ export const objects = [
       F('code', '志工編號', 'text', { ...stf, ...list, from: 'code' }),
       F('nickname', '綽號', 'text', { ...stf, ...list, ...req, from: 'nickname' }),
       F('name', '本名', 'text', { ...stf, ...list, from: 'name' }),
-      F('status', '狀態', 'select', { ...stf, ...list, from: 'status', options: { items: ['待確認', '在職', '暫停', '退出', '未錄取'] } }),
+      F('status', '狀態', 'select', { ...stf, ...list, from: 'status', options: { items: ['待確認', '在職', '暫停', '退出', '未錄取', '取消'] } }),
       F('joined', '加入日期', 'date', { ...stf, ...list, from: 'joined' }),
       F('skills', '專長', 'text', { ...stf, from: 'skills' }),
       F('email', 'Email', 'email', { ...stf, from: 'email' }),
