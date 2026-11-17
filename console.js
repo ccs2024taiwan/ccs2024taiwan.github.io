@@ -516,12 +516,11 @@ function viewSetup() {
     wrap.append(hint('這些是「換個值就好」的設定：文案、天數、金額門檻、開關。點大類展開再改，改了按儲存，會寫回試算表的「設定」工作表並同步到這裡，同時留下紀錄。文案改壞了把內容清空，就會回到系統預設的那一份。'));
 
     // 搜尋框：打字就跨所有大類找，有符合的自動展開
-    const search = el('div');
-    search.style.cssText = 'display:flex;align-items:center;gap:8px;background:var(--sub);border:1px solid var(--line);border-radius:10px;padding:8px 12px;margin:4px 0 14px';
+    const search = el('div', 'find');
+    search.style.cssText = 'margin:4px 0 14px;width:320px;max-width:100%';
     const si = el('input');
     si.type = 'search';
     si.placeholder = '搜尋設定或文案（例：訂單、提醒、簽名）';
-    si.style.cssText = 'border:0;background:none;flex:1;min-width:0;font:inherit;font-size:13.5px;color:var(--ink);outline:none';
     search.append(icon('find'), si);
     wrap.append(search);
 
