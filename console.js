@@ -136,7 +136,9 @@ function buildNav() {
     const found = STATS.ok ? STATS.objects.find((o) => o.id === id) : null;
     return found ? found.count : null;
   };
-  const visible = (m) => !m.roles || !m.roles.length || m.roles.indexOf(ME.role) !== -1;
+  // 目前只有「秘書處」這個管理身分；設定裡寫 admin 的項目一併視為秘書處可見
+  const covers = ME.role === 'staff' || ME.role === 'admin' ? ['staff', 'admin'] : [ME.role];
+  const visible = (m) => !m.roles || !m.roles.length || m.roles.some((r) => covers.indexOf(r) !== -1);
   const parentOf = (m) => m.parent || m.parent_id || null; // Worker 回傳的是 parent，設定庫裡寫 parent_id
   const admin = (META.menus || []).filter((m) => m.area === 'admin' && visible(m)).sort((x, y) => (x.sort || 0) - (y.sort || 0));
   const keyOf = (m) => {
