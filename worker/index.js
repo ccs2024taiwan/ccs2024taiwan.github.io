@@ -114,7 +114,9 @@ async function seedMeta(env) {
   const now = new Date().toISOString();
   const J = (v) => (v == null ? null : JSON.stringify(v));
   const batch = [];
-  ['meta_field', 'meta_relation', 'meta_menu', 'meta_object'].forEach((t) => batch.push(env.DB.prepare('DELETE FROM ' + t)));
+  // meta_action 認得 meta_object，要先清掉才刪得動物件（不然 FOREIGN KEY 擋下來整個 reseed 失敗）
+  // 清掉沒關係：選單「同步：更新設定庫」接著就會把按鈕定義重新推上來
+  ['meta_action', 'meta_field', 'meta_relation', 'meta_menu', 'meta_object'].forEach((t) => batch.push(env.DB.prepare('DELETE FROM ' + t)));
   SEED_OBJECTS.forEach((o) => {
     batch.push(env.DB.prepare(
       'INSERT INTO meta_object (id,label,label_plural,icon,id_rule,title_field,source,soft_delete,audit_level,acl,sort,status,extras,updated_at,updated_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
