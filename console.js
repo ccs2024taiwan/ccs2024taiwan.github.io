@@ -513,33 +513,79 @@ function viewSetup() {
   };
   panes.settings = () => {
     const wrap = el('div');
-    wrap.append(hint('這些是「換個值就好」的設定：文案、天數、金額門檻、開關。改了按儲存，會寫回試算表的「設定」工作表並同步到這裡，同時留下紀錄。'));
+    wrap.append(hint('這些是「換個值就好」的設定：文案、天數、金額門檻、開關。點大類展開再改，改了按儲存，會寫回試算表的「設定」工作表並同步到這裡，同時留下紀錄。文案改壞了把內容清空，就會回到系統預設的那一份。'));
+
+    // 搜尋框：打字就跨所有大類找，有符合的自動展開
+    const search = el('div');
+    search.style.cssText = 'display:flex;align-items:center;gap:8px;background:var(--sub);border:1px solid var(--line);border-radius:10px;padding:8px 12px;margin:4px 0 14px';
+    const si = el('input');
+    si.type = 'search';
+    si.placeholder = '搜尋設定或文案（例：訂單、提醒、簽名）';
+    si.style.cssText = 'border:0;background:none;flex:1;min-width:0;font:inherit;font-size:13.5px;color:var(--ink);outline:none';
+    search.append(icon('find'), si);
+    wrap.append(search);
+
     const holder = el('div');
     wrap.append(holder);
+
     db('settings-list').then((result) => {
       holder.replaceChildren();
       if (!result.ok) return holder.append(el('p', 'err', '讀不到：' + (result.message || result.error)));
       const groups = {};
       const order = [];
-      result.rows.forEach((r) => {
+      (result.rows || []).forEach((r) => {
         const g = r.group_name || '一般';
         if (!groups[g]) { groups[g] = []; order.push(g); }
         groups[g].push(r);
       });
-      try {
-        order.forEach((g) => {
-          const h = el('h3', '', g);
-          h.style.margin = '18px 0 8px';
-          h.style.fontSize = '14px';
-          holder.append(h);
-          groups[g].forEach((r) => holder.append(settingRow(r)));
-        });
-      } catch (err) {
-        // 畫不出來時要說話，不要留一片空白（2026-11-17 踩過這個坑）
-        holder.append(el('p', 'err', '這一頁畫到一半出錯了：' + (err && err.message ? err.message : err)));
-        console.error('[管理台] 設定頁', err);
-      }
-      if (!holder.childNodes.length) holder.append(el('div', 'empty', '設定表目前是空的。到試算表「設定」工作表加一列，或按一次「同步：更新設定庫」。'));
+      // 一般設定排前面、文案排後面，各自照名稱順序
+      const isTpl = (g) => (g.indexOf('文案') === 0 ? 1 : 0);
+      order.sort((x, y) => isTpl(x) - isTpl(y) || x.localeCompare(y, 'zh-Hant'));
+
+      const open = {};
+      const render = (keyword) => {
+        holder.replaceChildren();
+        const word = String(keyword || '').trim().toLowerCase();
+        const hit = (r) => !word
+          || String(r.key || '').toLowerCase().indexOf(word) !== -1
+          || String(r.value || '').toLowerCase().indexOf(word) !== -1
+          || String(r.help || '').toLowerCase().indexOf(word) !== -1;
+        let found = 0;
+        try {
+          order.forEach((g) => {
+            const rows = groups[g].filter(hit);
+            if (!rows.length) return;
+            found += rows.length;
+            const isOpen = word ? true : Boolean(open[g]); // 搜尋時全部攤開
+            const head = el('button', 'nav group' + (isOpen ? ' open' : ''));
+            head.type = 'button';
+            head.style.cssText = 'width:100%;margin-top:2px';
+            const n = el('span', 'n', String(rows.length));
+            const caret = el('span', 'caret', isOpen ? '－' : '＋');
+            caret.style.marginLeft = '8px'; // 不要跟右邊的筆數搶同一個 auto 邊界
+            head.append(icon(isTpl(g) ? 'doc' : 'gear'), el('span', '', g), n, caret);
+            head.addEventListener('click', () => { open[g] = !isOpen; render(si.value); });
+            holder.append(head);
+            if (!isOpen) return;
+            const box = el('div');
+            box.style.cssText = 'margin:2px 0 10px 12px;padding:8px 0 6px 14px;border-left:2px solid var(--line-soft)';
+            rows.forEach((r) => box.append(settingRow(r)));
+            holder.append(box);
+          });
+        } catch (err) {
+          // 畫不出來時要說話，不要留一片空白（2026-11-17 踩過這個坑）
+          holder.append(el('p', 'err', '這一頁畫到一半出錯了：' + (err && err.message ? err.message : err)));
+          console.error('[管理台] 設定頁', err);
+          return;
+        }
+        if (!found) {
+          holder.append(el('div', 'empty', word
+            ? '沒有符合「' + String(keyword).trim() + '」的設定或文案。'
+            : '設定表目前是空的。到試算表「設定」工作表加一列，或按一次「同步：更新設定庫」。'));
+        }
+      };
+      si.addEventListener('input', () => render(si.value));
+      render('');
     });
     return wrap;
   };

@@ -321,9 +321,12 @@ async function api(request, env, url) {
     const now = new Date().toISOString();
     await env.DB.batch(rows.slice(0, 200).map((r, i) => env.DB.prepare(
       `INSERT INTO settings ("key",group_name,type,value,help,sort,updated_at,updated_by)
-       VALUES (?, '試算表', 'text', ?, ?, ?, ?, 'sync')
-       ON CONFLICT ("key") DO UPDATE SET value = excluded.value, help = excluded.help, updated_at = excluded.updated_at, updated_by = 'sync'`
-    ).bind(String(r.key), r.value == null ? null : String(r.value), r.help == null ? null : String(r.help), (i + 1) * 10, now)));
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'sync')
+       ON CONFLICT ("key") DO UPDATE SET group_name = excluded.group_name, type = excluded.type,
+         value = excluded.value, help = excluded.help, updated_at = excluded.updated_at, updated_by = 'sync'`
+    ).bind(String(r.key), String(r.group || '一般'),
+      String(r.key).indexOf('文案：') === 0 ? 'template' : 'text',
+      r.value == null ? null : String(r.value), r.help == null ? null : String(r.help), (i + 1) * 10, now)));
     return ok({ written: Math.min(rows.length, 200) });
   }
 
