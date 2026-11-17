@@ -526,13 +526,20 @@ function viewSetup() {
         if (!groups[g]) { groups[g] = []; order.push(g); }
         groups[g].push(r);
       });
-      order.forEach((g) => {
-        const h = el('h3', '', g);
-        h.style.margin = '18px 0 8px';
-        h.style.fontSize = '14px';
-        holder.append(h);
-        groups[g].forEach((r) => holder.append(settingRow(r)));
-      });
+      try {
+        order.forEach((g) => {
+          const h = el('h3', '', g);
+          h.style.margin = '18px 0 8px';
+          h.style.fontSize = '14px';
+          holder.append(h);
+          groups[g].forEach((r) => holder.append(settingRow(r)));
+        });
+      } catch (err) {
+        // 畫不出來時要說話，不要留一片空白（2026-11-17 踩過這個坑）
+        holder.append(el('p', 'err', '這一頁畫到一半出錯了：' + (err && err.message ? err.message : err)));
+        console.error('[管理台] 設定頁', err);
+      }
+      if (!holder.childNodes.length) holder.append(el('div', 'empty', '設定表目前是空的。到試算表「設定」工作表加一列，或按一次「同步：更新設定庫」。'));
     });
     return wrap;
   };
@@ -706,7 +713,11 @@ function settingRow(r) {
   if (long) input.rows = Math.min(10, Math.max(3, input.value.split('\n').length + 1));
   input.style.cssText = 'font:inherit;font-size:13.5px;line-height:1.7;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--sub);color:var(--ink);width:100%;resize:vertical';
   box.append(input);
-  if (r.help) box.append(el('small', '', r.help)).style.cssText = 'color:var(--muted);font-size:12px;line-height:1.6';
+  if (r.help) {
+    const tip = el('small', '', r.help);
+    tip.style.cssText = 'color:var(--muted);font-size:12px;line-height:1.6';
+    box.append(tip);
+  }
   const bar = el('div');
   bar.style.cssText = 'display:flex;gap:8px;align-items:center;margin-top:6px';
   bar.hidden = true;
