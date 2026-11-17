@@ -23,6 +23,8 @@
  *   GET  /api/pending         申請審核：所有還沒處理的申請（秘書處才看得到）
  *   POST /api/actions          Apps Script 把「可以按的動作」推進來（要金鑰）
  *   POST /api/record-status    審核按下去之後，只改那一筆的狀態並留痕（要金鑰）
+ *   POST /api/save             新增或修改一筆（要通行證；正本在 D1 的資料才可以）
+ *   POST /api/remove           刪除一筆（標記刪除，救得回來）
  *   GET  /api/stats           管理台首頁：各物件筆數與最近同步時間
  *   GET  /api/me                我是誰、看得到哪些資料（帶 Authorization: Bearer <通行證>）
  *
@@ -193,7 +195,7 @@ async function readToken(request, env) {
   }
 }
 
-// 通行證 → 角色。VOL: 開頭是志工，其餘是會員編號；在「管理員會員編號」名單裡的再升級為秘書處。
+// 通行證 → 角色。VOL: 開頭是志工，其餘是會員編號；在「管理員會員編號」名單裡的再升級為管理員。
 async function roleOf(request, env) {
   const data = await readToken(request, env);
   if (!data) return { role: 'guest' };
@@ -203,7 +205,7 @@ async function roleOf(request, env) {
   if (who.suspended) return who; // 停權會員只剩繳費，資料一律不給
   const row = await env.DB.prepare('SELECT value FROM settings WHERE "key" = ?').bind('管理員會員編號').first();
   const admins = String((row && row.value) || '').split(/[\s,，、;；]+/).filter(Boolean).map((x) => x.toUpperCase());
-  if (!volunteer && admins.indexOf(who.id.toUpperCase()) !== -1) who.role = 'staff';
+  if (!volunteer && admins.indexOf(who.id.toUpperCase()) !== -1) who.role = 'admin';
   return who;
 }
 
@@ -223,6 +225,54 @@ function canList(object, role) {
   const allow = (object.acl && object.acl.list) || [];
   const mine = COVERS[role] || COVERS.guest;
   return allow.some((r) => mine.indexOf(r) !== -1);
+}
+
+// 能不能改、能不能新增、能不能刪：跟 canList 同一套涵蓋規則
+function canDo(object, role, what) {
+  if (role === 'admin') return true;
+  const allow = (object.acl && object.acl[what]) || [];
+  const mine = COVERS[role] || COVERS.guest;
+  return allow.some((r) => mine.indexOf(r) !== -1);
+}
+
+// 正本在哪：source 是 d1（或沒寫）才可以在這裡改；還在試算表的要回去試算表改
+function ownedHere(object) {
+  const src = String(object.source || 'd1');
+  return src === 'd1' || src === '';
+}
+
+// 一個欄位的值合不合格。回傳錯誤訊息，沒問題就回 null。
+function fieldError(field, value) {
+  const empty = value == null || String(value).trim() === '';
+  if (field.required && empty) return field.label + ' 要填';
+  if (empty) return null;
+  if (field.type === 'number' || field.type === 'money') {
+    if (isNaN(Number(value))) return field.label + ' 要填數字';
+  }
+  if (field.type === 'select' && field.options && Array.isArray(field.options.items) && field.options.items.length) {
+    if (field.options.items.indexOf(String(value)) === -1) {
+      return field.label + ' 只能是：' + field.options.items.join('、');
+    }
+  }
+  if (field.type === 'date' || field.type === 'datetime') {
+    if (isNaN(new Date(String(value)).getTime())) return field.label + ' 不是看得懂的日期';
+  }
+  return null;
+}
+
+// 這個欄位現在改不改得動（lock_after）。before 是原本的值，新增時沒有。
+function lockError(field, before, after, role) {
+  const mode = field.lockAfter && field.lockAfter.mode;
+  if (!mode || mode === 'open' || mode === 'tracked') return null; // tracked 可以改，只是會留痕
+  const had = before != null && String(before).trim() !== '';
+  if (!had) return null; // 原本就空的，第一次填不算改
+  if (String(before) === String(after)) return null;
+  if (mode === 'locked') return field.label + ' 填過就不能再改了' + (role === 'admin' ? '' : '');
+  if (mode === 'append') {
+    return String(after).indexOf(String(before)) === 0 ? null : field.label + ' 只能往後接，不能改掉原本的內容';
+  }
+  if (mode === 'reverse_only') return field.label + ' 不能直接改，要另外開一筆沖銷';
+  return null;
 }
 
 // 依角色把看不到的欄位拿掉；secret 永遠不回傳
@@ -381,6 +431,117 @@ async function api(request, env, url) {
       )));
     }
     return ok({ written: list.length });
+  }
+
+  // ── 新增或修改一筆 ──────────────────────────────────
+  // 正本在 D1 的資料才走這裡。還在試算表的，改了也會被下一次同步蓋掉，所以直接擋下來。
+  if (path === 'save' && request.method === 'POST') {
+    const meta = await loadMeta(env);
+    const body2 = await request.json().catch(() => ({}));
+    const object = meta.objects.find((o) => o.id === body2.object);
+    if (!object) return fail('object_not_found', 404);
+    if (!ownedHere(object)) return fail('not_editable_here', 409, '「' + object.label + '」的正本還在試算表，請到試算表改');
+    const id = String(body2.id == null ? '' : body2.id).trim();
+    const isNew = !id;
+    if (!canDo(object, role, isNew ? 'create' : 'update')) return fail('forbidden', 403);
+    const input = body2.data && typeof body2.data === 'object' ? body2.data : {};
+
+    let before = null;
+    if (!isNew) {
+      const row = await env.DB.prepare('SELECT * FROM record WHERE object_id = ? AND id = ? AND deleted_at IS NULL').bind(object.id, id).first();
+      if (!row) return fail('not_found', 404);
+      before = parse(row.data) || {};
+    }
+
+    // 只收這個角色看得到的欄位：看不到的欄位不會被誤清空，secret 也不會被偷改
+    const seen = VISIBLE[role] || VISIBLE.guest;
+    const data = Object.assign({}, before || {});
+    const problems = [];
+    object.fields.forEach((f) => {
+      if (f.privacy === 'secret') return; // 讀不到也寫不到；要改手機地址另外做
+      if (!seen.includes(f.privacy)) return;
+      if (!Object.prototype.hasOwnProperty.call(input, f.key)) {
+        const err0 = fieldError(f, data[f.key]);
+        if (err0 && isNew) problems.push(err0);
+        return;
+      }
+      const value = input[f.key];
+      const err = fieldError(f, value);
+      if (err) { problems.push(err); return; }
+      const locked = isNew ? null : lockError(f, before ? before[f.key] : null, value, role);
+      if (locked) { problems.push(locked); return; }
+      data[f.key] = value === '' ? null : value;
+    });
+    if (problems.length) return fail('invalid', 400, problems.join('；'));
+
+    // 不重複的欄位：同一種資料裡不能有第二筆一樣的
+    for (const f of object.fields.filter((x) => x.unique)) {
+      const v = data[f.key];
+      if (v == null || String(v).trim() === '') continue;
+      const dup = await env.DB.prepare(
+        "SELECT id FROM record WHERE object_id = ? AND deleted_at IS NULL AND id != ? AND json_extract(data, '$.' || ?) = ?"
+      ).bind(object.id, id || '\u0000', f.key, String(v)).first();
+      if (dup) return fail('duplicate', 409, f.label + '「' + v + '」已經有一筆了（' + dup.id + '）');
+    }
+
+    const now = new Date().toISOString();
+    const me = who.name || who.id || 'console';
+    const title = String(data[object.titleField] == null ? '' : data[object.titleField]).slice(0, 120);
+    const status = String(data.status == null ? '' : data.status);
+    const newId = isNew ? (object.id.toUpperCase().slice(0, 3) + Date.now().toString(36).toUpperCase() + Math.random().toString(36).slice(2, 5).toUpperCase()) : id;
+
+    const writes = [];
+    if (isNew) {
+      writes.push(env.DB.prepare(
+        'INSERT INTO record (id, object_id, data, status, title, created_at, created_by, updated_at, updated_by) VALUES (?,?,?,?,?,?,?,?,?)'
+      ).bind(newId, object.id, JSON.stringify(data), status, title, now, me, now, me));
+    } else {
+      writes.push(env.DB.prepare(
+        'UPDATE record SET data = ?, status = ?, title = ?, updated_at = ?, updated_by = ? WHERE object_id = ? AND id = ?'
+      ).bind(JSON.stringify(data), status, title, now, me, object.id, newId));
+    }
+    const auditId = (Date.now().toString(36) + Math.random().toString(36).slice(2, 8)).toUpperCase();
+    writes.push(env.DB.prepare(
+      'INSERT INTO audit (id, at, who, role, scope, target, action, before_json, after_json) VALUES (?,?,?,?,?,?,?,?,?)'
+    ).bind(auditId, now, me, role, object.id, newId, isNew ? 'create' : 'update',
+      before == null ? null : JSON.stringify(before), JSON.stringify(data)));
+    await env.DB.batch(writes);
+    return ok({ id: newId, created: isNew });
+  }
+
+  // ── 刪除一筆 ────────────────────────────────────────
+  // 標記刪除，資料還在，留痕也還在，救得回來
+  if (path === 'remove' && request.method === 'POST') {
+    const meta = await loadMeta(env);
+    const body3 = await request.json().catch(() => ({}));
+    const object = meta.objects.find((o) => o.id === body3.object);
+    if (!object) return fail('object_not_found', 404);
+    if (!ownedHere(object)) return fail('not_editable_here', 409, '「' + object.label + '」的正本還在試算表');
+    if (!canDo(object, role, 'delete')) return fail('forbidden', 403);
+    const id = String(body3.id || '').trim();
+    if (!id) return fail('missing_id');
+    const row = await env.DB.prepare('SELECT * FROM record WHERE object_id = ? AND id = ? AND deleted_at IS NULL').bind(object.id, id).first();
+    if (!row) return fail('not_found', 404);
+
+    // 別人還指著它就不給刪（on_delete = restrict）
+    for (const rel of meta.relations.filter((r) => r.from === object.id && r.onDelete === 'restrict' && r.match)) {
+      const value = (parse(row.data) || {})[rel.match.from];
+      if (value == null || value === '') continue;
+      const used = await env.DB.prepare(
+        "SELECT id FROM record WHERE object_id = ? AND deleted_at IS NULL AND json_extract(data, '$.' || ?) = ? LIMIT 1"
+      ).bind(rel.to, rel.match.to, String(value)).first();
+      if (used) return fail('in_use', 409, '還有「' + rel.label + '」指著這一筆（' + used.id + '），不能刪');
+    }
+
+    const now = new Date().toISOString();
+    const me = who.name || who.id || 'console';
+    const auditId = (Date.now().toString(36) + Math.random().toString(36).slice(2, 8)).toUpperCase();
+    await env.DB.batch([
+      env.DB.prepare('UPDATE record SET deleted_at = ?, updated_at = ?, updated_by = ? WHERE object_id = ? AND id = ?').bind(now, now, me, object.id, id),
+      env.DB.prepare('INSERT INTO audit (id, at, who, role, scope, target, action, before_json, after_json) VALUES (?,?,?,?,?,?,?,?,?)')
+        .bind(auditId, now, me, role, object.id, id, 'delete', row.data, null),
+    ]);
+    return ok({ deleted: true, id: id });
   }
 
   // 審核動作的快路：只改一筆，不必整個物件重新同步（整批同步要重讀整張工作表，慢很多）。
