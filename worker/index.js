@@ -21,6 +21,7 @@
  *   GET  /api/audit            查留痕（秘書處才看得到）
  *   POST /api/related          點開一筆資料時，一起帶出相關紀錄（設定庫決定怎麼對上）
  *   GET  /api/pending         申請審核：所有還沒處理的申請（秘書處才看得到）
+ *   POST /api/actions          Apps Script 把「可以按的動作」推進來（要金鑰）
  *   GET  /api/stats           管理台首頁：各物件筆數與最近同步時間
  *   GET  /api/me                我是誰、看得到哪些資料（帶 Authorization: Bearer <通行證>）
  *
@@ -44,11 +45,12 @@ const fail = (error, status = 400, message) => new Response(JSON.stringify({ ok:
 
 // ── 設定庫讀取（每次請求讀一次就好）─────────────────────
 async function loadMeta(env) {
-  const [objects, fields, relations, menus] = await Promise.all([
+  const [objects, fields, relations, menus, actions] = await Promise.all([
     env.DB.prepare("SELECT * FROM meta_object WHERE status = 'active' ORDER BY sort, id").all(),
     env.DB.prepare('SELECT * FROM meta_field ORDER BY object_id, sort').all(),
     env.DB.prepare('SELECT * FROM meta_relation').all(),
     env.DB.prepare('SELECT * FROM meta_menu WHERE visible = 1 ORDER BY area, sort').all(),
+    env.DB.prepare('SELECT * FROM meta_action ORDER BY object_id, sort').all(),
   ]);
   const byObject = {};
   (fields.results || []).forEach((f) => {
@@ -64,6 +66,15 @@ async function loadMeta(env) {
       idRule: o.id_rule, titleField: o.title_field, source: o.source,
       acl: parse(o.acl) || {}, sort: o.sort, fields: byObject[o.id] || [],
     })),
+    actions: (actions.results || []).map((a) => {
+      const extra = parse(a.confirm_text) || {}; // 備註欄的設定跟確認語一起存在這裡
+      return {
+        id: a.id, object: a.object_id, label: a.label, icon: a.icon, kind: a.kind,
+        to: a.target, roles: parse(a.roles) || [],
+        confirm: extra.confirm || '', note: extra.note || null,
+        from: String(a.when_cond || '').split(',').filter((x) => x !== undefined), sort: a.sort,
+      };
+    }),
     relations: (relations.results || []).map((r) => ({
       id: r.id, label: r.label, from: r.from_object, to: r.to_object, kind: r.kind,
       fromLabel: r.from_label, toLabel: r.to_label, onDelete: r.on_delete,
@@ -351,6 +362,24 @@ async function api(request, env, url) {
 
   // 申請審核：所有還沒處理的申請（會員入會、志工申請、器材借用、請款…）一次撈出來。
   // 「還沒處理」的狀態字詞放在設定〈待辦狀態〉，秘書處可以自己加字詞，不用改程式。
+  if (path === 'actions' && request.method === 'POST') {
+    if (!(await keyOk(request, env))) return fail('unauthorized', 401);
+    const payload = await request.json().catch(() => ({}));
+    const list = Array.isArray(payload.actions) ? payload.actions : [];
+    await env.DB.prepare('DELETE FROM meta_action').run();
+    if (list.length) {
+      await env.DB.batch(list.map((a, i) => env.DB.prepare(
+        `INSERT INTO meta_action (id, object_id, label, icon, kind, target, roles, confirm_text, when_cond, sort)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      ).bind(
+        String(a.id), String(a.object), String(a.label), String(a.icon || 'check'), String(a.kind || 'status'),
+        a.target == null ? null : String(a.target), JSON.stringify(a.roles || []),
+        JSON.stringify({ confirm: a.confirm || '', note: a.note || null }), String(a.when || ''), Number(a.sort || (i + 1) * 10),
+      )));
+    }
+    return ok({ written: list.length });
+  }
+
   if (path === 'pending') {
     if (role !== 'staff' && role !== 'admin') return fail('forbidden', 403);
     const row = await env.DB.prepare('SELECT value FROM settings WHERE "key" = ?').bind('待辦狀態').first();
@@ -441,7 +470,8 @@ async function api(request, env, url) {
     const objects = meta.objects.filter((o) => canList(o, role)).map((o) => ({
       ...o, fields: o.fields.filter((f) => f.privacy !== 'secret' && (VISIBLE[role] || VISIBLE.guest).includes(f.privacy)),
     }));
-    return ok({ objects, relations: meta.relations, menus: meta.menus, role });
+    const actions = (meta.actions || []).filter((a) => !a.roles.length || a.roles.includes(role));
+    return ok({ objects, relations: meta.relations, menus: meta.menus, actions, role });
   }
 
   const body = request.method === 'POST' ? await request.json().catch(() => ({})) : Object.fromEntries(url.searchParams);

@@ -331,7 +331,7 @@ export const objects = [
   {
     // 外部提案：聯絡我們、社區坐一坐申請等，由 Apps Script 併成一份推上來
     id: 'proposal', label: '外部提案', icon: 'doc', sort: 95,
-    title_field: 'who', sync: { compute: 'proposalsPayload' },
+    title_field: 'who', sync: { compute: 'proposalsPayload', key: ['src', 'row'] },
     acl: { list: ['staff'], read: ['staff'], create: ['staff'], update: ['staff'], delete: ['admin'] },
     fields: [
       F('kind', '類型', 'select', { ...stf, ...list, from: 'kind', options: { items: ['聯絡我們', '社區坐一坐', '活動協辦', '場地提供', '廠商自薦'] } }),
@@ -341,6 +341,9 @@ export const objects = [
       F('content', '內容', 'textarea', { ...stf, from: 'content' }),
       F('status', '狀態', 'select', { ...stf, ...list, from: 'status', options: { items: ['待回覆', '已回覆', '不處理'] } }),
       F('reply', '回覆紀錄', 'textarea', { ...stf, from: 'reply', lock_after: { mode: 'append' } }),
+      // 這兩欄是給系統找回試算表那一列用的，管理台不列出來
+      F('src', '來源表單', 'text', { ...stf, from: 'src' }),
+      F('row', '表單列號', 'number', { ...stf, from: 'row' }),
     ],
   },
   {

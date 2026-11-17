@@ -432,10 +432,67 @@ function showDetail(obj, row, box) {
     fld.append(label, v);
     box.append(fld);
   });
+  const acts = actionsFor(obj.id, row);
+  if (acts.length) {
+    const bar = el('div');
+    bar.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;margin:18px 0 4px;padding-top:16px;border-top:1px solid var(--line)';
+    acts.forEach((a, i) => bar.append(actionButton(a, obj, row, i === 0)));
+    box.append(bar);
+  }
   const foot = el('p', 'hint');
-  foot.append(icon('info'), el('span', '', '這一版只能看。修改、簽核與留痕會在下一批加上。'));
+  foot.append(icon('info'), el('span', '', acts.length
+    ? '按下去會改試算表那一份正本，再同步回這裡，並留下誰在什麼時候改了什麼。'
+    : '這一筆目前沒有可以按的動作。欄位的修改會在下一批加上。'));
   box.append(foot);
   loadRelated(obj, row, box);
+}
+
+// 這一筆現在可以按哪些動作：看它屬於哪種資料、現在是什麼狀態
+function actionsFor(objectId, row) {
+  const now = String((row && (row.status || (row.data && row.data.status))) || '').trim();
+  return (META.actions || [])
+    .filter((a) => a.object === objectId)
+    .filter((a) => !a.from || !a.from.length || a.from.indexOf(now) !== -1)
+    .sort((x, y) => (x.sort || 0) - (y.sort || 0));
+}
+
+// 一顆動作按鈕：按下去先問一次，需要填一句話的就先讓你填
+function actionButton(a, obj, row, primary) {
+  const b = el('button', 'btn' + (primary ? ' pri' : ' quiet'));
+  b.type = 'button';
+  b.append(icon(a.icon || 'check'), el('span', '', a.label));
+  b.addEventListener('click', () => runAction(a, obj, row, b));
+  return b;
+}
+
+async function runAction(a, obj, row, button) {
+  let note = null;
+  if (a.note) {
+    const asked = window.prompt((a.note.label || '請輸入說明') + (a.note.required ? '（必填）' : '（可留白）'), '');
+    if (asked === null) return; // 按了取消
+    note = asked.trim();
+    if (a.note.required && !note) { alert('這個動作需要填一句話。'); return; }
+  } else if (a.confirm && !window.confirm(a.confirm)) {
+    return;
+  }
+  const label = String(row.title || row.id);
+  const before = button.textContent;
+  button.disabled = true;
+  button.replaceChildren(el('span', '', '處理中…'));
+  const result = await appsScript({
+    action: 'recordAction', token: sessionStorageToken(),
+    action_id: a.id, object: obj.id, id: row.id, note: note,
+  });
+  button.disabled = false;
+  if (!result || !result.ok) {
+    button.replaceChildren(icon(a.icon || 'check'), el('span', '', before));
+    alert('沒有成功：' + ((result && (result.message || result.error)) || '未知原因') +
+      (result && result.error === 'status_changed' ? '\n\n（這一筆的狀態已經被改過了，重新整理看看最新狀況。）' : ''));
+    return;
+  }
+  alert(label + '：' + (result.message || '已處理。'));
+  if (drawerEls) drawerEls.hide();
+  if (current === 'approvals') viewApprovals(); else go(current);
 }
 
 // 相關紀錄：哪些資料要跟著帶出來、用哪個欄位對上，都是設定庫決定的
@@ -704,13 +761,24 @@ async function viewApprovals() {
     title.style.margin = '18px 0 8px';
     title.style.fontSize = '14px';
     sheet.append(title);
-    const table = tableOf(['編號', '內容', '狀態', '最後更新'], rows.map((r) => [
-      mono(r.id), r.title || '', tagOf('warn', r.status || ''), mono(fmtDate(r.updated_at)),
+    const obj = (META.objects || []).find((o) => o.id === objectId);
+    const table = tableOf(['編號', '內容', '狀態', '最後更新', ''], rows.map((r) => [
+      mono(r.id), r.title || '', tagOf('warn', r.status || ''), mono(fmtDate(r.updated_at)), '',
     ]));
-    // 點一列就從右邊滑出完整內容，跟各資料頁一樣
+    // 點一列就從右邊滑出完整內容；最後一欄直接放可以按的動作，常用的不必先點開
     Array.from(table.querySelectorAll('tbody tr')).forEach((tr, i) => {
       tr.style.cursor = 'pointer';
       tr.addEventListener('click', () => openById(rows[i].object_id, rows[i].id));
+      if (!obj) return;
+      const acts = actionsFor(objectId, rows[i]);
+      if (!acts.length) return;
+      const cell = tr.lastElementChild;
+      cell.style.cssText = 'text-align:right;white-space:nowrap';
+      const bar = el('span');
+      bar.style.cssText = 'display:inline-flex;gap:6px;justify-content:flex-end';
+      bar.addEventListener('click', (e) => e.stopPropagation()); // 按按鈕不要順便把抽屜打開
+      acts.forEach((a, n) => bar.append(actionButton(a, obj, rows[i], n === 0)));
+      cell.replaceChildren(bar);
     });
     sheet.append(table);
     const go2 = el('button', 'btn quiet');
