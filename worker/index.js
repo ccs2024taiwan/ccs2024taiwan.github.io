@@ -402,8 +402,10 @@ async function api(request, env, url) {
   if (path === 'settings-list') {
     if (role !== 'staff' && role !== 'admin') return fail('forbidden', 403);
     const rows = await env.DB.prepare(
-      'SELECT "key", group_name, type, value, help, variables, sample, sort FROM settings WHERE "key" NOT LIKE ? ORDER BY group_name, sort, "key"'
-    ).bind('\_\_%').all();
+      // 保留鍵（__ 開頭）在下面用 JavaScript 過濾，不要在 SQL 裡用 LIKE：
+      // SQL 的底線是萬用字元，'__%' 等於「任何兩個字以上」，NOT LIKE 會把全部排除掉（2026-11-17 踩過）
+      'SELECT "key", group_name, type, value, help, variables, sample, sort FROM settings ORDER BY group_name, sort, "key"'
+    ).all();
     return ok({ rows: (rows.results || []).filter((r) => String(r.key).indexOf('__') !== 0) });
   }
 
