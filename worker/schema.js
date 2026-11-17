@@ -88,7 +88,17 @@ export const SCHEMA = [
   when_cond   TEXT,
   sort        INTEGER NOT NULL DEFAULT 0
 )`,
-  `CREATE TABLE IF NOT EXISTS meta_release (
+  `CREATE TABLE IF NOT EXISTS permit (
+  id         TEXT PRIMARY KEY,
+  who        TEXT NOT NULL,
+  object_id  TEXT NOT NULL,
+  level      TEXT NOT NULL,
+  note       TEXT,
+  created_at TEXT NOT NULL,
+  created_by TEXT
+)`,
+`CREATE INDEX IF NOT EXISTS ix_permit_who ON permit (who)`,
+`CREATE TABLE IF NOT EXISTS meta_release (
   version    INTEGER PRIMARY KEY,
   created_at TEXT NOT NULL,
   created_by TEXT,

@@ -24,6 +24,9 @@
  *   POST /api/actions          Apps Script 把「可以按的動作」推進來（要金鑰）
  *   POST /api/record-status    審核按下去之後，只改那一筆的狀態並留痕（要金鑰）
  *   POST /api/save             新增或修改一筆（要通行證；正本在 D1 的資料才可以）
+ *   GET  /api/permits          個別授權一覽（只有秘書長）
+ *   POST /api/permit-set       給某人某一種資料的權限（只有秘書長）
+ *   POST /api/permit-remove    收回一筆授權（只有秘書長）
  *   POST /api/remove           刪除一筆（標記刪除，救得回來）
  *   GET  /api/stats           管理台首頁：各物件筆數與最近同步時間
  *   GET  /api/me                我是誰、看得到哪些資料（帶 Authorization: Bearer <通行證>）
@@ -195,7 +198,11 @@ async function readToken(request, env) {
   }
 }
 
-// 通行證 → 角色。VOL: 開頭是志工，其餘是會員編號；在「管理員會員編號」名單裡的再升級為管理員。
+// 通行證 → 角色。三種人有特別身分：
+//   秘書長（「管理員會員編號」名單）→ admin，什麼都能改
+//   理監事（「理監事會員編號」名單）→ board，只看得到財務，什麼都不能改
+//   志工 → volunteer，再加上「個別授權」給的那幾種資料
+// 其餘是一般會員或訪客。
 async function roleOf(request, env) {
   const data = await readToken(request, env);
   if (!data) return { role: 'guest' };
@@ -203,33 +210,67 @@ async function roleOf(request, env) {
   const volunteer = id.indexOf('VOL:') === 0;
   const who = { role: volunteer ? 'volunteer' : 'member', id: volunteer ? id.slice(4) : id, name: data.name || '', suspended: !!data.s };
   if (who.suspended) return who; // 停權會員只剩繳費，資料一律不給
-  const row = await env.DB.prepare('SELECT value FROM settings WHERE "key" = ?').bind('管理員會員編號').first();
-  const admins = String((row && row.value) || '').split(/[\s,，、;；]+/).filter(Boolean).map((x) => x.toUpperCase());
-  if (!volunteer && admins.indexOf(who.id.toUpperCase()) !== -1) who.role = 'admin';
+  const names = ['管理員會員編號', '理監事會員編號'];
+  const rows = await env.DB.prepare(
+    'SELECT "key", value FROM settings WHERE "key" IN (?, ?)'
+  ).bind(names[0], names[1]).all();
+  const listOf = (name) => {
+    const hit = (rows.results || []).find((r) => r.key === name);
+    return String((hit && hit.value) || '').split(/[\s,，、;；]+/).filter(Boolean).map((x) => x.toUpperCase());
+  };
+  const mine = who.id.toUpperCase();
+  if (!volunteer && listOf(names[0]).indexOf(mine) !== -1) who.role = 'admin';
+  else if (!volunteer && listOf(names[1]).indexOf(mine) !== -1) who.role = 'board';
+
+  // 個別授權：用綽號、志工編號或會員編號都查得到；* 代表全體志工
+  const keys = volunteer ? [who.id, '*'] : [who.id];
+  const permits = await env.DB.prepare(
+    'SELECT object_id, level FROM permit WHERE who IN (' + keys.map(() => '?').join(',') + ')'
+  ).bind(...keys).all();
+  who.permits = {};
+  (permits.results || []).forEach((p) => {
+    const now = who.permits[p.object_id];
+    if (now === 'write') return; // 已經給到可以改了，不會被 read 降下來
+    who.permits[p.object_id] = p.level;
+  });
   return who;
 }
 
-const VISIBLE = { guest: ['public'], member: ['public', 'member'], volunteer: ['public', 'member'], staff: ['public', 'member', 'staff'], admin: ['public', 'member', 'staff'] };
+// 個別授權有沒有給到這一種資料（物件代號，或 * 代表全部）
+function permitLevel(who, objectId) {
+  const p = (who && who.permits) || {};
+  if (p[objectId] === 'write' || p['*'] === 'write') return 'write';
+  if (p[objectId] === 'read' || p['*'] === 'read') return 'read';
+  return '';
+}
+
+const VISIBLE = { guest: ['public'], member: ['public', 'member'], volunteer: ['public', 'member'], board: ['public', 'member', 'staff'], staff: ['public', 'member', 'staff'], admin: ['public', 'member', 'staff'] };
 
 // 身分的涵蓋範圍：登入的人至少看得到訪客看得到的東西；秘書處涵蓋會員與志工。
 const COVERS = {
   guest: ['guest'],
   member: ['guest', 'member'],
   volunteer: ['guest', 'volunteer'],
+  board: ['guest', 'member', 'board'],
   staff: ['guest', 'member', 'volunteer', 'staff'],
   admin: ['guest', 'member', 'volunteer', 'staff', 'admin'],
 };
 
-function canList(object, role) {
+// who 可以不給（舊的呼叫方式），給了才會把個別授權算進去
+function canList(object, role, who) {
   if (role === 'admin') return true;
+  if (who && permitLevel(who, object.id)) return true;
   const allow = (object.acl && object.acl.list) || [];
   const mine = COVERS[role] || COVERS.guest;
   return allow.some((r) => mine.indexOf(r) !== -1);
 }
 
 // 能不能改、能不能新增、能不能刪：跟 canList 同一套涵蓋規則
-function canDo(object, role, what) {
+function canDo(object, role, what, who) {
   if (role === 'admin') return true;
+  if (role === 'board') return false; // 理監事只看，不改
+  // 個別授權給到 write 就能新增與修改；刪除永遠只有秘書長
+  if (what !== 'delete' && who && permitLevel(who, object.id) === 'write') return true;
   const allow = (object.acl && object.acl[what]) || [];
   const mine = COVERS[role] || COVERS.guest;
   return allow.some((r) => mine.indexOf(r) !== -1);
@@ -358,7 +399,10 @@ async function api(request, env, url) {
     const meta = await loadMeta(env);
     return ok({
       role: who.role, id: who.id || null, name: who.name || null, suspended: !!who.suspended,
-      canList: meta.objects.filter((o) => canList(o, who.role)).map((o) => o.id),
+      canList: meta.objects.filter((o) => canList(o, who.role, who)).map((o) => o.id),
+      // 管理台靠這個決定要不要顯示「新增」「儲存」
+      canWrite: meta.objects.filter((o) => canDo(o, who.role, 'update', who)).map((o) => o.id),
+      permits: who.permits || {},
     });
   }
 
@@ -397,7 +441,7 @@ async function api(request, env, url) {
   // 管理台首頁要的數字：每個物件幾筆、最近同步時間。一次問完，不用一個物件打一次
   if (path === 'stats') {
     const meta = await loadMeta(env);
-    const mine = meta.objects.filter((o) => canList(o, role));
+    const mine = meta.objects.filter((o) => canList(o, role, who));
     const counts = await env.DB.prepare(
       'SELECT object_id, COUNT(*) AS n FROM record WHERE deleted_at IS NULL GROUP BY object_id'
     ).all();
@@ -433,6 +477,63 @@ async function api(request, env, url) {
     return ok({ written: list.length });
   }
 
+  // ── 個別授權：誰可以碰哪一種資料 ────────────────────
+  if (path === 'permits') {
+    if (role !== 'admin') return fail('forbidden', 403);
+    const meta = await loadMeta(env);
+    const rows = await env.DB.prepare('SELECT * FROM permit ORDER BY who, object_id').all();
+    const labels = {};
+    meta.objects.forEach((o) => (labels[o.id] = o.label));
+    return ok({
+      rows: (rows.results || []).map((r) => ({
+        id: r.id, who: r.who, object: r.object_id, objectLabel: labels[r.object_id] || r.object_id,
+        level: r.level, note: r.note, at: r.created_at,
+      })),
+      objects: meta.objects.map((o) => ({ id: o.id, label: o.label })),
+    });
+  }
+
+  if (path === 'permit-set' && request.method === 'POST') {
+    if (role !== 'admin') return fail('forbidden', 403);
+    const b = await request.json().catch(() => ({}));
+    const target = String(b.who || '').trim();
+    const objectId = String(b.object || '').trim();
+    const level = String(b.level || '').trim();
+    if (!target || !objectId) return fail('missing_fields');
+    if (level !== 'read' && level !== 'write') return fail('invalid', 400, '只能給「看」或「可以改」');
+    const meta = await loadMeta(env);
+    if (objectId !== '*' && !meta.objects.some((o) => o.id === objectId)) return fail('object_not_found', 404);
+    const now = new Date().toISOString();
+    const me = who.name || who.id || 'console';
+    const id = (target + '|' + objectId).toLowerCase();
+    await env.DB.batch([
+      env.DB.prepare(
+        'INSERT INTO permit (id, who, object_id, level, note, created_at, created_by) VALUES (?,?,?,?,?,?,?)' +
+        ' ON CONFLICT(id) DO UPDATE SET level = excluded.level, note = excluded.note, created_at = excluded.created_at, created_by = excluded.created_by'
+      ).bind(id, target, objectId, level, b.note == null ? null : String(b.note), now, me),
+      env.DB.prepare('INSERT INTO audit (id, at, who, role, scope, target, action, before_json, after_json) VALUES (?,?,?,?,?,?,?,?,?)')
+        .bind((Date.now().toString(36) + Math.random().toString(36).slice(2, 8)).toUpperCase(), now, me, role, 'permit', id, 'grant', null, JSON.stringify({ who: target, object: objectId, level: level })),
+    ]);
+    return ok({ id: id });
+  }
+
+  if (path === 'permit-remove' && request.method === 'POST') {
+    if (role !== 'admin') return fail('forbidden', 403);
+    const b = await request.json().catch(() => ({}));
+    const id = String(b.id || '').trim();
+    if (!id) return fail('missing_id');
+    const row = await env.DB.prepare('SELECT * FROM permit WHERE id = ?').bind(id).first();
+    if (!row) return fail('not_found', 404);
+    const now = new Date().toISOString();
+    const me = who.name || who.id || 'console';
+    await env.DB.batch([
+      env.DB.prepare('DELETE FROM permit WHERE id = ?').bind(id),
+      env.DB.prepare('INSERT INTO audit (id, at, who, role, scope, target, action, before_json, after_json) VALUES (?,?,?,?,?,?,?,?,?)')
+        .bind((Date.now().toString(36) + Math.random().toString(36).slice(2, 8)).toUpperCase(), now, me, role, 'permit', id, 'revoke', JSON.stringify({ who: row.who, object: row.object_id, level: row.level }), null),
+    ]);
+    return ok({ removed: true });
+  }
+
   // ── 新增或修改一筆 ──────────────────────────────────
   // 正本在 D1 的資料才走這裡。還在試算表的，改了也會被下一次同步蓋掉，所以直接擋下來。
   if (path === 'save' && request.method === 'POST') {
@@ -443,7 +544,7 @@ async function api(request, env, url) {
     if (!ownedHere(object)) return fail('not_editable_here', 409, '「' + object.label + '」的正本還在試算表，請到試算表改');
     const id = String(body2.id == null ? '' : body2.id).trim();
     const isNew = !id;
-    if (!canDo(object, role, isNew ? 'create' : 'update')) return fail('forbidden', 403);
+    if (!canDo(object, role, isNew ? 'create' : 'update', who)) return fail('forbidden', 403);
     const input = body2.data && typeof body2.data === 'object' ? body2.data : {};
 
     let before = null;
@@ -517,7 +618,7 @@ async function api(request, env, url) {
     const object = meta.objects.find((o) => o.id === body3.object);
     if (!object) return fail('object_not_found', 404);
     if (!ownedHere(object)) return fail('not_editable_here', 409, '「' + object.label + '」的正本還在試算表');
-    if (!canDo(object, role, 'delete')) return fail('forbidden', 403);
+    if (!canDo(object, role, 'delete', who)) return fail('forbidden', 403);
     const id = String(body3.id || '').trim();
     if (!id) return fail('missing_id');
     const row = await env.DB.prepare('SELECT * FROM record WHERE object_id = ? AND id = ? AND deleted_at IS NULL').bind(object.id, id).first();
@@ -579,7 +680,7 @@ async function api(request, env, url) {
     const words = String((row && row.value) || '待審核,待確認,待繳費,已回報,已回報匯款,待對帳,待核准,待回覆,待聯絡')
       .split(/[s,，、;；]+/).filter(Boolean);
     const meta = await loadMeta(env);
-    const allowed = meta.objects.filter((o) => canList(o, role)).map((o) => o.id);
+    const allowed = meta.objects.filter((o) => canList(o, role, who)).map((o) => o.id);
     if (!allowed.length || !words.length) return ok({ words: words, rows: [] });
     const marks = words.map(() => '?').join(',');
     const objMarks = allowed.map(() => '?').join(',');
@@ -600,7 +701,7 @@ async function api(request, env, url) {
     const meta = await loadMeta(env);
     const object = meta.objects.find((o) => o.id === body.object);
     if (!object) return fail('object_not_found', 404);
-    if (!canList(object, role)) return fail('forbidden', 403);
+    if (!canList(object, role, who)) return fail('forbidden', 403);
     const row = await env.DB.prepare('SELECT * FROM record WHERE object_id = ? AND id = ? AND deleted_at IS NULL').bind(object.id, String(body.id || '')).first();
     if (!row) return fail('not_found', 404);
     const data = parse(row.data) || {};
@@ -608,7 +709,7 @@ async function api(request, env, url) {
     const out = [];
     for (const rel of rels) {
       const target = meta.objects.find((o) => o.id === rel.to);
-      if (!target || !canList(target, role)) continue;
+      if (!target || !canList(target, role, who)) continue;
       const value = data[rel.match.from];
       if (value == null || value === '') continue;
       const found = await env.DB.prepare(
@@ -660,11 +761,17 @@ async function api(request, env, url) {
 
   if (path === 'meta') {
     const meta = await loadMeta(env);
-    const objects = meta.objects.filter((o) => canList(o, role)).map((o) => ({
+    const objects = meta.objects.filter((o) => canList(o, role, who)).map((o) => ({
       ...o, fields: o.fields.filter((f) => f.privacy !== 'secret' && (VISIBLE[role] || VISIBLE.guest).includes(f.privacy)),
     }));
     const actions = (meta.actions || []).filter((a) => !a.roles.length || a.roles.includes(role));
-    return ok({ objects, relations: meta.relations, menus: meta.menus, actions, role });
+    // 行政中心的選單預設是秘書處專用；要給別人看就在設定庫寫明 roles
+    const seeable = meta.menus.filter((m) => {
+      if (m.area !== 'admin') return true;
+      const need = (m.roles && m.roles.length) ? m.roles : ['staff', 'admin'];
+      return need.indexOf(role) !== -1;
+    });
+    return ok({ objects, relations: meta.relations, menus: seeable, actions, role });
   }
 
   const body = request.method === 'POST' ? await request.json().catch(() => ({})) : Object.fromEntries(url.searchParams);
@@ -673,7 +780,7 @@ async function api(request, env, url) {
     const meta = await loadMeta(env);
     const object = meta.objects.find((o) => o.id === body.object);
     if (!object) return fail('object_not_found', 404);
-    if (!canList(object, role)) return fail('forbidden', 403);
+    if (!canList(object, role, who)) return fail('forbidden', 403);
 
     if (path === 'get') {
       if (!body.id) return fail('missing_id');

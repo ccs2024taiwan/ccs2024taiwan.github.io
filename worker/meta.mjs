@@ -131,7 +131,7 @@ export const objects = [
   {
     id: 'claim', label: '請款單', icon: 'receipt', sort: 50,
     id_rule: 'E{yyMMddHHmmss}{rand:2}', title_field: 'who', sync: { compute: 'claimsPayload', key: 'id' },
-    acl: { list: ['volunteer', 'staff'], read: ['volunteer', 'staff'], create: ['volunteer'], update: ['staff', 'owner'], delete: ['admin'] },
+    acl: { list: ['volunteer', 'staff', 'board'], read: ['volunteer', 'staff', 'board'], create: ['volunteer'], update: ['staff', 'owner'], delete: ['admin'] },
     fields: [
       F('id', '請款單號', 'sequence', { ...stf, ...list, ...locked, from: 'id' }),
       F('who', '請款人', 'text', { ...stf, ...list, ...req, ...locked, from: 'who' }),
@@ -150,7 +150,7 @@ export const objects = [
     // 請款品項：「志工請款紀錄」一列就是一個品項，用「請款單號＋品項序」當鍵
     id: 'claim_item', label: '請款品項', icon: 'rows', sort: 51,
     title_field: 'name', sync: { sheet: '志工請款紀錄', key: ['claim_id', 'seq'] },
-    acl: { list: ['volunteer', 'staff'], read: ['volunteer', 'staff'], create: ['volunteer'], update: ['staff', 'owner'], delete: ['admin'] },
+    acl: { list: ['volunteer', 'staff', 'board'], read: ['volunteer', 'staff', 'board'], create: ['volunteer'], update: ['staff', 'owner'], delete: ['admin'] },
     fields: [
       F('claim_id', '請款單號', 'text', { ...stf, ...list, ...req, ...locked, from: '請款單號' }),
       F('seq', '品項序', 'text', { ...stf, ...list, from: '品項序' }),
@@ -173,7 +173,7 @@ export const objects = [
     // 會計科目一覽：直接鏡像「科目表」
     id: 'account', label: '會計科目一覽', icon: 'book', sort: 86,
     title_field: 'name', sync: { sheet: '科目表', key: 'code' },
-    acl: { list: ['staff'], read: ['staff'], create: ['staff'], update: ['staff'], delete: ['admin'] },
+    acl: { list: ['staff', 'board'], read: ['staff', 'board'], create: ['staff'], update: ['staff'], delete: ['admin'] },
     fields: [
       F('code', '科目代號', 'text', { ...stf, ...list, ...req, from: '科目代號' }),
       F('name', '科目名稱', 'text', { ...stf, ...list, ...req, from: '科目名稱' }),
@@ -367,7 +367,7 @@ export const objects = [
   {
     id: 'journal', label: '日記帳', icon: 'book', sort: 80,
     title_field: 'summary', sync: { sheet: '日記帳', key: ['date', 'no', 'summary'] },
-    acl: { list: ['staff'], read: ['staff', 'board'], create: ['staff'], update: ['staff'], delete: ['admin'] },
+    acl: { list: ['staff', 'board'], read: ['staff', 'board'], create: ['staff'], update: ['staff'], delete: ['admin'] },
     fields: [
       F('date', '日期', 'date', { ...stf, ...list, ...req, from: '日期', lock_after: { mode: 'reverse_only' } }),
       F('source', '來源', 'text', { ...stf, from: '來源' }),
@@ -442,7 +442,7 @@ export const menus = [
   // 那些是系統為了給官網用而算出來的中繼資料，不是行政工作項目）。
   // 主項目＝左欄的項目（照 ERP+CRM.xlsx 的分類）；子項目收在主項目裡面，
   // 不另外佔左欄的位置。例如「工作進度」是點開某個任務之後才出現的段落。
-  { id: 'adm_dash', area: 'admin', label: '儀表板', icon: 'home', kind: 'page', target: 'dashboard', sort: 10 },
+  { id: 'adm_dash', area: 'admin', label: '儀表板', icon: 'home', kind: 'page', target: 'dashboard', sort: 10, roles: ['staff', 'admin', 'board'] },
   { id: 'adm_approve', area: 'admin', label: '申請審核', icon: 'check', kind: 'page', target: 'approvals', sort: 11 },
   { id: 'adm_member', area: 'admin', label: '會員', icon: 'user', kind: 'object', target: 'member', sort: 20 },
   { id: 'adm_prospect', area: 'admin', label: '潛在會員', icon: 'user', kind: 'object', target: 'prospect', sort: 21 },
@@ -462,16 +462,16 @@ export const menus = [
   { id: 'lib_results', area: 'admin', parent_id: 'g_lib', label: '過往成果', icon: 'doc', kind: 'object', target: 'archive', sort: 34 },
 
   // 財務管理：十個子項目收在裡面
-  { id: 'g_money', area: 'admin', label: '財務', icon: 'book', kind: 'group', sort: 40 },
-  { id: 'fin_claim', area: 'admin', parent_id: 'g_money', label: '志工請款', icon: 'receipt', kind: 'object', target: 'claim', sort: 41 },
+  { id: 'g_money', area: 'admin', label: '財務', icon: 'book', kind: 'group', sort: 40, roles: ['staff', 'admin', 'board'] },
+  { id: 'fin_claim', area: 'admin', parent_id: 'g_money', label: '志工請款', icon: 'receipt', kind: 'object', target: 'claim', sort: 41, roles: ['staff', 'admin', 'board'] },
   { id: 'fin_expense', area: 'admin', parent_id: 'g_money', label: '支出登錄', icon: 'receipt', kind: 'page', target: 'soon:支出登錄:本會帳戶直接付出去的錢（網銀轉帳廠商、自動扣繳、秘書薪資）在這裡登錄，寫進日記帳。志工或秘書長先墊的錢走「志工請款」—— 以「錢從誰口袋出」區分。', sort: 42 },
   { id: 'fin_forms', area: 'admin', parent_id: 'g_money', label: '表單管理', icon: 'doc', kind: 'page', target: 'soon:表單管理:支出證明單、講師費領據、印領清冊、補助金領據。之後會由系統帶入資料後直接產生，不用手填。', sort: 43 },
   { id: 'fin_income', area: 'admin', parent_id: 'g_money', label: '收入登錄', icon: 'coin', kind: 'page', target: 'soon:收入登錄:官網來的訂單、報名、會費會自動入帳；贊助、補助、捐款在這裡手動登錄，寫進日記帳並登記收據編號。', sort: 44 },
-  { id: 'fin_journal', area: 'admin', parent_id: 'g_money', label: '日記帳', icon: 'book', kind: 'object', target: 'journal', sort: 45 },
+  { id: 'fin_journal', area: 'admin', parent_id: 'g_money', label: '日記帳', icon: 'book', kind: 'object', target: 'journal', sort: 45, roles: ['staff', 'admin', 'board'] },
   { id: 'fin_statement', area: 'admin', parent_id: 'g_money', label: '收支表', icon: 'book', kind: 'page', target: 'soon:收支表:依月／年彙總的收支，含預算執行率。目前在試算表用公式算，之後搬到這裡。', sort: 46 },
   { id: 'fin_pl', area: 'admin', parent_id: 'g_money', label: '年度結餘表', icon: 'book', kind: 'page', target: 'soon:年度結餘表:本會是現金收支制，所以不做損益表，改做年度收支結餘。待預算表建好後一起做。', sort: 47 },
   { id: 'fin_cash', area: 'admin', parent_id: 'g_money', label: '現金收支餘額表', icon: 'book', kind: 'page', target: 'soon:現金收支餘額表:取代資產負債表（現金收支制不適用）。列出各帳戶期初、收入、支出、期末。', sort: 48 },
-  { id: 'fin_account', area: 'admin', parent_id: 'g_money', label: '會計科目一覽', icon: 'book', kind: 'object', target: 'account', sort: 49 },
+  { id: 'fin_account', area: 'admin', parent_id: 'g_money', label: '會計科目一覽', icon: 'book', kind: 'object', target: 'account', sort: 49, roles: ['staff', 'admin', 'board'] },
   { id: 'fin_budget', area: 'admin', parent_id: 'g_money', label: '會計科目預算表', icon: 'book', kind: 'page', target: 'soon:會計科目預算表:年度預算（會員大會決議後由秘書長輸入），與實際支出對照顯示執行率，超支提醒。來源是「寓委聯115年度計畫甘特圖與預算表」。', sort: 50 },
 
   // LINE 小幫手：兩個子項目
@@ -483,6 +483,7 @@ export const menus = [
   { id: 'adm_setup', area: 'admin', parent_id: 'g_sys', label: '系統設定', icon: 'cube', kind: 'page', target: 'setup', sort: 61, roles: ['staff', 'admin'] },
   { id: 'adm_sync', area: 'admin', parent_id: 'g_sys', label: '同步狀態', icon: 'db', kind: 'page', target: 'sync', sort: 62, roles: ['staff', 'admin'] },
   { id: 'adm_conn', area: 'admin', parent_id: 'g_sys', label: '連線', icon: 'plug', kind: 'page', target: 'connections', sort: 63, roles: ['staff', 'admin'] },
+  { id: 'adm_permit', area: 'admin', parent_id: 'g_sys', label: '權限', icon: 'user', kind: 'page', target: 'permits', sort: 63, roles: ['admin'] },
   { id: 'adm_audit', area: 'admin', parent_id: 'g_sys', label: '留痕', icon: 'clock', kind: 'page', target: 'audit', sort: 64, roles: ['staff', 'admin'] },
   // 官網頂部（對照現況）
   { id: 'site_about', area: 'site', label: '關於本會', kind: 'page', target: 'about.html', sort: 10 },
@@ -503,7 +504,8 @@ export const menus = [
 export const settings = [
   { key: '信件簽名', group: '通知', type: 'textarea', help: '所有寄給會員／志工／客人的信，結尾自動接上這段。寄給秘書處自己的通知不會加。' },
   { key: '提醒收件人', group: '通知', type: 'text', help: '秘書處通知信的收件人。' },
-  { key: '管理員會員編號', group: '一般', type: 'text', help: '可進行政中心的會員編號，逗號分隔。' },
+  { key: '管理員會員編號', group: '權限與身分', type: 'text', help: '秘書長：行政中心什麼都能改。填會員編號，逗號分隔。' },
+  { key: '理監事會員編號', group: '權限與身分', type: 'text', help: '理監事：只看得到財務那幾頁，什麼都不能改。填會員編號，逗號分隔。' },
   { key: '線上付款方式', group: '金流', type: 'json', help: '藍新開通的付款方式代碼。填了官網才會出現線上付款。' },
   { key: '簽核門檻', group: '會籍規則', type: 'number', value: '10000', help: '撥款金額超過這個數字要加理事長簽核。' },
   { key: '潛在會員保存年限', group: '一般', type: 'number', value: '3', help: '最後一次互動起算幾年；到期系統提醒，不自動刪。' },

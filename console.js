@@ -193,6 +193,7 @@ function go(key) {
   if (key === 'line') return viewSoon('LINE 小幫手', '指令一覽與自動回應的文案會在這裡設定：每個指令可以改觸發詞、回應文字，也能單獨關掉某個指令先停用。資料表已經在設定庫裡（line_command），畫面在下一批加上。');
   if (key === 'connections') return viewSoon('連線', '藍新金流、LINE 官方帳號、Telegram、Google、MCP 的金鑰會在這裡設定。存進去只會顯示末四碼，每個連線都有「測試連線」與「複製 Webhook 網址」。畫面在下一批加上。');
   if (key.indexOf('soon:') === 0) { const p = key.split(':'); return viewSoon(p[1], p.slice(2).join(':')); }
+  if (key === 'permits') return viewPermits();
   if (key === 'audit') return viewAudit();
   if (key === 'audit_old') return viewSoon('留痕', '誰在什麼時候改了什麼，連改前改後都留著，刪掉的東西可以還原。要等管理台開放「寫入」之後才會有內容，和寫入功能同一批。');
   if (key.indexOf('o:') === 0) return viewObject(key.slice(2));
@@ -795,6 +796,90 @@ async function openById(objectId, id) {
   if (!obj) return;
   const result = await db('get', { object: objectId, id: id });
   if (result.ok && result.row) openDrawer(obj, result.row);
+}
+
+// ── 權限 ────────────────────────────────────────────────
+// 三種身分：秘書長什麼都能改、理監事只看財務、志工看個別授權。
+// 前兩種在「設定與文案」填會員編號，這一頁管的是第三種。
+async function viewPermits() {
+  $('crumb').textContent = '系統 › 權限';
+  const main = $('main');
+  main.replaceChildren();
+  const head = el('div', 'head');
+  const box = el('div');
+  box.append(el('h1', 'page', '權限'), el('p', '', '誰可以看、誰可以改哪一種資料'));
+  head.append(box);
+  main.append(head);
+
+  const sheet = el('div', 'sheet');
+  sheet.style.borderRadius = 'var(--r)';
+  main.append(sheet);
+  sheet.append(hint('三種身分：秘書長什麼都能改；理監事只看得到財務那幾頁，什麼都不能改；志工預設只有志工專區，要多給什麼就在這一頁加。前兩種是在「設定與文案」裡填會員編號（〈管理員會員編號〉與〈理監事會員編號〉）。'));
+
+  const result = await db('permits');
+  if (!result.ok) { sheet.append(el('p', 'err', '讀不到：' + (result.message || result.error) + (result.error === 'forbidden' ? '（只有秘書長看得到這一頁）' : ''))); return; }
+
+  // 新增一筆授權
+  const form = el('div');
+  form.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;margin:4px 0 18px';
+  const field = (label, node, width) => {
+    const wrap = el('div', 'fld');
+    wrap.style.cssText = 'margin:0;width:' + width;
+    wrap.append(el('label', '', label), node);
+    return wrap;
+  };
+  const whoInput = el('input');
+  whoInput.placeholder = '志工綽號，或 * 代表全體志工';
+  whoInput.style.cssText = 'font:inherit;font-size:13.5px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--sub);color:var(--ink);width:100%';
+  const objSelect = el('select');
+  objSelect.style.cssText = whoInput.style.cssText;
+  (result.objects || []).forEach((o) => { const opt = el('option', '', o.label); opt.value = o.id; objSelect.append(opt); });
+  const levelSelect = el('select');
+  levelSelect.style.cssText = whoInput.style.cssText;
+  [['read', '只能看'], ['write', '可以看也可以改']].forEach(([v, t]) => { const opt = el('option', '', t); opt.value = v; levelSelect.append(opt); });
+  const noteInput = el('input');
+  noteInput.placeholder = '備註（例：廠商組）';
+  noteInput.style.cssText = whoInput.style.cssText;
+  const addBtn = el('button', 'btn pri');
+  addBtn.type = 'button';
+  addBtn.append(icon('check'), el('span', '', '給他'));
+  form.append(field('給誰', whoInput, '200px'), field('哪一種資料', objSelect, '180px'), field('給到什麼', levelSelect, '180px'), field('備註', noteInput, '180px'), addBtn);
+  sheet.append(form);
+
+  addBtn.addEventListener('click', async () => {
+    const target = whoInput.value.trim();
+    if (!target) { alert('要填給誰。志工填綽號，全體志工填 *。'); return; }
+    addBtn.disabled = true;
+    const r = await db('permit-set', { who: target, object: objSelect.value, level: levelSelect.value, note: noteInput.value.trim() });
+    addBtn.disabled = false;
+    if (!r.ok) { alert('沒有成功：' + (r.message || r.error)); return; }
+    viewPermits();
+  });
+
+  if (!result.rows.length) {
+    sheet.append(el('div', 'empty', '目前沒有個別授權。志工只有志工專區看得到的東西。'));
+    return;
+  }
+  const table = tableOf(['給誰', '哪一種資料', '給到什麼', '備註', ''], result.rows.map((r) => [
+    r.who === '*' ? '全體志工' : r.who, r.objectLabel,
+    tagOf(r.level === 'write' ? 'ok' : 'plain', r.level === 'write' ? '可以改' : '只能看'),
+    r.note || '', '',
+  ]));
+  Array.from(table.querySelectorAll('tbody tr')).forEach((tr, i) => {
+    const cell = tr.lastElementChild;
+    cell.style.textAlign = 'right';
+    const del = el('button', 'btn quiet');
+    del.type = 'button';
+    del.append(el('span', '', '收回'));
+    del.addEventListener('click', async () => {
+      if (!confirm('要收回「' + (result.rows[i].who === '*' ? '全體志工' : result.rows[i].who) + '」對「' + result.rows[i].objectLabel + '」的權限嗎？')) return;
+      const r = await db('permit-remove', { id: result.rows[i].id });
+      if (!r.ok) { alert('沒有成功：' + (r.message || r.error)); return; }
+      viewPermits();
+    });
+    cell.replaceChildren(del);
+  });
+  sheet.append(table);
 }
 
 // 還沒做的頁面：老實說明會有什麼，不要給一個壞掉的畫面

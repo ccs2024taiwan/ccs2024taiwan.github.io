@@ -98,6 +98,20 @@ CREATE TABLE IF NOT EXISTS meta_action (
   sort        INTEGER NOT NULL DEFAULT 0
 );
 
+-- 個別授權：某位志工（或全體志工）可以看或可以改哪一種資料。
+-- 誰：志工綽號、志工編號、會員編號，或 * 代表全體志工。
+-- 給到什麼：read＝看得到，write＝可以新增與修改（刪除永遠只有秘書長）。
+CREATE TABLE IF NOT EXISTS permit (
+  id         TEXT PRIMARY KEY,
+  who        TEXT NOT NULL,
+  object_id  TEXT NOT NULL,
+  level      TEXT NOT NULL,
+  note       TEXT,
+  created_at TEXT NOT NULL,
+  created_by TEXT
+);
+CREATE INDEX IF NOT EXISTS ix_permit_who ON permit (who);
+
 CREATE TABLE IF NOT EXISTS meta_release (
   version    INTEGER PRIMARY KEY,
   created_at TEXT NOT NULL,
