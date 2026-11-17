@@ -166,7 +166,10 @@ function buildNav() {
     if (OPEN_GROUP === g.id) kids.forEach((k) => item(k, true));
   };
   admin.filter((m) => !parentOf(m)).forEach((m) => {
-    if (m.kind === 'group') group(m, admin.filter((k) => parentOf(k) === m.id));
+    if (m.kind === 'group') {
+      const kids = admin.filter((k) => parentOf(k) === m.id);
+      if (kids.length) group(m, kids); // 一個子項目都看不到的群組就不要顯示，免得點了沒反應
+    }
     else item(m, false);
   });
   document.querySelectorAll('.nav').forEach((x) => x.classList.toggle('on', Boolean(x.dataset.key) && x.dataset.key === current));
