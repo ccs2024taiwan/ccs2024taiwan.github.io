@@ -28,6 +28,7 @@
  *   GET  /api/export           整個資料庫倒出來備份（要金鑰）
  *   POST /api/find             依欄位值找資料（要金鑰；給 Apps Script 比對用）
  *   POST /api/bulk             一次匯入很多筆，重複的自動併（要金鑰）
+ *   POST /api/field-clean      把某個欄位裡的某一項拿掉（要金鑰；例如來源裡的「總表」）
  *   POST /api/permit-set       給某人某一種資料的權限（只有秘書長）
  *   POST /api/permit-remove    收回一筆授權（只有秘書長）
  *   POST /api/remove           刪除一筆（標記刪除，救得回來）
@@ -586,6 +587,45 @@ async function api(request, env, url) {
       return { role: 'admin', who: { role: 'admin', id: 'system', name: String((body && body.who) || '系統'), permits: {} } };
     }
     return { role: role, who: who };
+  }
+
+  // ── 把某個欄位裡的某一項拿掉 ────────────────────────
+  // 欄位內容是用「；」串起來的（例如來源「總表；交流日」），這裡只拿掉指定的那一項。
+  if (path === 'field-clean' && request.method === 'POST') {
+    if (!(await keyOk(request, env))) return fail('unauthorized', 401);
+    const b = await request.json().catch(() => ({}));
+    const meta = await loadMeta(env);
+    const object = meta.objects.find((o) => o.id === b.object);
+    if (!object) return fail('object_not_found', 404);
+    const field = String(b.field || '').trim();
+    const remove = String(b.remove || '').trim();
+    if (!field || !remove) return fail('missing_fields');
+    if (!object.fields.some((f) => f.key === field)) return fail('field_not_found', 404);
+
+    const rows = await env.DB.prepare('SELECT id, data FROM record WHERE object_id = ? AND deleted_at IS NULL').bind(object.id).all();
+    const now = new Date().toISOString();
+    const who = String(b.who || '整理');
+    const writes = [];
+    (rows.results || []).forEach((r) => {
+      const data = parse(r.data) || {};
+      const current = String(data[field] == null ? '' : data[field]).trim();
+      if (!current) return;
+      const parts = current.split('；').map((x) => x.trim()).filter(Boolean);
+      const kept = parts.filter((x) => x !== remove);
+      if (kept.length === parts.length) return;
+      data[field] = kept.join('；');
+      writes.push(env.DB.prepare(
+        'UPDATE record SET data = ?, updated_at = ?, updated_by = ? WHERE object_id = ? AND id = ?'
+      ).bind(JSON.stringify(data), now, who, object.id, r.id));
+    });
+    for (let i = 0; i < writes.length; i += 50) await env.DB.batch(writes.slice(i, i + 50));
+    if (writes.length) {
+      await env.DB.prepare(
+        'INSERT INTO audit (id, at, who, role, scope, target, action, before_json, after_json) VALUES (?,?,?,?,?,?,?,?,?)'
+      ).bind((Date.now().toString(36) + Math.random().toString(36).slice(2, 8)).toUpperCase(), now, who, 'admin', object.id, '(整批)', 'field-clean',
+        JSON.stringify({ field: field, removed: remove }), JSON.stringify({ changed: writes.length })).run();
+    }
+    return ok({ changed: writes.length });
   }
 
   // ── 批次匯入 ────────────────────────────────────────
