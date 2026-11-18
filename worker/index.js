@@ -25,6 +25,7 @@
  *   POST /api/record-status    審核按下去之後，只改那一筆的狀態並留痕（要金鑰）
  *   POST /api/save             新增或修改一筆（要通行證；正本在 D1 的資料才可以）
  *   GET  /api/permits          個別授權一覽（只有秘書長）
+ *   GET  /api/export           整個資料庫倒出來備份（要金鑰）
  *   POST /api/permit-set       給某人某一種資料的權限（只有秘書長）
  *   POST /api/permit-remove    收回一筆授權（只有秘書長）
  *   POST /api/remove           刪除一筆（標記刪除，救得回來）
@@ -244,7 +245,15 @@ function permitLevel(who, objectId) {
   return '';
 }
 
-const VISIBLE = { guest: ['public'], member: ['public', 'member'], volunteer: ['public', 'member'], board: ['public', 'member', 'staff'], staff: ['public', 'member', 'staff'], admin: ['public', 'member', 'staff'] };
+const VISIBLE = {
+  guest: ['public'],
+  member: ['public', 'member'],
+  volunteer: ['public', 'member'],
+  board: ['public', 'member', 'staff'],
+  staff: ['public', 'member', 'staff'],
+  // 只有秘書長看得到個資（手機、地址、身分證字號）
+  admin: ['public', 'member', 'staff', 'secret'],
+};
 
 // 身分的涵蓋範圍：登入的人至少看得到訪客看得到的東西；秘書處涵蓋會員與志工。
 const COVERS = {
@@ -319,11 +328,15 @@ function lockError(field, before, after, role) {
 // 依角色把看不到的欄位拿掉；secret 永遠不回傳
 function shape(object, row, role) {
   const data = parse(row.data) || {};
-  const seen = VISIBLE[role] || VISIBLE.guest;
+  let seen = VISIBLE[role] || VISIBLE.guest;
+  // 理監事只有在財務那幾種資料上才看得到秘書處層級的欄位；其餘跟一般會員一樣
+  if (role === 'board') {
+    const forBoard = ((object.acl && object.acl.read) || []).indexOf('board') !== -1;
+    if (!forBoard) seen = VISIBLE.member;
+  }
   const out = {};
   object.fields.forEach((f) => {
-    if (f.privacy === 'secret') return;
-    if (!seen.includes(f.privacy)) return;
+    if (!seen.includes(f.privacy)) return; // secret 只在 VISIBLE.admin 裡，所以只有秘書長拿得到
     if (data[f.key] !== undefined) out[f.key] = data[f.key];
   });
   return { id: row.id, title: row.title, status: row.status, updatedAt: row.updated_at, data: out };
@@ -377,7 +390,7 @@ async function api(request, env, url) {
     if (!(await keyOk(request, env))) return fail('unauthorized', 401);
     const objects = await env.DB.prepare("SELECT id, label, source, title_field, extras FROM meta_object WHERE (source LIKE 'sheet:%' OR source LIKE 'compute:%') AND status = 'active' ORDER BY sort").all();
     // 所有欄位都同步，含 privacy=secret 的手機：CRM 要靠它把同一個人的會員與志工身分合起來，
-    // 登入搬到 Worker 之後也要用它比對末三碼。保護靠的是「誰讀得到」：secret 欄位任何角色、任何 API 都拿不到（見 shape()）。
+    // 登入搬到 Worker 之後也要用它比對末三碼。保護靠的是「誰讀得到」：secret 欄位只有秘書長拿得到（見 VISIBLE.admin 與 shape()）。
     const fields = await env.DB.prepare('SELECT object_id, "key", type, options FROM meta_field ORDER BY object_id, sort').all();
     const byObject = {};
     (fields.results || []).forEach((f) => {
@@ -477,6 +490,35 @@ async function api(request, env, url) {
     return ok({ written: list.length });
   }
 
+  // ── 備份：把整個資料庫倒出來 ────────────────────────
+  // 用金鑰認證（不是通行證），因為這是機器對機器：Apps Script 每天來拿一份存到雲端硬碟。
+  // 倒出來的是原始資料，含個資，所以存放的地方要跟試算表一樣小心。
+  if (path === 'export') {
+    if (!(await keyOk(request, env))) return fail('unauthorized', 401);
+    const [records, settings, permits, actions] = await Promise.all([
+      env.DB.prepare('SELECT object_id, id, data, status, title, created_at, created_by, updated_at, updated_by, deleted_at FROM record ORDER BY object_id, id').all(),
+      env.DB.prepare('SELECT "key", group_name, type, value, help FROM settings WHERE "key" NOT LIKE ? ORDER BY "key"').bind('\\_\\_%').all(),
+      env.DB.prepare('SELECT * FROM permit').all(),
+      env.DB.prepare('SELECT * FROM meta_action').all(),
+    ]);
+    const byObject = {};
+    (records.results || []).forEach((r) => {
+      (byObject[r.object_id] = byObject[r.object_id] || []).push({
+        id: r.id, data: parse(r.data), status: r.status, title: r.title,
+        createdAt: r.created_at, createdBy: r.created_by,
+        updatedAt: r.updated_at, updatedBy: r.updated_by, deletedAt: r.deleted_at,
+      });
+    });
+    return ok({
+      at: new Date().toISOString(),
+      counts: Object.keys(byObject).reduce((t, k) => Object.assign(t, { [k]: byObject[k].length }), {}),
+      records: byObject,
+      settings: settings.results || [],
+      permits: permits.results || [],
+      actions: actions.results || [],
+    });
+  }
+
   // ── 個別授權：誰可以碰哪一種資料 ────────────────────
   if (path === 'permits') {
     if (role !== 'admin') return fail('forbidden', 403);
@@ -559,7 +601,7 @@ async function api(request, env, url) {
     const data = Object.assign({}, before || {});
     const problems = [];
     object.fields.forEach((f) => {
-      if (f.privacy === 'secret') return; // 讀不到也寫不到；要改手機地址另外做
+      if (f.privacy === 'secret' && role !== 'admin') return; // 只有秘書長能改個資
       if (!seen.includes(f.privacy)) return;
       if (!Object.prototype.hasOwnProperty.call(input, f.key)) {
         const err0 = fieldError(f, data[f.key]);
