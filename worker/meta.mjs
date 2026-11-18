@@ -235,16 +235,25 @@ export const objects = [
   {
     // 廠商資料（會員專區查詢用的那份）
     id: 'vendor', label: '廠商資料', icon: 'shop', sort: 92,
-    title_field: 'name', sync: { sheet: '推薦廠商', key: ['name', 'category'] },
+    // 2026-11-18 搬到 D1：本會推薦廠商與會員共用的廠商大表合併成同一份，正本在這裡
+    title_field: 'name', source: 'd1',
     acl: { list: ['member', 'volunteer', 'staff'], read: ['member', 'volunteer', 'staff'], create: ['staff'], update: ['staff'], delete: ['admin'] },
     fields: [
       F('name', '廠商名稱', 'text', { ...mem, ...list, ...req, from: '廠商名稱' }),
-      F('category', '類別', 'text', { ...mem, ...list, from: '類別' }),
+      F('category', '廠商類別', 'text', { ...mem, ...list, from: '類別' }),
+      F('area', '所在地', 'text', { ...mem, ...list, from: '所在地' }),
       F('contact', '聯絡方式', 'text', { ...mem, ...list, from: '聯絡方式' }),
       F('rating', '評等', 'text', { ...mem, ...list, from: '評等' }),
+      F('paid', '是否要付費', 'text', { ...mem, from: '是否要付費' }),
+      F('fee', '費用計算', 'textarea', { ...mem, from: '費用計算' }),
+      F('households', '社區戶數', 'text', { ...mem, from: '社區戶數' }),
+      F('reasons', '評分原因', 'textarea', { ...mem, from: '評分原因' }),
+      F('note', '補充說明', 'textarea', { ...mem, from: '說明' }),
       F('who', '推薦人', 'text', { ...mem, from: '推薦人' }),
-      F('note', '說明', 'textarea', { ...mem, from: '說明' }),
-      F('status', '狀態', 'text', { ...stf, ...list, from: '狀態' }),
+      F('against', '不推薦', 'boolean', { ...mem, from: '不推薦', help: '這一筆是「不推薦」的經驗分享，會員專區會標出來。' }),
+      F('when', '推薦時間', 'text', { ...mem, from: '推薦時間' }),
+      F('origin', '資料來源', 'text', { ...stf, from: '資料來源', help: '本會推薦，或會員共用廠商表。' }),
+      F('status', '狀態', 'select', { ...stf, ...list, from: '狀態', options: { items: ['上架', '下架'] }, help: '下架的不會出現在會員專區。' }),
     ],
   },
   {
