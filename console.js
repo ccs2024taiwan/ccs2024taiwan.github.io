@@ -329,6 +329,7 @@ async function viewObject(objectId) {
 
   const rows = [];
   const chosen = {};            // 勾起來的那幾列（用編號記）
+  let activeTags = [];          // 來源篩選：選了哪幾個
   let cols = null;
   let cursor = null;
   let total = null;
@@ -337,6 +338,57 @@ async function viewObject(objectId) {
   const body = el('tbody');
   const moreBox = el('div');
   moreBox.style.marginTop = '12px';
+
+  // 來源篩選：像潛在會員那種「一個人可以有好幾個來源」的欄位，用「；」隔開
+  const tagField = obj.fields.filter((f) => f.key === 'source')[0];
+  const tagBar = el('div');
+  tagBar.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;margin:0 0 12px';
+  tagBar.hidden = true;
+
+  const tagsOf = (r) => tagsIn(r.data && r.data[tagField.key]);
+
+  function paintTagBar() {
+    if (!tagField) return;
+    const count = {};
+    rows.forEach((r) => tagsOf(r).forEach((t) => (count[t] = (count[t] || 0) + 1)));
+    const names = Object.keys(count).sort((a, b) => count[b] - count[a]);
+    if (!names.length) { tagBar.hidden = true; return; }
+    tagBar.replaceChildren();
+    tagBar.hidden = false;
+
+    const label = el('span', '', '依' + tagField.label + '挑人：');
+    label.style.cssText = 'font-size:12.5px;color:var(--muted);align-self:center;margin-right:2px';
+    tagBar.append(label);
+
+    const chip = (text, on, onClick) => {
+      const b = el('button', 'btn quiet');
+      b.type = 'button';
+      b.style.cssText = 'padding:4px 11px;font-size:12.5px;border-radius:20px' +
+        (on ? ';background:var(--accent-soft);color:var(--accent);border-color:var(--accent-soft)' : '');
+      b.append(el('span', '', text));
+      b.addEventListener('click', onClick);
+      return b;
+    };
+
+    tagBar.append(chip('全部（' + rows.length + '）', activeTags.length === 0, () => {
+      activeTags = [];
+      paint($('q').value);
+    }));
+    names.forEach((t) => {
+      const on = activeTags.indexOf(t) !== -1;
+      tagBar.append(chip(t + '（' + count[t] + '）', on, () => {
+        if (on) activeTags = activeTags.filter((x) => x !== t);
+        else activeTags = activeTags.concat([t]);
+        paint($('q').value);
+      }));
+    });
+
+    if (activeTags.length > 1) {
+      const note = el('span', '', '（符合其中任一個就列出）');
+      note.style.cssText = 'font-size:12px;color:var(--faint);align-self:center';
+      tagBar.append(note);
+    }
+  }
 
   // 有 Email 或電話欄位的資料才給勾選與複製（例如潛在會員、會員、訂單）
   const contactFields = obj.fields.filter((f) => f.type === 'email' || f.type === 'phone');
@@ -394,9 +446,12 @@ async function viewObject(objectId) {
   const paint = (keyword) => {
     body.replaceChildren();
     const lower = String(keyword || '').trim().toLowerCase();
-    const shown = lower
+    let shown = lower
       ? rows.filter((r) => JSON.stringify(r.data).toLowerCase().indexOf(lower) !== -1 || String(r.id).toLowerCase().indexOf(lower) !== -1)
       : rows;
+    if (tagField && activeTags.length) {
+      shown = shown.filter((r) => matchTags(tagsOf(r), activeTags));
+    }
     shown.forEach((r) => {
       const tr = el('tr');
       if (contactFields.length) {
@@ -417,6 +472,7 @@ async function viewObject(objectId) {
       body.append(tr);
     });
     lastShown = shown;
+    paintTagBar();
     paintPickBar();
     if (!shown.length) {
       const tr = el('tr');
@@ -428,6 +484,7 @@ async function viewObject(objectId) {
     info.textContent = (total != null ? total + ' 筆' : rows.length + ' 筆')
       + (total != null && rows.length < total ? '（已載入 ' + rows.length + '）' : '')
       + (lower ? '　·　符合「' + keyword + '」' + shown.length + ' 筆' : '')
+      + (activeTags.length ? '　·　' + activeTags.join('、') + '　' + shown.length + ' 位' : '')
       + '　·　' + obj.fields.length + ' 個欄位';
   };
 
@@ -439,7 +496,7 @@ async function viewObject(objectId) {
       table.append(headerRow((contactFields.length ? [''] : []).concat(cols.map((f) => f.label))));
       table.append(body);
       tw.append(table);
-      sheet.replaceChildren(pickBar, tw, moreBox);
+      sheet.replaceChildren(tagBar, pickBar, tw, moreBox);
     }
     rows.push.apply(rows, result.rows);
     cursor = result.nextCursor;
@@ -463,6 +520,11 @@ async function viewObject(objectId) {
 
   sheet.append(el('p', 'hint', '讀取中…'));
   await loadMore();
+  // 有來源欄位的（例如潛在會員）要能整份挑人，所以把全部載進來再畫篩選列
+  if (tagField) {
+    while (cursor && rows.length < total) await loadMore();
+    paint($('q').value);
+  }
   $('q').oninput = () => { if (current === 'o:' + objectId && cols) paint($('q').value); };
 }
 const PRIVACY = { public: ['公開', 'pub'], member: ['登入後', 'mem'], staff: ['秘書處', 'stf'], secret: ['個資', 'sec'] };
@@ -931,6 +993,19 @@ function forDateInput(value, type) {
   const day = iso[1] + '-' + pad(iso[2]) + '-' + pad(iso[3]);
   if (type === 'date') return day;
   return day + 'T' + (iso[5] ? pad(iso[5]) + ':' + iso[6] : '00:00');
+}
+
+// ── 一格裡好幾個標籤（例如來源「交流日；購書」）────────────
+// 拆成一個個，前後空白去掉，空的不算
+function tagsIn(value) {
+  return String(value == null ? '' : value)
+    .split('；').map((x) => x.trim()).filter(Boolean);
+}
+
+// 選了好幾個標籤時，符合其中任何一個就算（聯集，不是交集）
+function matchTags(tags, wanted) {
+  if (!wanted || !wanted.length) return true;
+  return tags.some((t) => wanted.indexOf(t) !== -1);
 }
 
 // ── 複製聯絡方式 ────────────────────────────────────────
