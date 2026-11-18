@@ -513,7 +513,11 @@ async function viewObject(objectId) {
       moreBox.append(hint('全部 ' + rows.length + ' 筆都載入了。點任何一列可以看完整內容與相關紀錄。'));
     }
     if (!rows.length) {
-      sheet.replaceChildren(el('div', 'empty', '這個項目還沒有資料。試算表那邊同步過來之後就會出現。'));
+      // 正本在哪，講法就不一樣：還在試算表的要等同步，已經在 D1 的要自己加或用匯入工具
+      const here = !obj.source || obj.source === 'd1';
+      sheet.replaceChildren(el('div', 'empty', here
+        ? '還沒有資料。按右上角「新增' + obj.label + '」自己加一筆，或用試算表選單裡的匯入工具一次搬進來。'
+        : '這個項目還沒有資料。試算表那邊同步過來之後就會出現。'));
       info.textContent = '0 筆';
     }
   };
