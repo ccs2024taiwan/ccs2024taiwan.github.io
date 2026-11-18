@@ -28,6 +28,7 @@
  *   GET  /api/export           整個資料庫倒出來備份（要金鑰）
  *   POST /api/find             依欄位值找資料（要金鑰；給 Apps Script 比對用）
  *   POST /api/bulk             一次匯入很多筆，重複的自動併（要金鑰）
+ *   POST /api/rows             讀某一種資料的全部內容（要金鑰；給 Apps Script 取代讀工作表）
  *   POST /api/field-clean      把某個欄位裡的某一項拿掉（要金鑰；例如來源裡的「總表」）
  *   POST /api/unsubscribe      取消訂閱（公開，給信件裡的退訂連結用）
  *   POST /api/permit-set       給某人某一種資料的權限（只有秘書長）
@@ -657,6 +658,33 @@ async function api(request, env, url) {
         JSON.stringify({ field: field, removed: remove }), JSON.stringify({ changed: writes.length })).run();
     }
     return ok({ changed: writes.length });
+  }
+
+  // ── 讀整份資料（Apps Script 用）──────────────────────
+  // 正本搬到 D1 之後，原本「讀工作表」的程式改讀這裡。
+  // 回傳的欄位名稱用設定庫登記的試算表欄名（例如「任務名稱」），
+  // 這樣原本的程式幾乎不用改，只要把讀取來源換掉。
+  if (path === 'rows' && request.method === 'POST') {
+    if (!(await keyOk(request, env))) return fail('unauthorized', 401);
+    const b = await request.json().catch(() => ({}));
+    const meta = await loadMeta(env);
+    const object = meta.objects.find((o) => o.id === b.object);
+    if (!object) return fail('object_not_found', 404);
+    const found = await env.DB.prepare(
+      'SELECT id, data, status, updated_at FROM record WHERE object_id = ? AND deleted_at IS NULL ORDER BY id'
+    ).bind(object.id).all();
+    const headerOf = {};
+    object.fields.forEach((f) => {
+      const from = f.options && f.options.from;
+      headerOf[f.key] = from || f.label;
+    });
+    const rows = (found.results || []).map((r) => {
+      const data = parse(r.data) || {};
+      const out = { __id: r.id };
+      Object.keys(headerOf).forEach((key) => { out[headerOf[key]] = data[key] == null ? '' : data[key]; });
+      return out;
+    });
+    return ok({ rows: rows, headers: headerOf });
   }
 
   // ── 批次匯入 ────────────────────────────────────────

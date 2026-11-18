@@ -200,7 +200,8 @@ export const objects = [
   {
     // 任務底下的工作項目與進度
     id: 'work', label: '工作進度', icon: 'rows', sort: 66,
-    title_field: 'item', sync: { sheet: '工作進度', key: ['task', 'item'] },
+    // 2026-11-18 搬到 D1：正本在這裡，試算表「工作進度」已改名「（舊）」
+    title_field: 'item', source: 'd1',
     acl: { list: ['volunteer', 'staff'], read: ['volunteer', 'staff'], create: ['staff'], update: ['staff'], delete: ['admin'] },
     fields: [
       F('task', '任務名稱', 'text', { ...stf, ...list, ...req, from: '任務名稱' }),
@@ -209,6 +210,7 @@ export const objects = [
       F('due', '截止日', 'date', { ...stf, ...list, from: '截止日' }),
       F('status', '狀態', 'select', { ...stf, ...list, from: '狀態', options: { items: ['未開始', '進行中', '完成', '取消', '延宕'] } }),
       F('note', '備註', 'textarea', { ...stf, from: '備註' }),
+      F('updated', '最後更新', 'datetime', { ...stf, from: '最後更新' }),
     ],
   },
   {
