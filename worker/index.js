@@ -27,6 +27,7 @@
  *   GET  /api/permits          個別授權一覽（只有秘書長）
  *   GET  /api/export           整個資料庫倒出來備份（要金鑰）
  *   POST /api/find             依欄位值找資料（要金鑰；給 Apps Script 比對用）
+ *   POST /api/bulk             一次匯入很多筆，重複的自動併（要金鑰）
  *   POST /api/permit-set       給某人某一種資料的權限（只有秘書長）
  *   POST /api/permit-remove    收回一筆授權（只有秘書長）
  *   POST /api/remove           刪除一筆（標記刪除，救得回來）
@@ -585,6 +586,92 @@ async function api(request, env, url) {
       return { role: 'admin', who: { role: 'admin', id: 'system', name: String((body && body.who) || '系統'), permits: {} } };
     }
     return { role: role, who: who };
+  }
+
+  // ── 批次匯入 ────────────────────────────────────────
+  // 搬家時一次塞幾百筆用的。一筆一筆打 API 會打到逾時，所以這裡一次收一整批。
+  // dedupe 填哪些欄位算「同一個人」（例如 ["phone","email"]）：對得上就補資料，不會變兩筆。
+  if (path === 'bulk' && request.method === 'POST') {
+    if (!(await keyOk(request, env))) return fail('unauthorized', 401);
+    const b = await request.json().catch(() => ({}));
+    const meta = await loadMeta(env);
+    const object = meta.objects.find((o) => o.id === b.object);
+    if (!object) return fail('object_not_found', 404);
+    const incoming = Array.isArray(b.rows) ? b.rows : [];
+    if (!incoming.length) return ok({ created: 0, merged: 0, skipped: 0 });
+    if (incoming.length > 500) return fail('too_many', 400, '一次最多 500 筆');
+    const keys = Array.isArray(b.dedupe) ? b.dedupe.filter(Boolean).slice(0, 3) : [];
+    const who = String(b.who || '匯入');
+    const now = new Date().toISOString();
+
+    // 先把現有的資料讀進來，用來比對（潛在會員這種表頂多幾千筆，一次讀得完）
+    const existing = await env.DB.prepare('SELECT id, data FROM record WHERE object_id = ? AND deleted_at IS NULL').bind(object.id).all();
+    const index = {};
+    const norm = (v) => String(v == null ? '' : v).trim().toLowerCase();
+    // 連電話 Email 都沒有的（有些名單只留名字），改用「名字＋一樣沒有聯絡方式」當作同一個人，
+    // 不然每匯入一次就多一筆。有聯絡方式的不會走這條，免得同名同姓被誤併。
+    const bare = (d) => !keys.some((k) => norm(d[k]));
+    (existing.results || []).forEach((r) => {
+      const d = parse(r.data) || {};
+      keys.forEach((k) => { const v = norm(d[k]); if (v) index[k + ':' + v] = { id: r.id, data: d }; });
+      if (bare(d)) { const n = norm(d[object.titleField]); if (n) index['(無聯絡方式):' + n] = { id: r.id, data: d }; }
+    });
+
+    const writes = [];
+    let created = 0;
+    let merged = 0;
+    let skipped = 0;
+    incoming.forEach((row) => {
+      const data = (row && typeof row === 'object' && row.data) ? row.data : row;
+      if (!data || typeof data !== 'object') { skipped++; return; }
+      let hit = null;
+      for (const k of keys) {
+        const v = norm(data[k]);
+        if (v && index[k + ':' + v]) { hit = index[k + ':' + v]; break; }
+      }
+      if (!hit && bare(data)) {
+        const n = norm(data[object.titleField]);
+        if (n && index['(無聯絡方式):' + n]) hit = index['(無聯絡方式):' + n];
+      }
+      if (hit) {
+        // 有這個人了：只補原本空著的欄位，不覆蓋既有內容
+        const next = Object.assign({}, hit.data);
+        let changed = false;
+        Object.keys(data).forEach((k) => {
+          const incomingValue = String(data[k] == null ? '' : data[k]).trim();
+          const current = String(next[k] == null ? '' : next[k]).trim();
+          if (incomingValue && !current) { next[k] = data[k]; changed = true; }
+        });
+        if (!changed) { merged++; return; }
+        const title = String(next[object.titleField] == null ? '' : next[object.titleField]).slice(0, 120);
+        writes.push(env.DB.prepare(
+          'UPDATE record SET data = ?, title = ?, updated_at = ?, updated_by = ? WHERE object_id = ? AND id = ?'
+        ).bind(JSON.stringify(next), title, now, who, object.id, hit.id));
+        keys.forEach((k) => { const v = norm(next[k]); if (v) index[k + ':' + v] = { id: hit.id, data: next }; });
+        if (bare(next)) { const n = norm(next[object.titleField]); if (n) index['(無聯絡方式):' + n] = { id: hit.id, data: next }; }
+        merged++;
+        return;
+      }
+      const id = object.id.toUpperCase().slice(0, 3) + Date.now().toString(36).toUpperCase() + Math.random().toString(36).slice(2, 7).toUpperCase();
+      const title = String(data[object.titleField] == null ? '' : data[object.titleField]).slice(0, 120);
+      const status = String(data.status == null ? '' : data.status);
+      writes.push(env.DB.prepare(
+        'INSERT INTO record (id, object_id, data, status, title, created_at, created_by, updated_at, updated_by) VALUES (?,?,?,?,?,?,?,?,?)'
+      ).bind(id, object.id, JSON.stringify(data), status, title, now, who, now, who));
+      keys.forEach((k) => { const v = norm(data[k]); if (v) index[k + ':' + v] = { id: id, data: data }; });
+      if (bare(data)) { const n = norm(data[object.titleField]); if (n) index['(無聯絡方式):' + n] = { id: id, data: data }; }
+      created++;
+    });
+
+    // 分批寫，免得一次送太多句
+    for (let i = 0; i < writes.length; i += 50) await env.DB.batch(writes.slice(i, i + 50));
+    if (created || merged) {
+      await env.DB.prepare(
+        'INSERT INTO audit (id, at, who, role, scope, target, action, before_json, after_json) VALUES (?,?,?,?,?,?,?,?,?)'
+      ).bind((Date.now().toString(36) + Math.random().toString(36).slice(2, 8)).toUpperCase(), now, who, 'admin', object.id, '(批次匯入)', 'import', null,
+        JSON.stringify({ created: created, merged: merged, skipped: skipped })).run();
+    }
+    return ok({ created: created, merged: merged, skipped: skipped });
   }
 
   // ── 依欄位值找資料（Apps Script 比對用）────────────────
