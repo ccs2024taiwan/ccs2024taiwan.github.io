@@ -348,8 +348,9 @@ export const objects = [
     ],
   },
   {
+    // 2026-11-18 搬到 D1：正本在這裡，試算表那張已改名「（舊）」
     id: 'prospect', label: '潛在會員', icon: 'user', sort: 70,
-    title_field: 'name', source: 'sheet:潛在會員',
+    title_field: 'name', source: 'd1',
     acl: { list: ['staff'], read: ['staff'], create: ['staff'], update: ['staff'], delete: ['admin'] },
     fields: [
       F('created', '建立時間', 'datetime', { ...stf, ...list, ...locked }),

@@ -26,6 +26,7 @@
  *   POST /api/save             新增或修改一筆（要通行證；正本在 D1 的資料才可以）
  *   GET  /api/permits          個別授權一覽（只有秘書長）
  *   GET  /api/export           整個資料庫倒出來備份（要金鑰）
+ *   POST /api/find             依欄位值找資料（要金鑰；給 Apps Script 比對用）
  *   POST /api/permit-set       給某人某一種資料的權限（只有秘書長）
  *   POST /api/permit-remove    收回一筆授權（只有秘書長）
  *   POST /api/remove           刪除一筆（標記刪除，救得回來）
@@ -576,6 +577,35 @@ async function api(request, env, url) {
     return ok({ removed: true });
   }
 
+  // 帶金鑰來的是我們自己的程式（Apps Script）：等同秘書長，但留痕要記成真正動手的那個人。
+  // 用在「志工申請不通過自動建潛在會員」這種系統寫入。
+  async function asSystem(body) {
+    if (role === 'admin') return { role: role, who: who };
+    if (await keyOk(request, env)) {
+      return { role: 'admin', who: { role: 'admin', id: 'system', name: String((body && body.who) || '系統'), permits: {} } };
+    }
+    return { role: role, who: who };
+  }
+
+  // ── 依欄位值找資料（Apps Script 比對用）────────────────
+  if (path === 'find' && request.method === 'POST') {
+    if (!(await keyOk(request, env))) return fail('unauthorized', 401);
+    const b = await request.json().catch(() => ({}));
+    const meta = await loadMeta(env);
+    const object = meta.objects.find((o) => o.id === b.object);
+    if (!object) return fail('object_not_found', 404);
+    const where = (b.where && typeof b.where === 'object') ? b.where : {};
+    const keys = Object.keys(where).slice(0, 4);
+    if (!keys.length) return fail('missing_fields');
+    // 任何一個條件對上就算（給「同一個人用電話或 Email 比對」用）
+    const sql = 'SELECT id, data, status, title FROM record WHERE object_id = ? AND deleted_at IS NULL AND (' +
+      keys.map(() => "json_extract(data, '$.' || ?) = ?").join(' OR ') + ') LIMIT 20';
+    const args = [object.id];
+    keys.forEach((k) => { args.push(k); args.push(String(where[k])); });
+    const rows = await env.DB.prepare(sql).bind(...args).all();
+    return ok({ rows: (rows.results || []).map((r) => ({ id: r.id, status: r.status, title: r.title, data: parse(r.data) || {} })) });
+  }
+
   // ── 新增或修改一筆 ──────────────────────────────────
   // 正本在 D1 的資料才走這裡。還在試算表的，改了也會被下一次同步蓋掉，所以直接擋下來。
   if (path === 'save' && request.method === 'POST') {
@@ -586,7 +616,8 @@ async function api(request, env, url) {
     if (!ownedHere(object)) return fail('not_editable_here', 409, '「' + object.label + '」的正本還在試算表，請到試算表改');
     const id = String(body2.id == null ? '' : body2.id).trim();
     const isNew = !id;
-    if (!canDo(object, role, isNew ? 'create' : 'update', who)) return fail('forbidden', 403);
+    const act = await asSystem(body2);
+    if (!canDo(object, act.role, isNew ? 'create' : 'update', act.who)) return fail('forbidden', 403);
     const input = body2.data && typeof body2.data === 'object' ? body2.data : {};
 
     let before = null;
@@ -597,11 +628,11 @@ async function api(request, env, url) {
     }
 
     // 只收這個角色看得到的欄位：看不到的欄位不會被誤清空，secret 也不會被偷改
-    const seen = VISIBLE[role] || VISIBLE.guest;
+    const seen = VISIBLE[act.role] || VISIBLE.guest;
     const data = Object.assign({}, before || {});
     const problems = [];
     object.fields.forEach((f) => {
-      if (f.privacy === 'secret' && role !== 'admin') return; // 只有秘書長能改個資
+      if (f.privacy === 'secret' && act.role !== 'admin') return; // 只有秘書長能改個資
       if (!seen.includes(f.privacy)) return;
       if (!Object.prototype.hasOwnProperty.call(input, f.key)) {
         const err0 = fieldError(f, data[f.key]);
@@ -611,7 +642,7 @@ async function api(request, env, url) {
       const value = input[f.key];
       const err = fieldError(f, value);
       if (err) { problems.push(err); return; }
-      const locked = isNew ? null : lockError(f, before ? before[f.key] : null, value, role);
+      const locked = isNew ? null : lockError(f, before ? before[f.key] : null, value, act.role);
       if (locked) { problems.push(locked); return; }
       data[f.key] = value === '' ? null : value;
     });
@@ -628,7 +659,7 @@ async function api(request, env, url) {
     }
 
     const now = new Date().toISOString();
-    const me = who.name || who.id || 'console';
+    const me = act.who.name || act.who.id || 'console';
     const title = String(data[object.titleField] == null ? '' : data[object.titleField]).slice(0, 120);
     const status = String(data.status == null ? '' : data.status);
     const newId = isNew ? (object.id.toUpperCase().slice(0, 3) + Date.now().toString(36).toUpperCase() + Math.random().toString(36).slice(2, 5).toUpperCase()) : id;
@@ -646,7 +677,7 @@ async function api(request, env, url) {
     const auditId = (Date.now().toString(36) + Math.random().toString(36).slice(2, 8)).toUpperCase();
     writes.push(env.DB.prepare(
       'INSERT INTO audit (id, at, who, role, scope, target, action, before_json, after_json) VALUES (?,?,?,?,?,?,?,?,?)'
-    ).bind(auditId, now, me, role, object.id, newId, isNew ? 'create' : 'update',
+    ).bind(auditId, now, me, act.role, object.id, newId, isNew ? 'create' : 'update',
       before == null ? null : JSON.stringify(before), JSON.stringify(data)));
     await env.DB.batch(writes);
     return ok({ id: newId, created: isNew });
@@ -660,7 +691,8 @@ async function api(request, env, url) {
     const object = meta.objects.find((o) => o.id === body3.object);
     if (!object) return fail('object_not_found', 404);
     if (!ownedHere(object)) return fail('not_editable_here', 409, '「' + object.label + '」的正本還在試算表');
-    if (!canDo(object, role, 'delete', who)) return fail('forbidden', 403);
+    const act2 = await asSystem(body3);
+    if (!canDo(object, act2.role, 'delete', act2.who)) return fail('forbidden', 403);
     const id = String(body3.id || '').trim();
     if (!id) return fail('missing_id');
     const row = await env.DB.prepare('SELECT * FROM record WHERE object_id = ? AND id = ? AND deleted_at IS NULL').bind(object.id, id).first();
@@ -677,12 +709,12 @@ async function api(request, env, url) {
     }
 
     const now = new Date().toISOString();
-    const me = who.name || who.id || 'console';
+    const me = act2.who.name || act2.who.id || 'console';
     const auditId = (Date.now().toString(36) + Math.random().toString(36).slice(2, 8)).toUpperCase();
     await env.DB.batch([
       env.DB.prepare('UPDATE record SET deleted_at = ?, updated_at = ?, updated_by = ? WHERE object_id = ? AND id = ?').bind(now, now, me, object.id, id),
       env.DB.prepare('INSERT INTO audit (id, at, who, role, scope, target, action, before_json, after_json) VALUES (?,?,?,?,?,?,?,?,?)')
-        .bind(auditId, now, me, role, object.id, id, 'delete', row.data, null),
+        .bind(auditId, now, me, act2.role, object.id, id, 'delete', row.data, null),
     ]);
     return ok({ deleted: true, id: id });
   }
