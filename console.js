@@ -328,6 +328,7 @@ async function viewObject(objectId) {
   main.append(sheet);
 
   const rows = [];
+  const chosen = {};            // 勾起來的那幾列（用編號記）
   let cols = null;
   let cursor = null;
   let total = null;
@@ -336,6 +337,52 @@ async function viewObject(objectId) {
   const body = el('tbody');
   const moreBox = el('div');
   moreBox.style.marginTop = '12px';
+
+  // 有 Email 或電話欄位的資料才給勾選與複製（例如潛在會員、會員、訂單）
+  const contactFields = obj.fields.filter((f) => f.type === 'email' || f.type === 'phone');
+  let lastShown = [];
+  const pickBar = el('div');
+  pickBar.style.cssText = 'display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:0 0 12px';
+  pickBar.hidden = true;
+
+  function paintPickBar() {
+    if (!contactFields.length) return;
+    const picked = Object.keys(chosen);
+    pickBar.replaceChildren();
+    pickBar.hidden = false;
+
+    const all = el('button', 'btn quiet');
+    all.type = 'button';
+    const everyShown = lastShown.length > 0 && lastShown.every((r) => chosen[r.id]);
+    all.append(el('span', '', everyShown ? '取消全選' : '全選這一頁（' + lastShown.length + '）'));
+    all.addEventListener('click', () => {
+      if (everyShown) lastShown.forEach((r) => delete chosen[r.id]);
+      else lastShown.forEach((r) => (chosen[r.id] = r));
+      paint($('q').value);
+    });
+    pickBar.append(all);
+
+    const count = el('span', '', picked.length ? '已勾選 ' + picked.length + ' 位' : '勾選後可以複製聯絡方式');
+    count.style.cssText = 'font-size:12.5px;color:var(--muted)';
+    pickBar.append(count);
+
+    contactFields.forEach((f) => {
+      const b = el('button', 'btn' + (picked.length ? ' pri' : ''));
+      b.type = 'button';
+      b.disabled = !picked.length;
+      b.append(icon(f.type === 'email' ? 'doc' : 'user'), el('span', '', '複製 ' + f.label));
+      b.addEventListener('click', () => copyContacts(obj, Object.keys(chosen).map((id) => chosen[id]), f));
+      pickBar.append(b);
+    });
+
+    if (picked.length) {
+      const clear = el('button', 'btn quiet');
+      clear.type = 'button';
+      clear.append(el('span', '', '清除勾選'));
+      clear.addEventListener('click', () => { Object.keys(chosen).forEach((k) => delete chosen[k]); paint($('q').value); });
+      pickBar.append(clear);
+    }
+  }
 
   const cellOf = (r, f, i) => {
     const raw = r.data[f.key];
@@ -352,15 +399,29 @@ async function viewObject(objectId) {
       : rows;
     shown.forEach((r) => {
       const tr = el('tr');
+      if (contactFields.length) {
+        const pick = el('td');
+        pick.style.width = '34px';
+        const box = el('input');
+        box.type = 'checkbox';
+        box.checked = Boolean(chosen[r.id]);
+        box.style.cssText = 'width:15px;height:15px;accent-color:var(--accent);cursor:pointer';
+        box.addEventListener('click', (e) => e.stopPropagation()); // 勾選不要順便打開抽屜
+        box.addEventListener('change', () => { if (box.checked) chosen[r.id] = r; else delete chosen[r.id]; paintPickBar(); });
+        pick.append(box);
+        tr.append(pick);
+      }
       cols.forEach((f, i) => tr.append(cellOf(r, f, i)));
       tr.style.cursor = 'pointer';
       tr.addEventListener('click', () => openDrawer(obj, r));
       body.append(tr);
     });
+    lastShown = shown;
+    paintPickBar();
     if (!shown.length) {
       const tr = el('tr');
       const td = el('td', 'empty', '沒有符合的資料');
-      td.colSpan = cols.length;
+      td.colSpan = cols.length + (contactFields.length ? 1 : 0);
       tr.append(td);
       body.append(tr);
     }
@@ -375,10 +436,10 @@ async function viewObject(objectId) {
     if (!result.ok) { sheet.replaceChildren(el('p', 'err', '讀不到：' + (result.message || result.error))); return; }
     if (!cols) {
       cols = (result.fields && result.fields.length ? result.fields : obj.fields.slice(0, 6));
-      table.append(headerRow(cols.map((f) => f.label)));
+      table.append(headerRow((contactFields.length ? [''] : []).concat(cols.map((f) => f.label))));
       table.append(body);
       tw.append(table);
-      sheet.replaceChildren(tw, moreBox);
+      sheet.replaceChildren(pickBar, tw, moreBox);
     }
     rows.push.apply(rows, result.rows);
     cursor = result.nextCursor;
@@ -870,6 +931,89 @@ function forDateInput(value, type) {
   const day = iso[1] + '-' + pad(iso[2]) + '-' + pad(iso[3]);
   if (type === 'date') return day;
   return day + 'T' + (iso[5] ? pad(iso[5]) + ':' + iso[6] : '00:00');
+}
+
+// ── 複製聯絡方式 ────────────────────────────────────────
+// 產生用逗號隔開的一串，直接貼進 Gmail 的收件者欄就會自動變成一個個收件人。
+// 已取消訂閱的人會自動排除，重複的只留一個。
+// 挑出要貼出去的聯絡方式：排除取消訂閱、空白與重複
+function contactList(obj, picked, field) {
+  const optOut = obj.fields.some((f) => f.key === 'opt_out');
+  const seen = {};
+  const values = [];
+  let skippedOptOut = 0;
+  let skippedEmpty = 0;
+  let dup = 0;
+  picked.forEach((r) => {
+    if (optOut) {
+      const no = String(r.data.opt_out == null ? '' : r.data.opt_out).trim();
+      if (no && no !== '否' && no !== 'false' && no !== '0') { skippedOptOut++; return; }
+    }
+    const v = String(r.data[field.key] == null ? '' : r.data[field.key]).trim();
+    if (!v) { skippedEmpty++; return; }
+    const key = v.toLowerCase();
+    if (seen[key]) { dup++; return; }
+    seen[key] = true;
+    values.push(v);
+  });
+  return { values: values, skippedOptOut: skippedOptOut, skippedEmpty: skippedEmpty, dup: dup };
+}
+
+function copyContacts(obj, picked, field) {
+  const picked0 = contactList(obj, picked, field);
+  const values = picked0.values;
+  const skippedOptOut = picked0.skippedOptOut;
+  const skippedEmpty = picked0.skippedEmpty;
+
+  const d = ensureDrawer();
+  d.title.replaceChildren(el('span', '', '複製' + field.label + '（' + values.length + ' 位）'));
+  d.body.replaceChildren();
+
+  const note = el('p', 'hint');
+  note.append(icon('info'), el('span', '', field.type === 'email'
+    ? '貼到 Gmail 的收件者欄會自動變成一個個收件人。一次寄很多人請放在「密件副本」，收件人之間才看不到彼此。Gmail 一天最多 500 位，建議一次 50 位以內分批寄。'
+    : '用逗號隔開的電話清單，可以貼到試算表或簡訊群發工具。'));
+  d.body.append(note);
+
+  const area = el('textarea');
+  area.value = values.join(', ');
+  area.rows = 10;
+  area.style.cssText = 'font:inherit;font-size:13px;line-height:1.8;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--sub);color:var(--ink);width:100%;resize:vertical';
+  d.body.append(area);
+
+  const lines = [];
+  if (skippedOptOut) lines.push('已排除取消訂閱的 ' + skippedOptOut + ' 位');
+  if (skippedEmpty) lines.push('沒有填' + field.label + '的 ' + skippedEmpty + ' 位沒有列入');
+  const dup = picked0.dup;
+  if (dup > 0) lines.push('重複的 ' + dup + ' 筆只留一個');
+  if (lines.length) {
+    const small = el('p', '', lines.join('；'));
+    small.style.cssText = 'font-size:12.5px;color:var(--muted);margin-top:8px';
+    d.body.append(small);
+  }
+
+  const bar = el('div');
+  bar.style.cssText = 'display:flex;gap:8px;margin-top:14px';
+  const copy = el('button', 'btn pri');
+  copy.type = 'button';
+  copy.append(icon('check'), el('span', '', '複製'));
+  const said = el('span', '', '');
+  said.style.cssText = 'font-size:12.5px;color:var(--muted);align-self:center';
+  copy.addEventListener('click', async () => {
+    area.select();
+    try {
+      await navigator.clipboard.writeText(area.value);
+      said.textContent = '複製好了，去 Gmail 貼上就可以。';
+    } catch (err) {
+      said.textContent = '瀏覽器不讓我直接複製，請按 Ctrl+C。';
+    }
+  });
+  bar.append(copy, said);
+  d.body.append(bar);
+
+  d.scrim.classList.add('on');
+  d.drawer.classList.add('on');
+  d.body.scrollTop = 0;
 }
 
 // ── 新增與修改 ──────────────────────────────────────────
