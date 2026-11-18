@@ -992,6 +992,17 @@ function copyContacts(obj, picked, field) {
     d.body.append(small);
   }
 
+  // 信末要附的退訂說明：直接給一段可以貼的字
+  const tail = el('div');
+  tail.style.cssText = 'margin-top:16px;padding-top:14px;border-top:1px solid var(--line)';
+  tail.append(el('label', '', '信末建議附上這一段（法規與禮貌）'));
+  const tailText = el('textarea');
+  tailText.rows = 3;
+  tailText.value = '如果不想再收到我們的活動與課程通知，請到 ' + location.origin + '/unsubscribe.html 取消訂閱。';
+  tailText.style.cssText = 'font:inherit;font-size:13px;line-height:1.8;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--sub);color:var(--ink);width:100%;margin-top:6px';
+  tail.append(tailText);
+  d.body.append(tail);
+
   const bar = el('div');
   bar.style.cssText = 'display:flex;gap:8px;margin-top:14px';
   const copy = el('button', 'btn pri');

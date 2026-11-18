@@ -2532,3 +2532,44 @@ if (forumListEl || portalForumList) {
     }
   });
 }
+
+// ── 取消訂閱（unsubscribe.html）──────────────────────────
+// 寄活動通知時在信末附上這一頁的網址，對方自己按就不再收到。
+// 不論信箱在不在名單裡，畫面講法都一樣，免得被拿來試探誰在名單上。
+(function () {
+  const form = document.getElementById('unsubForm');
+  if (!form) return;
+  const done = document.getElementById('unsubDone');
+  const err = document.getElementById('unsubError');
+  const input = document.getElementById('unsubEmail');
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const email = input.value.trim();
+    err.hidden = true;
+    done.hidden = true;
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      err.textContent = '請輸入正確的 Email。';
+      err.hidden = false;
+      return;
+    }
+    const button = form.querySelector('[type="submit"]');
+    setBusy(button, true);
+    try {
+      const res = await fetch('/api/unsubscribe', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ email: email }),
+      });
+      const result = await res.json();
+      if (!result.ok) throw new Error(result.message || result.error);
+      form.hidden = true;
+      done.textContent = '好了，' + email + ' 不會再收到我們的活動與課程通知。';
+      done.hidden = false;
+    } catch (e) {
+      err.textContent = '沒有成功：' + (e && e.message ? e.message : e) + '　請改寄信到 ccs2024taiwan@gmail.com，我們幫你處理。';
+      err.hidden = false;
+    } finally {
+      setBusy(button, false);
+    }
+  });
+})();

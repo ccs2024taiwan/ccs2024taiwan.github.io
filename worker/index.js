@@ -29,6 +29,7 @@
  *   POST /api/find             依欄位值找資料（要金鑰；給 Apps Script 比對用）
  *   POST /api/bulk             一次匯入很多筆，重複的自動併（要金鑰）
  *   POST /api/field-clean      把某個欄位裡的某一項拿掉（要金鑰；例如來源裡的「總表」）
+ *   POST /api/unsubscribe      取消訂閱（公開，給信件裡的退訂連結用）
  *   POST /api/permit-set       給某人某一種資料的權限（只有秘書長）
  *   POST /api/permit-remove    收回一筆授權（只有秘書長）
  *   POST /api/remove           刪除一筆（標記刪除，救得回來）
@@ -587,6 +588,36 @@ async function api(request, env, url) {
       return { role: 'admin', who: { role: 'admin', id: 'system', name: String((body && body.who) || '系統'), permits: {} } };
     }
     return { role: role, who: who };
+  }
+
+  // ── 取消訂閱 ────────────────────────────────────────
+  // 公開的，因為是給信件裡的退訂連結用，對方不會有帳號。
+  // 只做一件事：把名單上這個信箱標成已取消訂閱。即使信箱不在名單裡，回覆也一樣，
+  // 這樣別人沒辦法拿它來試探誰在我們的名單上。
+  if (path === 'unsubscribe' && request.method === 'POST') {
+    const b = await request.json().catch(() => ({}));
+    const email = String(b.email || '').trim().toLowerCase();
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return fail('invalid_email', 400, '請輸入正確的 Email');
+    const rows = await env.DB.prepare(
+      "SELECT id, data FROM record WHERE object_id = 'prospect' AND deleted_at IS NULL AND lower(json_extract(data, '$.email')) = ?"
+    ).bind(email).all();
+    const now = new Date().toISOString();
+    const writes = [];
+    (rows.results || []).forEach((r) => {
+      const data = parse(r.data) || {};
+      if (String(data.opt_out || '') === '是') return;
+      data.opt_out = '是';
+      data.last_touch = now.slice(0, 10);
+      writes.push(env.DB.prepare(
+        'UPDATE record SET data = ?, updated_at = ?, updated_by = ? WHERE object_id = ? AND id = ?'
+      ).bind(JSON.stringify(data), now, '本人退訂', 'prospect', r.id));
+      writes.push(env.DB.prepare(
+        'INSERT INTO audit (id, at, who, role, scope, target, action, before_json, after_json) VALUES (?,?,?,?,?,?,?,?,?)'
+      ).bind((Date.now().toString(36) + Math.random().toString(36).slice(2, 8)).toUpperCase(), now, '本人退訂', 'guest', 'prospect', r.id, 'unsubscribe',
+        JSON.stringify({ opt_out: '' }), JSON.stringify({ opt_out: '是' })));
+    });
+    for (let i = 0; i < writes.length; i += 50) await env.DB.batch(writes.slice(i, i + 50));
+    return ok({ done: true });
   }
 
   // ── 把某個欄位裡的某一項拿掉 ────────────────────────
