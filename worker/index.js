@@ -601,6 +601,8 @@ async function api(request, env, url) {
     if (!incoming.length) return ok({ created: 0, merged: 0, skipped: 0 });
     if (incoming.length > 500) return fail('too_many', 400, '一次最多 500 筆');
     const keys = Array.isArray(b.dedupe) ? b.dedupe.filter(Boolean).slice(0, 3) : [];
+    const appendFields = Array.isArray(b.appendFields) ? b.appendFields : [];
+    const onlyExisting = b.onlyExisting === true;
     const who = String(b.who || '匯入');
     const now = new Date().toISOString();
 
@@ -640,7 +642,17 @@ async function api(request, env, url) {
         Object.keys(data).forEach((k) => {
           const incomingValue = String(data[k] == null ? '' : data[k]).trim();
           const current = String(next[k] == null ? '' : next[k]).trim();
-          if (incomingValue && !current) { next[k] = data[k]; changed = true; }
+          if (!incomingValue) return;
+          if (appendFields.indexOf(k) !== -1) {
+            // 接在後面，但同樣的字不重複接（重跑這支工具不會愈接愈長）
+            const parts = current ? current.split('；').map((x) => x.trim()).filter(Boolean) : [];
+            if (parts.indexOf(incomingValue) !== -1) return;
+            parts.push(incomingValue);
+            next[k] = parts.join('；');
+            changed = true;
+            return;
+          }
+          if (!current) { next[k] = data[k]; changed = true; }
         });
         if (!changed) { merged++; return; }
         const title = String(next[object.titleField] == null ? '' : next[object.titleField]).slice(0, 120);
@@ -652,6 +664,7 @@ async function api(request, env, url) {
         merged++;
         return;
       }
+      if (onlyExisting) { skipped++; return; }
       const id = object.id.toUpperCase().slice(0, 3) + Date.now().toString(36).toUpperCase() + Math.random().toString(36).slice(2, 7).toUpperCase();
       const title = String(data[object.titleField] == null ? '' : data[object.titleField]).slice(0, 120);
       const status = String(data.status == null ? '' : data.status);
