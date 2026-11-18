@@ -950,7 +950,7 @@ async function api(request, env, url) {
   if (path === 'pending') {
     if (role !== 'staff' && role !== 'admin') return fail('forbidden', 403);
     const row = await env.DB.prepare('SELECT value FROM settings WHERE "key" = ?').bind('待辦狀態').first();
-    const words = String((row && row.value) || '待審核,待確認,待繳費,已回報,已回報匯款,待對帳,待核准,待回覆,待聯絡')
+    const words = String((row && row.value) || '待審核,待審,待確認,待繳費,已回報,已回報匯款,待對帳,待核准,待回覆,待聯絡')
       .split(/[s,，、;；]+/).filter(Boolean);
     const meta = await loadMeta(env);
     const allowed = meta.objects.filter((o) => canList(o, role, who)).map((o) => o.id);

@@ -253,7 +253,7 @@ export const objects = [
       F('against', '不推薦', 'boolean', { ...mem, from: '不推薦', help: '這一筆是「不推薦」的經驗分享，會員專區會標出來。' }),
       F('when', '推薦時間', 'text', { ...mem, from: '推薦時間' }),
       F('origin', '資料來源', 'text', { ...stf, from: '資料來源', help: '本會推薦，或會員共用廠商表。' }),
-      F('status', '狀態', 'select', { ...stf, ...list, from: '狀態', options: { items: ['上架', '下架'] }, help: '下架的不會出現在會員專區。' }),
+      F('status', '狀態', 'select', { ...stf, ...list, from: '狀態', options: { items: ['上架', '待審', '下架'] }, help: '只有「上架」會出現在會員專區。官網送來的負評與廠商自薦會先進「待審」。' }),
     ],
   },
   {
