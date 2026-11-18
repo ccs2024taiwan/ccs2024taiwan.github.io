@@ -2190,6 +2190,9 @@ if (eventList) {
     $('eventDone').hidden = true;
     $('eventError').hidden = true;
     $('evTitle').textContent = current.title;
+    // 左邊的說明要跟這場活動的設定一致：課程活動表每一個環節都有「可帶朋友人數」，
+    // 全部填 0 就是這場不開放帶朋友，說明不能還寫「免費帶 1 位」（2026-11-18 秘書長發現）
+    paintFriendStep(current);
     $('evMeta').textContent = [`${current.date}（${current.weekday}）${eventTimeText(current.sessions) ? ' ' + eventTimeText(current.sessions) : ''}`, current.place, current.deadline && `報名至 ${current.deadline}`].filter(Boolean).join('｜');
     $('evBack').hidden = events.length < 2;
     // 活動地點 Google 地圖：課程活動表有填「地址」就用地址，沒有就用「地點」去找
@@ -2380,6 +2383,25 @@ if (eventList) {
       .sort((a, b) => (a.date < b.date ? -1 : 1));
     if (list.length) paintEvents(list);
   });
+
+  // 這場活動到底能不能帶朋友，照環節的設定說實話
+  function paintFriendStep(current) {
+    const step = $('evFriendStep');
+    if (!step) return;
+    const sessions = (current && current.sessions) || [];
+    const most = sessions.reduce((n, s) => Math.max(n, Number(s.maxFriends) || 0), 0);
+    const memberOnly = sessions.length > 0 && sessions.every((s) => s.memberOnly);
+    if (!most) {
+      $('evFriendTitle').textContent = '這場不開放帶朋友';
+      $('evFriendText').textContent = memberOnly
+        ? '這場限會員與志工參加，一人一個名額，無法代朋友報名。'
+        : '這場每個人各自報名，無法代朋友報名。想一起來的朋友請各自填一份報名表。';
+      return;
+    }
+    $('evFriendTitle').textContent = '會員免費帶 1 位朋友';
+    $('evFriendText').textContent = '會員與志工報名時填會員編號（志工填登記的姓名），可免費帶 1 位朋友；第 2 位起比照非會員收費。'
+      + (most > 1 ? '這場最多可以帶 ' + most + ' 位。' : '');
+  }
 
   api({ action: 'events' }).then((result) => {
     bank = result.bank || null;
