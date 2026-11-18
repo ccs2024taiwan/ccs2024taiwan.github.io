@@ -326,7 +326,8 @@ export const objects = [
   },
   {
     id: 'meeting', label: '會議', icon: 'cal', sort: 64,
-    title_field: 'name', sync: { sheet: '會議', key: ['name', 'date'] },
+    title_field: 'name', // 2026-11-19 搬到 D1：正本在這裡，試算表「會議」已改名「（舊）」
+    source: 'd1',
     acl: { list: ['staff'], read: ['staff'], create: ['staff'], update: ['staff'], delete: ['admin'] },
     fields: [
       F('name', '會議名稱', 'text', { ...stf, ...list, ...req, from: '會議名稱' }),
@@ -337,6 +338,7 @@ export const objects = [
       F('invited', '通知對象', 'text', { ...stf, from: '通知對象' }),
       F('status', '狀態', 'text', { ...stf, ...list, from: '狀態' }),
       F('doc', '會議文件', 'url', { ...stf, from: '會議文件' }),
+      F('meet', '線上會議', 'text', { ...stf, from: '線上會議', help: '填「建立」會自動開一場 Google Meet 並把連結填回來；填「不需要」就不開。' }),
       F('notified', '通知寄出日', 'date', { ...stf, from: '通知寄出日' }),
       F('note', '備註', 'textarea', { ...stf, from: '備註' }),
     ],
