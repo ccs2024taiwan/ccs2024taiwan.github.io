@@ -184,7 +184,8 @@ export const objects = [
   {
     // 志工參與紀錄：任務、會議的出席與積分
     id: 'participation', label: '參與紀錄', icon: 'check', sort: 65,
-    title_field: 'who', sync: { sheet: '參與紀錄', key: ['date', 'task', 'who'] },
+    title_field: 'who', // 2026-11-18 搬到 D1：正本在這裡，試算表「參與紀錄」已改名「（舊）」
+    source: 'd1',
     acl: { list: ['staff'], read: ['staff'], create: ['staff'], update: ['staff'], delete: ['admin'] },
     fields: [
       F('date', '日期', 'date', { ...stf, ...list, from: '日期' }),
