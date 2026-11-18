@@ -78,10 +78,9 @@ $('loginForm').addEventListener('submit', async (event) => {
     step = '向官網資料庫確認身分';
     const me = await db('me');
     if (!me || !me.ok) { session.clear(); throw new Error('官網資料庫沒有回應身分：' + ((me && (me.message || me.error)) || '未知原因')); }
-    if (me.role !== 'staff' && me.role !== 'admin') {
-      const who = me.role === 'member' ? '一般會員' : me.role === 'volunteer' ? '志工' : me.role;
+    if (!mayEnter(me)) {
       session.clear();
-      throw new Error('你目前的身分是「' + who + '」，不是秘書處管理員，所以進不了管理台。請在試算表「設定」的〈管理員會員編號〉加上 ' + ($('mid').value.trim() || '你的編號') + '，再按一次選單「同步：更新設定庫」。');
+      throw new Error('你目前的身分是「' + roleName(me.role) + '」，還沒有行政中心的權限。要進來有三種方式：加入〈管理員會員編號〉（什麼都能改）、加入〈理監事會員編號〉（只看財務），或是請秘書長到「系統 → 權限」給你某一種資料的權限。');
     }
     step = '載入管理台';
     await start(me);
@@ -101,6 +100,30 @@ let META = null;
 let STATS = null;
 let ME = null;
 let current = null;
+
+// 身分的中文名字，講給人聽
+function roleName(role) {
+  return { admin: '秘書長', staff: '秘書處', board: '理監事', volunteer: '志工', member: '會員', guest: '訪客' }[role] || role;
+}
+
+// 進得了行政中心嗎：秘書長、秘書處、理監事，或拿到個別授權的志工
+function mayEnter(me) {
+  if (!me) return false;
+  if (me.role === 'admin' || me.role === 'staff' || me.role === 'board') return true;
+  return Boolean(me.permits && Object.keys(me.permits).length);
+}
+
+// 這一種資料我改不改得動：要有權限，而且正本已經在 D1（還在試算表的要回試算表改）
+function canEdit(obj) {
+  if (!obj || !ME) return false;
+  const here = !obj.source || obj.source === 'd1';
+  return here && Array.isArray(ME.canWrite) && ME.canWrite.indexOf(obj.id) !== -1;
+}
+
+// 刪除永遠只有秘書長
+function canDelete(obj) {
+  return canEdit(obj) && ME && ME.role === 'admin';
+}
 let PENDING_COUNT = null;
 
 async function start(me) {
@@ -115,7 +138,7 @@ async function start(me) {
   window.scrollTo(0, 0);
   const s = session.get();
   const name = (s && s.member && s.member.name) || me.name || me.id || '';
-  $('whoName').textContent = name + '　·　' + (me.role === 'admin' ? '系統管理員' : '秘書處');
+  $('whoName').textContent = name + '　·　' + roleName(me.role);
   $('whoInitial').textContent = name.slice(0, 1) || '·';
   $('dbInfo').textContent = '官網資料庫　' + (STATS.ok ? STATS.totalRecords + ' 筆' : '讀取失敗');
   buildNav();
@@ -291,6 +314,13 @@ async function viewObject(objectId) {
   const info = el('p', '', '讀取中…');
   box.append(el('h1', 'page', obj.label), info);
   head.append(box, el('span', 'sp'));
+  if (canEdit(obj)) {
+    const add = el('button', 'btn pri');
+    add.type = 'button';
+    add.append(icon('check'), el('span', '', '新增' + obj.label));
+    add.addEventListener('click', () => openForm(obj, null));
+    head.append(add);
+  }
   main.append(head);
 
   const sheet = el('div', 'sheet');
@@ -374,7 +404,7 @@ async function viewObject(objectId) {
   await loadMore();
   $('q').oninput = () => { if (current === 'o:' + objectId && cols) paint($('q').value); };
 }
-const PRIVACY = { public: ['公開', 'pub'], member: ['登入後', 'mem'], staff: ['秘書處', 'stf'], secret: ['只比對', 'sec'] };
+const PRIVACY = { public: ['公開', 'pub'], member: ['登入後', 'mem'], staff: ['秘書處', 'stf'], secret: ['個資', 'sec'] };
 
 // 明細抽屜：從右邊滑出，蓋在列表上，所以表格可以用滿整個寬度
 let drawerEls = null;
@@ -433,6 +463,30 @@ function showDetail(obj, row, box) {
     fld.append(label, v);
     box.append(fld);
   });
+  // 編輯與刪除：正本已經在 D1、而且我有權限才會出現
+  if (canEdit(obj)) {
+    const bar0 = el('div');
+    bar0.style.cssText = 'display:flex;gap:8px;margin:18px 0 0;padding-top:16px;border-top:1px solid var(--line)';
+    const editBtn = el('button', 'btn');
+    editBtn.type = 'button';
+    editBtn.append(icon('rows'), el('span', '', '編輯'));
+    editBtn.addEventListener('click', () => openForm(obj, row));
+    bar0.append(editBtn);
+    if (canDelete(obj)) {
+      const delBtn = el('button', 'btn quiet');
+      delBtn.type = 'button';
+      delBtn.append(icon('out'), el('span', '', '刪除'));
+      delBtn.addEventListener('click', () => removeRecord(obj, row));
+      bar0.append(delBtn);
+    }
+    box.append(bar0);
+  } else if (obj.source && obj.source.indexOf('sheet:') === 0) {
+    const note = el('p', 'hint');
+    note.style.marginTop = '18px';
+    note.append(icon('info'), el('span', '', '這一種資料的正本還在試算表「' + obj.source.slice(6) + '」，要改請到那裡改，改完會同步過來。'));
+    box.append(note);
+  }
+
   const acts = actionsFor(obj.id, row);
   if (acts.length) {
     const bar = el('div');
@@ -726,7 +780,7 @@ async function viewSync() {
   const s = session.get();
   if (!s || !s.token) return;
   const me = await db('me').catch(() => null);
-  if (me && me.ok && (me.role === 'staff' || me.role === 'admin')) start(me);
+  if (me && me.ok && mayEnter(me)) start(me);
   else session.clear();
 })();
 
@@ -796,6 +850,138 @@ async function openById(objectId, id) {
   if (!obj) return;
   const result = await db('get', { object: objectId, id: id });
   if (result.ok && result.row) openDrawer(obj, result.row);
+}
+
+// 把各種寫法的日期轉成 <input type="date"> 吃得下的格式；轉不出來回空字串
+function forDateInput(value, type) {
+  const text = String(value).trim();
+  if (!text) return '';
+  const iso = /^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})([T ](\d{1,2}):(\d{2}))?/.exec(text);
+  if (!iso) {
+    // 沒有四位數年份就不要猜（例如「11/18」會被 JavaScript 當成 2001 年），留給文字框原樣保存
+    if (!/\d{4}/.test(text)) return '';
+    const d = new Date(text);
+    if (isNaN(d.getTime())) return '';
+    const pad = (n) => ('0' + n).slice(-2);
+    const day = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+    return type === 'date' ? day : day + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+  }
+  const pad = (n) => ('0' + Number(n)).slice(-2);
+  const day = iso[1] + '-' + pad(iso[2]) + '-' + pad(iso[3]);
+  if (type === 'date') return day;
+  return day + 'T' + (iso[5] ? pad(iso[5]) + ':' + iso[6] : '00:00');
+}
+
+// ── 新增與修改 ──────────────────────────────────────────
+// 表單是照設定庫的欄位長出來的，所以加一個欄位不用改這裡的程式。
+function openForm(obj, row) {
+  const d = ensureDrawer();
+  d.title.replaceChildren(el('span', '', (row ? '編輯' : '新增') + obj.label));
+  d.body.replaceChildren();
+  const data = (row && row.data) || {};
+  const inputs = {};
+
+  const note = el('p', 'hint');
+  note.append(icon('info'), el('span', '', '星號是必填。灰掉的欄位是系統算的或規定不能改的。存檔會留痕，改前改後都看得到。'));
+  d.body.append(note);
+
+  obj.fields.forEach((f) => {
+    if (f.type === 'sequence') return; // 系統自己編的號碼
+    const fld = el('div', 'fld');
+    const label = el('label');
+    label.append(el('span', '', f.label + (f.required ? ' ✱' : '')));
+    const p = PRIVACY[f.privacy];
+    if (p) label.append(el('span', 'chip ' + p[1], p[0]));
+    const mode = f.lockAfter && f.lockAfter.mode;
+    const had = data[f.key] != null && String(data[f.key]).trim() !== '';
+    const frozen = Boolean(row) && had && (mode === 'locked' || mode === 'reverse_only');
+    if (frozen) label.append(el('span', 'chip', mode === 'locked' ? '不能改' : '只能沖銷'));
+    if (mode === 'append' && had) label.append(el('span', 'chip', '只能往後接'));
+    fld.append(label);
+
+    let input;
+    if (f.type === 'select' && f.options && Array.isArray(f.options.items)) {
+      input = el('select');
+      const blank = el('option', '', '（不填）');
+      blank.value = '';
+      input.append(blank);
+      f.options.items.forEach((item) => { const o = el('option', '', item); o.value = item; input.append(o); });
+    } else if (f.type === 'textarea' || f.type === 'json') {
+      input = el('textarea');
+      input.rows = 4;
+    } else {
+      input = el('input');
+      input.type = { number: 'number', money: 'number', date: 'date', datetime: 'datetime-local', email: 'email', url: 'url', phone: 'tel' }[f.type] || 'text';
+    }
+    const raw = data[f.key];
+    let shown = raw == null ? '' : typeof raw === 'object' ? JSON.stringify(raw) : String(raw);
+    if (shown && (input.type === 'date' || input.type === 'datetime-local')) {
+      const fitted = forDateInput(shown, input.type);
+      if (fitted) shown = fitted;
+      else input.type = 'text'; // 看不懂的日期就當文字，至少不會把原本的值弄丟
+    }
+    input.value = shown;
+    input.disabled = frozen;
+    input.style.cssText = 'font:inherit;font-size:13.5px;line-height:1.7;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:' + (frozen ? 'var(--line-soft)' : 'var(--sub)') + ';color:' + (frozen ? 'var(--muted)' : 'var(--ink)') + ';width:100%;resize:vertical';
+    fld.append(input);
+    if (f.help) {
+      const tip = el('small', '', f.help);
+      tip.style.cssText = 'color:var(--muted);font-size:12px;line-height:1.6';
+      fld.append(tip);
+    }
+    inputs[f.key] = { input: input, field: f, frozen: frozen };
+    d.body.append(fld);
+  });
+
+  const msg = el('p', 'err');
+  msg.hidden = true;
+  d.body.append(msg);
+
+  const bar = el('div');
+  bar.style.cssText = 'display:flex;gap:8px;margin-top:18px;padding-top:16px;border-top:1px solid var(--line)';
+  const save = el('button', 'btn pri');
+  save.type = 'button';
+  save.append(icon('check'), el('span', '', '儲存'));
+  const cancel = el('button', 'btn quiet');
+  cancel.type = 'button';
+  cancel.textContent = '取消';
+  cancel.addEventListener('click', () => { if (row) openDrawer(obj, row); else d.hide(); });
+  bar.append(save, cancel);
+  d.body.append(bar);
+
+  save.addEventListener('click', async () => {
+    const payload = {};
+    Object.keys(inputs).forEach((key) => {
+      const it = inputs[key];
+      if (it.frozen) return;
+      payload[key] = it.input.value;
+    });
+    save.disabled = true;
+    msg.hidden = true;
+    const result = await db('save', { object: obj.id, id: row ? row.id : '', data: payload });
+    save.disabled = false;
+    if (!result.ok) {
+      msg.textContent = '沒有存成功：' + (result.message || result.error);
+      msg.hidden = false;
+      return;
+    }
+    const fresh = await db('get', { object: obj.id, id: result.id });
+    if (fresh.ok && fresh.row) openDrawer(obj, fresh.row);
+    else d.hide();
+    if (current === 'approvals') viewApprovals(); else go(current);
+  });
+
+  d.scrim.classList.add('on');
+  d.drawer.classList.add('on');
+  d.body.scrollTop = 0;
+}
+
+async function removeRecord(obj, row) {
+  if (!confirm('要刪掉「' + (row.title || row.id) + '」嗎？\n\n資料不會真的消失，會標記成已刪除，需要的話救得回來。')) return;
+  const result = await db('remove', { object: obj.id, id: row.id });
+  if (!result.ok) { alert('刪不掉：' + (result.message || result.error)); return; }
+  if (drawerEls) drawerEls.hide();
+  go(current);
 }
 
 // ── 權限 ────────────────────────────────────────────────

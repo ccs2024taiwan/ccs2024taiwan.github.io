@@ -261,7 +261,8 @@ export const objects = [
   },
   {
     id: 'venue', label: '場地', icon: 'home', sort: 61,
-    id_rule: 'V{seq:3}', title_field: 'name', source: 'sheet:協會可租借場地',
+    // 2026-11-18 搬到 D1：正本從此在這裡，不再同步試算表（試算表那張已改名「（舊）」）
+    id_rule: 'V{seq:3}', title_field: 'name', source: 'd1',
     acl: { list: ['member', 'volunteer', 'staff'], read: ['member', 'volunteer', 'staff'], create: ['staff'], update: ['staff'], delete: ['admin'] },
     fields: [
       F('id', '編號', 'sequence', { ...stf, ...locked }),
