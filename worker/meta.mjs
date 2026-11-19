@@ -121,6 +121,8 @@ export const objects = [
       F('seats', '名額', 'number', { ...pub, ...list, from: '名額' }),
       F('fee_member', '會員費用', 'money', { ...pub, from: '會員費用' }),
       F('fee_general', '非會員費用', 'money', { ...pub, from: '非會員費用' }),
+      F('max_friends', '可帶朋友人數', 'number', { ...stf, from: '可帶朋友人數', help: '一般會員與志工可以帶幾位朋友。留空＝1，填 0＝不開放帶朋友。' }),
+      F('group_free', '團體免費人數', 'number', { ...stf, from: '團體免費人數', help: '團體會員可以免費帶幾位（不含本人）。留空＝1，跟個人會員一樣。' }),
       F('deadline', '報名截止日', 'date', { ...pub, from: '報名截止日' }),
       F('status', '狀態', 'select', { ...pub, ...list, from: '狀態', options: { items: ['草稿', '開放', '額滿', '結束', '取消'] } }),
       F('intro', '說明', 'textarea', { ...pub, from: '說明' }),

@@ -2220,11 +2220,13 @@ if (eventList) {
       if (who) { who.className = 'event-attendees event-attendees-small'; text.append(who); }
       label.append(input, text);
       box.append(label);
-      if (session.maxFriends > 0) {
+      // 團體會員可以免費帶的人數如果比一般多，選單就開到那麼多（實際身分由後端驗證）
+      const seatCap = Math.max(Number(session.maxFriends) || 0, Number(session.groupFree) || 0);
+      if (seatCap > 0) {
         const friends = document.createElement('label');
         friends.className = 'event-friends';
         const select = document.createElement('select');
-        for (let n = 0; n <= session.maxFriends; n++) select.append(Object.assign(document.createElement('option'), { value: n, textContent: n ? `帶 ${n} 位朋友` : '自己參加' }));
+        for (let n = 0; n <= seatCap; n++) select.append(Object.assign(document.createElement('option'), { value: n, textContent: n ? `帶 ${n} 位朋友` : '自己參加' }));
         friends.append('同行', select);
         box.append(friends);
       }
@@ -2389,7 +2391,8 @@ if (eventList) {
     const step = $('evFriendStep');
     if (!step) return;
     const sessions = (current && current.sessions) || [];
-    const most = sessions.reduce((n, s) => Math.max(n, Number(s.maxFriends) || 0), 0);
+    const most = sessions.reduce((n, s) => Math.max(n, Number(s.maxFriends) || 0, Number(s.groupFree) || 0), 0);
+    const groupFree = sessions.reduce((n, s) => Math.max(n, Number(s.groupFree) || 0), 0);
     const memberOnly = sessions.length > 0 && sessions.every((s) => s.memberOnly);
     if (!most) {
       $('evFriendTitle').textContent = '這場不開放帶朋友';
@@ -2400,6 +2403,7 @@ if (eventList) {
     }
     $('evFriendTitle').textContent = '會員免費帶 1 位朋友';
     $('evFriendText').textContent = '會員與志工報名時填會員編號（志工填登記的姓名），可免費帶 1 位朋友；第 2 位起比照非會員收費。'
+      + (groupFree > 1 ? '團體會員這場可免費帶 ' + groupFree + ' 位。' : '')
       + (most > 1 ? '這場最多可以帶 ' + most + ' 位。' : '');
   }
 
