@@ -97,7 +97,6 @@ export const objects = [
       F('note', '備註', 'textarea', { ...stf, from: '備註' }),
       F('last5', '匯款後五碼', 'text', { ...stf, from: '匯款後五碼' }),
       F('receipt_title', '收據抬頭', 'text', { ...stf, from: '收據抬頭' }),
-      F('note', '備註', 'textarea', { ...stf, from: '備註' }),
       F('paid_at', '付款確認日', 'datetime', { ...stf, from: '付款確認日' }),
       F('shipped_at', '出貨日期', 'datetime', { ...stf, from: '出貨日期' }),
       F('tracking', '物流單號', 'text', { ...stf, from: '物流單號' }),
