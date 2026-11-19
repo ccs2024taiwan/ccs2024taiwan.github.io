@@ -216,6 +216,7 @@ function go(key) {
   if (key === 'line') return viewSoon('LINE 小幫手', '指令一覽與自動回應的文案會在這裡設定：每個指令可以改觸發詞、回應文字，也能單獨關掉某個指令先停用。資料表已經在設定庫裡（line_command），畫面在下一批加上。');
   if (key === 'connections') return viewSoon('連線', '藍新金流、LINE 官方帳號、Telegram、Google、MCP 的金鑰會在這裡設定。存進去只會顯示末四碼，每個連線都有「測試連線」與「複製 Webhook 網址」。畫面在下一批加上。');
   if (key.indexOf('soon:') === 0) { const p = key.split(':'); return viewSoon(p[1], p.slice(2).join(':')); }
+  if (key === 'statement') return viewStatement();
   if (key === 'permits') return viewPermits();
   if (key === 'audit') return viewAudit();
   if (key === 'audit_old') return viewSoon('留痕', '誰在什麼時候改了什麼，連改前改後都留著，刪掉的東西可以還原。要等管理台開放「寫入」之後才會有內容，和寫入功能同一批。');
@@ -1450,6 +1451,234 @@ async function removeRecord(obj, row) {
 // ── 權限 ────────────────────────────────────────────────
 // 三種身分：秘書長什麼都能改、理監事只看財務、志工看個別授權。
 // 前兩種在「設定與文案」填會員編號，這一頁管的是第三種。
+
+// ── 收支表 ──────────────────────────────────────────────
+// 數字全部從日記帳算出來，和試算表那張收支表同一套規則：
+//   4 字頭＝收入、5 字頭＝支出、9 字頭（暫收、暫付、內部轉帳）不進收支，只列待沖轉餘額。
+const nt = (n) => (Math.round(Number(n) || 0)).toLocaleString('zh-TW');
+const rocOf = (year) => year - 1911;
+
+// 一筆日記帳算哪一類
+function ledgerKind(code) {
+  const c = String(code == null ? '' : code).trim();
+  if (c.indexOf('9') === 0) return 'suspense';
+  if (c.indexOf('4') === 0) return 'income';
+  if (c.indexOf('5') === 0) return 'expense';
+  return 'other';
+}
+
+// 日記帳 → 收支表。rows 是 /api/list 回來的那種 { data: {...} }，names 是科目代號對科目名稱
+function statementOf(rows, year, names) {
+  const want = String(year);
+  const group = { income: {}, expense: {}, suspense: {}, other: {} };
+  const months = [];
+  for (let i = 0; i < 12; i++) months.push({ month: i + 1, income: 0, expense: 0 });
+  let n = 0;
+  (rows || []).forEach((r) => {
+    const d = r.data || r;
+    const date = String(d.date == null ? '' : d.date);
+    if (date.slice(0, 4) !== want) return;
+    n++;
+    const code = String(d.code == null ? '' : d.code).trim() || '（沒填科目）';
+    const income = Number(d.income) || 0;
+    const expense = Number(d.expense) || 0;
+    const kind = ledgerKind(code);
+    const box = group[kind];
+    const name = (names && names[code]) || String(d.code_name == null ? '' : d.code_name).trim();
+    const hit = box[code] || (box[code] = { code: code, name: name, income: 0, expense: 0, n: 0 });
+    if (!hit.name && name) hit.name = name;
+    hit.income += income;
+    hit.expense += expense;
+    hit.n++;
+    const m = Number(date.slice(5, 7));
+    if (m >= 1 && m <= 12 && kind !== 'suspense') {
+      months[m - 1].income += income;
+      months[m - 1].expense += expense;
+    }
+  });
+  const list = (box, by) => Object.keys(box).map((k) => box[k])
+    .sort((a, b) => (b[by] - a[by]) || a.code.localeCompare(b.code));
+  const income = list(group.income, 'income');
+  const expense = list(group.expense, 'expense');
+  const other = list(group.other, 'income');
+  const suspense = list(group.suspense, 'income');
+  const sum = (arr, key) => arr.reduce((t, x) => t + x[key], 0);
+  const totalIncome = sum(income, 'income') + sum(other, 'income');
+  const totalExpense = sum(expense, 'expense') + sum(other, 'expense');
+  return {
+    year: Number(year), rows: n,
+    income: income, expense: expense, other: other, suspense: suspense,
+    totalIncome: totalIncome, totalExpense: totalExpense, balance: totalIncome - totalExpense,
+    suspenseLeft: sum(suspense, 'income') - sum(suspense, 'expense'),
+    months: months,
+  };
+}
+
+async function viewStatement() {
+  $('crumb').textContent = '財務 › 收支表';
+  const main = $('main');
+  main.replaceChildren();
+  const head = el('div', 'head');
+  const box = el('div');
+  const info = el('p', '', '讀取中…');
+  box.append(el('h1', 'page', '收支表'), info);
+  head.append(box, el('span', 'sp'));
+  main.append(head);
+
+  const sheet = el('div', 'sheet');
+  sheet.style.borderRadius = 'var(--r)';
+  main.append(sheet);
+  sheet.append(hint('數字是從日記帳算出來的：4 字頭進收入、5 字頭進支出，9 字頭（暫收、暫付、內部轉帳）不算收支，只在最後列出待沖轉餘額。決算時一個科目一列抄進財報就好。'));
+
+  // 日記帳與科目名稱
+  const got = await db('list', { object: 'journal', limit: 200 });
+  if (!got.ok) { sheet.append(el('p', 'err', '讀不到日記帳：' + (got.message || got.error))); return; }
+  const rows = got.rows || [];
+  let cursor = got.nextCursor;
+  while (cursor && rows.length < 20000) {
+    const more = await db('list', { object: 'journal', limit: 200, cursor: cursor });
+    if (!more.ok || !(more.rows || []).length) break;
+    rows.push.apply(rows, more.rows);
+    cursor = more.nextCursor;
+  }
+  const names = {};
+  const acc = await db('list', { object: 'account', limit: 200 });
+  if (acc.ok) (acc.rows || []).forEach((r) => { if (r.data && r.data.code) names[String(r.data.code).trim()] = r.data.name; });
+
+  const years = {};
+  rows.forEach((r) => { const y = String((r.data || {}).date || '').slice(0, 4); if (/^\d{4}$/.test(y)) years[y] = (years[y] || 0) + 1; });
+  const yearList = Object.keys(years).sort().reverse();
+  if (!yearList.length) { info.textContent = '日記帳還沒有資料'; return; }
+  let year = yearList[0];
+
+  // 年度與列印
+  const bar = el('div');
+  bar.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 14px';
+  const pickLabel = el('span', '', '年度：');
+  pickLabel.style.cssText = 'font-size:12.5px;color:var(--muted)';
+  const pick = el('select');
+  pick.style.cssText = 'font:inherit;font-size:13px;padding:4px 10px;border:1px solid var(--line);border-radius:8px;background:var(--sub);color:var(--ink)';
+  yearList.forEach((y) => {
+    const o = el('option', '', '民國 ' + rocOf(Number(y)) + ' 年（' + y + '）　' + years[y] + ' 筆');
+    o.value = y;
+    pick.append(o);
+  });
+  const printBtn = el('button', 'btn quiet');
+  printBtn.type = 'button';
+  printBtn.append(icon('doc'), el('span', '', '列印這一頁'));
+  printBtn.addEventListener('click', () => window.print());
+  bar.append(pickLabel, pick, printBtn);
+  sheet.append(bar);
+
+  const out = el('div');
+  sheet.append(out);
+
+  const table = (title, items, key, total) => {
+    const wrap = el('div');
+    wrap.style.cssText = 'margin:0 0 22px';
+    const h = el('h2', '', title);
+    h.style.cssText = 'font-size:14px;margin:0 0 8px;color:var(--ink)';
+    wrap.append(h);
+    const tw = el('div', 'tw');
+    const t = el('table');
+    const thead = el('thead');
+    const hr = el('tr');
+    ['科目代號', '科目名稱', '筆數', '金額', '佔比'].forEach((x) => {
+      const th = el('th', '', x);
+      if (x === '金額' || x === '佔比' || x === '筆數') th.style.textAlign = 'right';
+      hr.append(th);
+    });
+    thead.append(hr);
+    const tb = el('tbody');
+    items.forEach((x) => {
+      const tr = el('tr');
+      tr.append(el('td', '', x.code), el('td', '', x.name || ''));
+      const nCell = el('td', '', String(x.n));
+      nCell.style.textAlign = 'right';
+      const money = el('td', '', nt(x[key]) + ' 元');
+      money.style.cssText = 'text-align:right;font-variant-numeric:tabular-nums';
+      const share = el('td', '', total ? (Math.round((x[key] / total) * 1000) / 10) + '%' : '');
+      share.style.cssText = 'text-align:right;color:var(--muted)';
+      tr.append(nCell, money, share);
+      tb.append(tr);
+    });
+    const foot = el('tr');
+    const fl = el('td', '', '合計');
+    fl.colSpan = 3;
+    fl.style.fontWeight = '600';
+    const fm = el('td', '', nt(total) + ' 元');
+    fm.style.cssText = 'text-align:right;font-weight:600;font-variant-numeric:tabular-nums';
+    foot.append(fl, fm, el('td'));
+    tb.append(foot);
+    t.append(thead, tb);
+    tw.append(t);
+    wrap.append(tw);
+    return wrap;
+  };
+
+  const paint = () => {
+    const s = statementOf(rows, year, names);
+    info.textContent = '民國 ' + rocOf(s.year) + ' 年度　日記帳 ' + s.rows + ' 筆　收入 ' + nt(s.totalIncome) + ' 元　支出 ' + nt(s.totalExpense) + ' 元　結餘 ' + nt(s.balance) + ' 元';
+    out.replaceChildren();
+
+    const cards = el('div', 'tiles');
+    [['收入合計', s.totalIncome], ['支出合計', s.totalExpense], ['本年度結餘', s.balance], ['待沖轉（9 字頭）', s.suspenseLeft]].forEach((pair) => {
+      const c = el('div', 'tile');
+      c.append(el('div', 'k', pair[0]), el('div', 'n', nt(pair[1]) + ' 元'));
+      cards.append(c);
+    });
+    out.append(cards);
+
+    out.append(table('收入（4 字頭）', s.income, 'income', s.income.reduce((t, x) => t + x.income, 0)));
+    out.append(table('支出（5 字頭）', s.expense, 'expense', s.expense.reduce((t, x) => t + x.expense, 0)));
+    if (s.other.length) {
+      const note = el('p', 'err', '有 ' + s.other.length + ' 個科目代號看不出是收入還是支出（不是 4、5、9 開頭），請到日記帳修正：' + s.other.map((x) => x.code).join('、'));
+      out.append(note);
+    }
+    if (s.suspense.length) {
+      out.append(table('暫收、暫付與內部轉帳（9 字頭，不計入收支）', s.suspense, 'income', s.suspense.reduce((t, x) => t + x.income, 0)));
+      out.append(hint('這一區年底要沖轉成 0。目前餘額（收入減支出）：' + nt(s.suspenseLeft) + ' 元。'));
+    }
+
+    // 每個月
+    const mw = el('div');
+    const mh = el('h2', '', '每個月');
+    mh.style.cssText = 'font-size:14px;margin:0 0 8px;color:var(--ink)';
+    mw.append(mh);
+    const mtw = el('div', 'tw');
+    const mt = el('table');
+    const mhead = el('thead');
+    const mhr = el('tr');
+    ['月份', '收入', '支出', '當月結餘', '累計結餘'].forEach((x, i) => {
+      const th = el('th', '', x);
+      if (i) th.style.textAlign = 'right';
+      mhr.append(th);
+    });
+    mhead.append(mhr);
+    const mtb = el('tbody');
+    let acc2 = 0;
+    s.months.forEach((m) => {
+      acc2 += m.income - m.expense;
+      if (!m.income && !m.expense) return;
+      const tr = el('tr');
+      tr.append(el('td', '', m.month + ' 月'));
+      [m.income, m.expense, m.income - m.expense, acc2].forEach((v) => {
+        const td = el('td', '', nt(v) + ' 元');
+        td.style.cssText = 'text-align:right;font-variant-numeric:tabular-nums';
+        tr.append(td);
+      });
+      mtb.append(tr);
+    });
+    mt.append(mhead, mtb);
+    mtw.append(mt);
+    mw.append(mtw);
+    out.append(mw);
+  };
+
+  pick.addEventListener('change', () => { year = pick.value; paint(); });
+  paint();
+}
+
 async function viewPermits() {
   $('crumb').textContent = '系統 › 權限';
   const main = $('main');
