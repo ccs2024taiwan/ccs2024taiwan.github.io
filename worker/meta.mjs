@@ -21,7 +21,9 @@ export const objects = [
       F('id', '會員編號', 'sequence', { ...pub, ...list, ...locked, from: 'id', options: { rule: '{city}{seq:5}' } }),
       F('name', '姓名', 'text', { ...pub, ...list, ...req, ...tracked, from: 'name', help: '團體會員取團體名稱；官網名單依「名單公開方式」顯示或匿名' }),
       F('type', '類別', 'select', { ...pub, ...list, ...req, from: 'type', options: { items: ['個人會員', '個人會員（永久）', '團體會員', '贊助會員', '榮譽會員'] } }),
-      F('status', '會員狀態', 'select', { ...pub, ...list, ...req, from: 'status', options: { items: ['待審核', '待繳費', '新入會', '續會', '停權', '除籍', '榮譽'] } }),
+      F('status', '會員狀態', 'select', { ...pub, ...list, ...req, from: 'status', options: { items: ['待審核', '待繳費', '新入會', '續會', '停權', '除籍', '榮譽', '未通過', '無回應'],
+        // aside 裡的狀態不會出現在主要名單，會各自有自己的分頁
+        aside: ['待審核', '待繳費', '未通過', '無回應', '停權', '除籍'] } }),
       F('phone', '手機', 'phone', { ...sec, from: 'phone', help: '登入時比對末三碼。只有管理台看得到完整號碼，官網的公開名單與會員專區一律不回傳' }),
       F('email', 'Email', 'email', { ...stf, from: 'email' }),
       F('line_name', 'LINE 顯示名稱', 'text', { ...stf, from: 'line_name' }),

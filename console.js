@@ -330,6 +330,7 @@ async function viewObject(objectId) {
   const rows = [];
   const chosen = {};            // 勾起來的那幾列（用編號記）
   let activeTags = [];          // 來源篩選：選了哪幾個
+  let activeStatus = '__main';  // 狀態分頁：__main＝主要名單、__all＝全部、其餘是某一個狀態
   let cols = null;
   let cursor = null;
   let total = null;
@@ -338,6 +339,37 @@ async function viewObject(objectId) {
   const body = el('tbody');
   const moreBox = el('div');
   moreBox.style.marginTop = '12px';
+
+  // 狀態分頁：待繳費、未通過、無回應、停權這些各自一頁，主要名單只留正常的。
+  // 哪些要另外開一頁，寫在設定庫那個欄位的 options.aside，不用改這裡的程式。
+  const statusField = obj.fields.filter((f) => f.key === 'status')[0];
+  const asideList = (statusField && statusField.options && statusField.options.aside) || [];
+  const statusBar = el('div', 'tabs');
+  statusBar.style.cssText = 'margin:0 0 14px';
+  statusBar.hidden = true;
+
+  const statusOf = (r) => String((r.data && r.data[statusField.key]) || '').trim();
+  const inMain = (r) => asideList.indexOf(statusOf(r)) === -1;
+
+  function paintStatusBar() {
+    if (!statusField || !asideList.length) return;
+    const count = {};
+    rows.forEach((r) => { const v = statusOf(r); count[v] = (count[v] || 0) + 1; });
+    const mainCount = rows.filter(inMain).length;
+    statusBar.replaceChildren();
+    statusBar.hidden = false;
+
+    const tab = (key, text, n) => {
+      const b = el('button', 'tab' + (activeStatus === key ? ' on' : ''));
+      b.type = 'button';
+      b.append(el('span', '', text + '（' + n + '）'));
+      b.addEventListener('click', () => { activeStatus = key; paint($('q').value); });
+      return b;
+    };
+    statusBar.append(tab('__main', '會員名單', mainCount));
+    asideList.forEach((name) => { if (count[name]) statusBar.append(tab(name, name, count[name])); });
+    statusBar.append(tab('__all', '全部', rows.length));
+  }
 
   // 來源篩選：像潛在會員那種「一個人可以有好幾個來源」的欄位，用「；」隔開
   const tagField = obj.fields.filter((f) => f.key === 'source')[0];
@@ -452,6 +484,9 @@ async function viewObject(objectId) {
     if (tagField && activeTags.length) {
       shown = shown.filter((r) => matchTags(tagsOf(r), activeTags));
     }
+    if (statusField && asideList.length) {
+      shown = shown.filter((r) => matchStatus(statusOf(r), activeStatus, asideList));
+    }
     shown.forEach((r) => {
       const tr = el('tr');
       if (contactFields.length) {
@@ -472,6 +507,7 @@ async function viewObject(objectId) {
       body.append(tr);
     });
     lastShown = shown;
+    paintStatusBar();
     paintTagBar();
     paintPickBar();
     if (!shown.length) {
@@ -485,6 +521,8 @@ async function viewObject(objectId) {
       + (total != null && rows.length < total ? '（已載入 ' + rows.length + '）' : '')
       + (lower ? '　·　符合「' + keyword + '」' + shown.length + ' 筆' : '')
       + (activeTags.length ? '　·　' + activeTags.join('、') + '　' + shown.length + ' 位' : '')
+      + (statusField && asideList.length && activeStatus !== '__all'
+        ? '　·　' + (activeStatus === '__main' ? '主要名單' : activeStatus) + ' ' + shown.length + ' 筆' : '')
       + '　·　' + obj.fields.length + ' 個欄位';
   };
 
@@ -496,7 +534,7 @@ async function viewObject(objectId) {
       table.append(headerRow((contactFields.length ? [''] : []).concat(cols.map((f) => f.label))));
       table.append(body);
       tw.append(table);
-      sheet.replaceChildren(tagBar, pickBar, tw, moreBox);
+      sheet.replaceChildren(statusBar, tagBar, pickBar, tw, moreBox);
     }
     rows.push.apply(rows, result.rows);
     cursor = result.nextCursor;
@@ -524,8 +562,8 @@ async function viewObject(objectId) {
 
   sheet.append(el('p', 'hint', '讀取中…'));
   await loadMore();
-  // 有來源欄位的（例如潛在會員）要能整份挑人，所以把全部載進來再畫篩選列
-  if (tagField) {
+  // 有來源欄位或狀態分頁的要能看到整份，所以把全部載進來再畫
+  if (tagField || (statusField && asideList.length)) {
     while (cursor && rows.length < total) await loadMore();
     paint($('q').value);
   }
@@ -997,6 +1035,14 @@ function forDateInput(value, type) {
   const day = iso[1] + '-' + pad(iso[2]) + '-' + pad(iso[3]);
   if (type === 'date') return day;
   return day + 'T' + (iso[5] ? pad(iso[5]) + ':' + iso[6] : '00:00');
+}
+
+// ── 狀態分頁 ────────────────────────────────────────────
+// active：__main＝主要名單（扣掉 aside 裡那些）、__all＝全部、其餘＝只看那一個狀態
+function matchStatus(value, active, aside) {
+  if (active === '__all') return true;
+  if (active === '__main') return (aside || []).indexOf(value) === -1;
+  return value === active;
 }
 
 // ── 一格裡好幾個標籤（例如來源「交流日；購書」）────────────
