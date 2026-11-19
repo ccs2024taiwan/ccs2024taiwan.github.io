@@ -367,7 +367,8 @@ async function viewObject(objectId) {
       b.addEventListener('click', () => { activeStatus = key; paint($('q').value); });
       return b;
     };
-    statusBar.append(tab('__main', obj.label + '名單', mainCount));
+    const mainLabel = (statusField.options && statusField.options.mainLabel) || (obj.label + '名單');
+    statusBar.append(tab('__main', mainLabel, mainCount));
     others.forEach((x) => statusBar.append(tab(x.value, x.value, x.count)));
     statusBar.append(tab('__all', '全部', rows.length));
   }
@@ -424,8 +425,9 @@ async function viewObject(objectId) {
     }
   }
 
-  // 有 Email 或電話欄位的資料才給勾選與複製（例如潛在會員、會員、訂單）
-  const contactFields = obj.fields.filter((f) => f.type === 'email' || f.type === 'phone');
+  // 只有「一列就是一個人」的名單才給勾選複製聯絡方式（設定庫在那個欄位標 contact）。
+  // 像請款品項那種一列是一個花費的，就算有 Email 也不該出現複製名單的工具。
+  const contactFields = obj.fields.filter((f) => (f.type === 'email' || f.type === 'phone') && f.options && f.options.contact);
   let lastShown = [];
   const pickBar = el('div');
   pickBar.style.cssText = 'display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:0 0 12px';
