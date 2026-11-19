@@ -373,26 +373,131 @@ async function viewObject(objectId) {
     statusBar.append(tab('__all', '全部', rows.length));
   }
 
-  // 來源篩選：像潛在會員那種「一個人可以有好幾個來源」的欄位，用「；」隔開
-  // 可以拿來分組的欄位：來源，或設定庫標了 facet 的（例如請款品項的科目代號）
-  const tagField = obj.fields.filter((f) => f.key === 'source' || (f.options && f.options.facet))[0];
+  // 分組（篩選）：想按什麼分就按什麼分——所在地區、類別、入會年份、來源…
+  // 哪些欄位適合，要等資料載進來才知道（值太多、或每個人都不一樣的就不列，例如姓名、地址）。
+  // 設定庫標了 facet 的欄位一定會列，而且是預設選的（潛在會員的來源、請款品項的科目代號）。
+  let tagField = null;
+  let tagFields = [];
+  const facetSaved = 'facet:' + obj.id;
+
+  // 一筆資料在某個欄位上算哪一組：日期看年份，文字可以用「；」隔成好幾組
+  const facetValuesOf = (f, r) => {
+    if (f.valuesOf) return f.valuesOf(r.data || {}); // 算出來的（縣市、年資）
+    const v = r.data && r.data[f.key];
+    if (f.type === 'date' || f.type === 'datetime') {
+      const y = String(v == null ? '' : v).slice(0, 4);
+      return /^\d{4}$/.test(y) ? [y + ' 年'] : [];
+    }
+    return tagsIn(v);
+  };
+
+  // 算出來的分組主題：原始欄位不好分的，幫它整理一下
+  const derivedFacets = () => {
+    const out = [];
+    const has = (k) => obj.fields.some((f) => f.key === k);
+    // 「社區所在地」存的是「臺中市北屯區」，按縣市分比較好看
+    if (has('city')) {
+      out.push({
+        key: '__city', label: '縣市', type: 'text', curated: 1,
+        valuesOf: (d) => {
+          const m = /^([\u4e00-\u9fa5]{2}[市縣])/.exec(String(d.city == null ? '' : d.city).trim());
+          return m ? [m[1]] : [];
+        },
+      });
+    }
+    // 入會時間長短
+    if (has('since')) {
+      out.push({
+        key: '__years', label: '入會年資', type: 'text', curated: 1,
+        valuesOf: (d) => {
+          const y = String(d.since == null ? '' : d.since).slice(0, 4);
+          if (!/^\d{4}$/.test(y)) return [];
+          const years = new Date().getFullYear() - Number(y);
+          if (years < 1) return ['未滿一年'];
+          if (years < 3) return ['1–3 年'];
+          if (years < 5) return ['3–5 年'];
+          if (years < 10) return ['5–10 年'];
+          return ['10 年以上'];
+        },
+      });
+    }
+    return out;
+  };
+
+  // 挑出適合分組的欄位
+  const findFacets = () => {
+    const skipType = ['email', 'phone', 'textarea', 'json', 'money', 'number', 'sequence'];
+    const out = [];
+    obj.fields.concat(derivedFacets()).forEach((f) => {
+      if (f.key === 'status') return; // 狀態已經有分頁了
+      const forced = Boolean(f.options && f.options.facet);
+      const keep = forced || Boolean(f.curated); // 一定列出來的
+      if (!keep && skipType.indexOf(f.type) !== -1) return;
+      const seen = {};
+      let filled = 0;
+      rows.forEach((r) => {
+        const vs = facetValuesOf(f, r);
+        if (vs.length) filled++;
+        vs.forEach((v) => (seen[v] = 1));
+      });
+      const n = Object.keys(seen).length;
+      if (!n || !filled) return;
+      // 值太多、或每一筆都不一樣的（姓名、地址、日期）不適合分組
+      const everyoneDifferent = n === filled && n > 1;
+      const tooMany = n > 40 || (rows.length >= 8 && n > rows.length * 0.6);
+      if (!keep && (everyoneDifferent || tooMany)) return;
+      out.push({ field: f, forced: forced, n: n });
+    });
+    out.sort((a, b) => (b.forced ? 1 : 0) - (a.forced ? 1 : 0));
+    return out;
+  };
   const tagBar = el('div');
   tagBar.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;margin:0 0 12px';
   tagBar.hidden = true;
 
-  const tagsOf = (r) => tagsIn(r.data && r.data[tagField.key]);
+  const tagsOf = (r) => (tagField ? facetValuesOf(tagField, r) : []);
 
   function paintTagBar() {
-    if (!tagField) return;
-    const count = {};
-    rows.forEach((r) => tagsOf(r).forEach((t) => (count[t] = (count[t] || 0) + 1)));
-    const names = Object.keys(count).sort((a, b) => count[b] - count[a]);
-    if (!names.length) { tagBar.hidden = true; return; }
+    if (!tagFields.length) { tagBar.hidden = true; return; }
     tagBar.replaceChildren();
     tagBar.hidden = false;
 
-    const label = el('span', '', '依' + tagField.label + '挑人：');
-    label.style.cssText = 'font-size:12.5px;color:var(--muted);align-self:center;margin-right:2px';
+    // 要按什麼分組，自己挑
+    const pickLabel = el('span', '', '分組依據：');
+    pickLabel.style.cssText = 'font-size:12.5px;color:var(--muted);align-self:center';
+    const pick = el('select');
+    pick.style.cssText = 'font:inherit;font-size:12.5px;padding:3px 8px;border:1px solid var(--line);border-radius:20px;background:var(--sub);color:var(--ink)';
+    const none = el('option', '', '不分組');
+    none.value = '';
+    pick.append(none);
+    tagFields.forEach((x) => {
+      const o = el('option', '', x.field.label + '（' + x.n + ' 組）');
+      o.value = x.field.key;
+      if (tagField && tagField.key === x.field.key) o.selected = true;
+      pick.append(o);
+    });
+    pick.addEventListener('change', () => {
+      const hit = tagFields.filter((x) => x.field.key === pick.value)[0];
+      tagField = hit ? hit.field : null;
+      activeTags = [];
+      try { localStorage.setItem(facetSaved, pick.value); } catch (err) { /* 瀏覽器不給存就算了 */ }
+      paint($('q').value);
+    });
+    tagBar.append(pickLabel, pick);
+
+    if (!tagField) return;
+    const count = {};
+    rows.forEach((r) => tagsOf(r).forEach((t) => (count[t] = (count[t] || 0) + 1)));
+    const order = ['未滿一年', '1–3 年', '3–5 年', '5–10 年', '10 年以上'];
+    const names = Object.keys(count).sort((a, b) => {
+      if (tagField.key === '__years') return order.indexOf(a) - order.indexOf(b);
+      if (tagField.type === 'date' || tagField.type === 'datetime') return b.localeCompare(a);
+      return count[b] - count[a];
+    });
+    if (!names.length) return;
+
+    const label = el('span', '', '挑' + tagField.label + '：');
+    label.style.cssText = 'font-size:12.5px;color:var(--muted);align-self:center;margin-left:6px';
     tagBar.append(label);
 
     const chip = (text, on, onClick) => {
@@ -573,11 +678,22 @@ async function viewObject(objectId) {
 
   sheet.append(el('p', 'hint', '讀取中…'));
   await loadMore();
-  // 有來源欄位或狀態分頁的要能看到整份，所以把全部載進來再畫
-  if (tagField || (statusField && mainList.length)) {
+  // 要分組或要分頁就得看到整份；兩千筆以內一次載完（日記帳那種很長的就不勉強）
+  const facetMarked = obj.fields.some((f) => f.options && f.options.facet);
+  if (facetMarked || (statusField && mainList.length) || (total != null && total <= 2000)) {
     while (cursor && rows.length < total) await loadMore();
-    paint($('q').value);
   }
+  tagFields = findFacets();
+  let want = null;
+  try { want = localStorage.getItem(facetSaved); } catch (err) { want = null; }
+  if (want == null) {
+    const forced = tagFields.filter((x) => x.forced)[0];
+    tagField = forced ? forced.field : null;
+  } else {
+    const hit = tagFields.filter((x) => x.field.key === want)[0];
+    tagField = hit ? hit.field : null;
+  }
+  paint($('q').value);
   $('q').oninput = () => { if (current === 'o:' + objectId && cols) paint($('q').value); };
 }
 const PRIVACY = { public: ['公開', 'pub'], member: ['登入後', 'mem'], staff: ['秘書處', 'stf'], secret: ['個資', 'sec'] };
@@ -633,6 +749,24 @@ function showDetail(obj, row, box) {
       if (value.length > 12) v.append(el('div', '', '…共 ' + value.length + ' 項'));
     } else if (typeof value === 'object') {
       v.textContent = JSON.stringify(value);
+    } else if (/^https?:\/\//.test(String(value))) {
+      // 簽名、戳章、上傳的檔案：給連結，是圖的話順便顯示縮圖
+      v.style.display = 'block';
+      const a = el('a', '', '開啟（' + String(value).slice(0, 48) + (String(value).length > 48 ? '…' : '') + '）');
+      a.href = String(value);
+      a.target = '_blank';
+      a.rel = 'noopener';
+      a.style.cssText = 'color:var(--accent);word-break:break-all;font-size:12.5px';
+      const thumb = driveThumb(String(value));
+      if (thumb) {
+        const img = el('img');
+        img.src = thumb;
+        img.alt = f.label;
+        img.style.cssText = 'display:block;max-width:260px;max-height:160px;margin:0 0 6px;border:1px solid var(--line);border-radius:8px;background:#fff';
+        img.addEventListener('error', () => { img.remove(); });
+        v.append(img);
+      }
+      v.append(a);
     } else {
       v.textContent = String(value);
     }
@@ -1082,6 +1216,12 @@ function asideStatuses(values, main, groups) {
 
 // ── 一格裡好幾個標籤（例如來源「交流日；購書」）────────────
 // 拆成一個個，前後空白去掉，空的不算
+// 雲端硬碟的圖檔連結 → 縮圖網址（看不出來就回 null）
+function driveThumb(url) {
+  const m = /\/file\/d\/([A-Za-z0-9_-]{10,})/.exec(url) || /[?&]id=([A-Za-z0-9_-]{10,})/.exec(url);
+  return m ? 'https://drive.google.com/thumbnail?id=' + m[1] + '&sz=w400' : null;
+}
+
 function tagsIn(value) {
   return String(value == null ? '' : value)
     .split('；').map((x) => x.trim()).filter(Boolean);
@@ -1239,6 +1379,14 @@ function openForm(obj, row) {
     input.disabled = frozen;
     input.style.cssText = 'font:inherit;font-size:13.5px;line-height:1.7;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:' + (frozen ? 'var(--line-soft)' : 'var(--sub)') + ';color:' + (frozen ? 'var(--muted)' : 'var(--ink)') + ';width:100%;resize:vertical';
     fld.append(input);
+    if (/^https?:\/\//.test(shown)) {
+      const open = el('a', '', '開啟這個檔案');
+      open.href = shown;
+      open.target = '_blank';
+      open.rel = 'noopener';
+      open.style.cssText = 'color:var(--accent);font-size:12px';
+      fld.append(open);
+    }
     if (f.help) {
       const tip = el('small', '', f.help);
       tip.style.cssText = 'color:var(--muted);font-size:12px;line-height:1.6';

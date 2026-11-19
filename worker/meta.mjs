@@ -464,7 +464,7 @@ export const objects = [
       F('community', '社區', 'text', { ...stf, ...list }),
       F('status', '狀態', 'select', { ...stf, ...list, options: { items: ['待聯絡', '已聯絡', '已入會', '沒興趣', '不再聯絡'] } }),
       // 以下是互動紀錄：這個人從哪裡來、談過什麼、最後一次接觸
-      F('source', '來源', 'textarea', { ...stf, ...list, help: '從哪一個活動或名單來的，可以有很多個，用「；」隔開。' }),
+      F('source', '來源', 'textarea', { ...stf, ...list, options: { facet: 1 }, help: '從哪一個活動或名單來的，可以有很多個，用「；」隔開。' }),
       F('intent', '意向／需求', 'textarea', { ...stf }),
       F('note', '備註', 'textarea', { ...stf }),
       F('created', '建立時間', 'date', { ...stf }),
