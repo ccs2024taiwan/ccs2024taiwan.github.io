@@ -537,6 +537,7 @@ export const menus = [
 ];
 
 export const settings = [
+  { key: '信件署名', group: '通知', type: 'text', value: '全國公寓大廈管理委員聯誼會 敬上', help: '寄給會員／志工／客人的信，結尾接上這一句。不需要就清空。' },
   { key: '信件簽名', group: '通知', type: 'textarea', help: '所有寄給會員／志工／客人的信，結尾自動接上這段。寄給秘書處自己的通知不會加。' },
   { key: '提醒收件人', group: '通知', type: 'text', help: '秘書處通知信的收件人。' },
   { key: '管理員會員編號', group: '權限與身分', type: 'text', help: '秘書長：行政中心什麼都能改。填會員編號，逗號分隔。' },
