@@ -340,22 +340,23 @@ async function viewObject(objectId) {
   const moreBox = el('div');
   moreBox.style.marginTop = '12px';
 
-  // 狀態分頁：待繳費、未通過、無回應、停權這些各自一頁，主要名單只留正常的。
-  // 哪些要另外開一頁，寫在設定庫那個欄位的 options.aside，不用改這裡的程式。
+  // 狀態分頁：主要名單只留正常的，其餘狀態資料裡有什麼就開什麼分頁。
+  // 哪些算主要名單寫在設定庫那個欄位的 options.main，不用改這裡的程式。
   const statusField = obj.fields.filter((f) => f.key === 'status')[0];
-  const asideList = (statusField && statusField.options && statusField.options.aside) || [];
+  const mainList = (statusField && statusField.options && statusField.options.main) || [];
+  // 幾個狀態要併成同一個分頁（例如「退出」併進「已停權」），寫在設定庫 status 欄的 options.groups
+  const statusGroups = (statusField && statusField.options && statusField.options.groups) || {};
   const statusBar = el('div', 'tabs');
   statusBar.style.cssText = 'margin:0 0 14px';
   statusBar.hidden = true;
 
-  const statusOf = (r) => String((r.data && r.data[statusField.key]) || '').trim();
-  const inMain = (r) => asideList.indexOf(statusOf(r)) === -1;
+  const statusOf = (r) => String((r.data && r.data[statusField.key]) || '').trim() || '（沒填狀態）';
 
   function paintStatusBar() {
-    if (!statusField || !asideList.length) return;
-    const count = {};
-    rows.forEach((r) => { const v = statusOf(r); count[v] = (count[v] || 0) + 1; });
-    const mainCount = rows.filter(inMain).length;
+    if (!statusField || !mainList.length) return;
+    const others = asideStatuses(rows.map(statusOf), mainList, statusGroups);
+    if (!others.length) { statusBar.hidden = true; return; }
+    const mainCount = rows.filter((r) => mainList.indexOf(statusOf(r)) !== -1).length;
     statusBar.replaceChildren();
     statusBar.hidden = false;
 
@@ -366,8 +367,8 @@ async function viewObject(objectId) {
       b.addEventListener('click', () => { activeStatus = key; paint($('q').value); });
       return b;
     };
-    statusBar.append(tab('__main', '會員名單', mainCount));
-    asideList.forEach((name) => { if (count[name]) statusBar.append(tab(name, name, count[name])); });
+    statusBar.append(tab('__main', obj.label + '名單', mainCount));
+    others.forEach((x) => statusBar.append(tab(x.value, x.value, x.count)));
     statusBar.append(tab('__all', '全部', rows.length));
   }
 
@@ -484,8 +485,8 @@ async function viewObject(objectId) {
     if (tagField && activeTags.length) {
       shown = shown.filter((r) => matchTags(tagsOf(r), activeTags));
     }
-    if (statusField && asideList.length) {
-      shown = shown.filter((r) => matchStatus(statusOf(r), activeStatus, asideList));
+    if (statusField && mainList.length) {
+      shown = shown.filter((r) => matchStatus(statusOf(r), activeStatus, mainList, statusGroups));
     }
     shown.forEach((r) => {
       const tr = el('tr');
@@ -521,7 +522,7 @@ async function viewObject(objectId) {
       + (total != null && rows.length < total ? '（已載入 ' + rows.length + '）' : '')
       + (lower ? '　·　符合「' + keyword + '」' + shown.length + ' 筆' : '')
       + (activeTags.length ? '　·　' + activeTags.join('、') + '　' + shown.length + ' 位' : '')
-      + (statusField && asideList.length && activeStatus !== '__all'
+      + (statusField && mainList.length && activeStatus !== '__all'
         ? '　·　' + (activeStatus === '__main' ? '主要名單' : activeStatus) + ' ' + shown.length + ' 筆' : '')
       + '　·　' + obj.fields.length + ' 個欄位';
   };
@@ -563,7 +564,7 @@ async function viewObject(objectId) {
   sheet.append(el('p', 'hint', '讀取中…'));
   await loadMore();
   // 有來源欄位或狀態分頁的要能看到整份，所以把全部載進來再畫
-  if (tagField || (statusField && asideList.length)) {
+  if (tagField || (statusField && mainList.length)) {
     while (cursor && rows.length < total) await loadMore();
     paint($('q').value);
   }
@@ -1038,11 +1039,35 @@ function forDateInput(value, type) {
 }
 
 // ── 狀態分頁 ────────────────────────────────────────────
-// active：__main＝主要名單（扣掉 aside 裡那些）、__all＝全部、其餘＝只看那一個狀態
-function matchStatus(value, active, aside) {
+// main＝算在主要名單那一頁的狀態（設定庫 status 欄的 options.main）。
+// 其餘狀態不預先列舉：資料裡出現什麼就開什麼分頁，所以「已停權」「無回應/失效」這種寫法都認得。
+// active：__main＝主要名單、__all＝全部、其餘＝只看那一個狀態。
+function matchStatus(value, active, main, groups) {
   if (active === '__all') return true;
-  if (active === '__main') return (aside || []).indexOf(value) === -1;
+  if (active === '__main') return (main || []).indexOf(value) !== -1;
+  const members = groups && groups[active];
+  if (members) return members.indexOf(value) !== -1;
   return value === active;
+}
+
+// 幾個狀態併成同一個分頁時，回傳它要掛在哪一個分頁底下
+function statusTabOf(value, groups) {
+  const names = Object.keys(groups || {});
+  for (let i = 0; i < names.length; i++) {
+    if (groups[names[i]].indexOf(value) !== -1) return names[i];
+  }
+  return value;
+}
+
+// 資料裡實際出現、而且不算主要名單的狀態，照人數多的排前面
+function asideStatuses(values, main, groups) {
+  const count = {};
+  values.forEach((v) => {
+    if ((main || []).indexOf(v) !== -1) return;
+    const tab = statusTabOf(v, groups);
+    count[tab] = (count[tab] || 0) + 1;
+  });
+  return Object.keys(count).sort((a, b) => count[b] - count[a]).map((v) => ({ value: v, count: count[v] }));
 }
 
 // ── 一格裡好幾個標籤（例如來源「交流日；購書」）────────────
