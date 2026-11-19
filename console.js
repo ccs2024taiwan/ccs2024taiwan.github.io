@@ -373,7 +373,8 @@ async function viewObject(objectId) {
   }
 
   // 來源篩選：像潛在會員那種「一個人可以有好幾個來源」的欄位，用「；」隔開
-  const tagField = obj.fields.filter((f) => f.key === 'source')[0];
+  // 可以拿來分組的欄位：來源，或設定庫標了 facet 的（例如請款品項的科目代號）
+  const tagField = obj.fields.filter((f) => f.key === 'source' || (f.options && f.options.facet))[0];
   const tagBar = el('div');
   tagBar.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;margin:0 0 12px';
   tagBar.hidden = true;
@@ -518,12 +519,19 @@ async function viewObject(objectId) {
       tr.append(td);
       body.append(tr);
     }
+    // 金額欄位加總：挑了某個科目之後，直接看得到小計
+    const moneyFields = cols.filter((f) => f.type === 'money');
+    const sums = moneyFields.map((f) => {
+      const n = shown.reduce((t, r) => t + (Number(r.data[f.key]) || 0), 0);
+      return n ? f.label + ' ' + n.toLocaleString('zh-TW') + ' 元' : '';
+    }).filter(Boolean);
     info.textContent = (total != null ? total + ' 筆' : rows.length + ' 筆')
       + (total != null && rows.length < total ? '（已載入 ' + rows.length + '）' : '')
       + (lower ? '　·　符合「' + keyword + '」' + shown.length + ' 筆' : '')
       + (activeTags.length ? '　·　' + activeTags.join('、') + '　' + shown.length + ' 位' : '')
       + (statusField && mainList.length && activeStatus !== '__all'
         ? '　·　' + (activeStatus === '__main' ? '主要名單' : activeStatus) + ' ' + shown.length + ' 筆' : '')
+      + (sums.length ? '　·　' + sums.join('　') : '')
       + '　·　' + obj.fields.length + ' 個欄位';
   };
 
