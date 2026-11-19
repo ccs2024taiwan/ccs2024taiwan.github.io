@@ -307,7 +307,10 @@ export const objects = [
       F('code', '志工編號', 'text', { ...stf, ...list, from: 'code' }),
       F('nickname', '綽號', 'text', { ...stf, ...list, ...req, from: 'nickname' }),
       F('name', '本名', 'text', { ...stf, ...list, from: 'name' }),
-      F('status', '狀態', 'select', { ...stf, ...list, from: 'status', options: { items: ['待確認', '在職', '暫停', '退出', '未錄取', '取消'] } }),
+      F('status', '狀態', 'select', { ...stf, ...list, from: 'status', options: { items: ['待確認', '在職', '暫停', '退出', '未錄取', '取消'],
+        // main＝算在「志工名單」那一頁的；其餘各自一頁。groups＝幾個併成一頁。
+        main: ['在職'],
+        groups: { '已離隊': ['退出', '退隊', '暫停', '暫停服務'] } } }),
       F('joined', '加入日期', 'date', { ...stf, ...list, from: 'joined' }),
       F('skills', '專長', 'text', { ...stf, from: 'skills' }),
       F('email', 'Email', 'email', { ...stf, from: 'email' }),
