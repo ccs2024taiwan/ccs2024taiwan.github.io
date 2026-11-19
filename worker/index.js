@@ -1037,7 +1037,9 @@ async function api(request, env, url) {
   if (path === 'meta') {
     const meta = await loadMeta(env);
     const objects = meta.objects.filter((o) => canList(o, role, who)).map((o) => ({
-      ...o, fields: o.fields.filter((f) => f.privacy !== 'secret' && (VISIBLE[role] || VISIBLE.guest).includes(f.privacy)),
+      // secret 欄位的定義只有秘書長拿得到（VISIBLE.admin 才含 secret）：
+      // 她要能在管理台看、也能改電話、地址、生日、身分證、簽名檔。
+      ...o, fields: o.fields.filter((f) => (VISIBLE[role] || VISIBLE.guest).includes(f.privacy)),
     }));
     const actions = (meta.actions || []).filter((a) => !a.roles.length || a.roles.includes(role));
     // 行政中心的選單預設是秘書處專用；要給別人看就在設定庫寫明 roles
