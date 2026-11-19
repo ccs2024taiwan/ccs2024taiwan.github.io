@@ -502,7 +502,9 @@ async function api(request, env, url) {
     if (!(await keyOk(request, env))) return fail('unauthorized', 401);
     const [records, settings, permits, actions] = await Promise.all([
       env.DB.prepare('SELECT object_id, id, data, status, title, created_at, created_by, updated_at, updated_by, deleted_at FROM record ORDER BY object_id, id').all(),
-      env.DB.prepare('SELECT "key", group_name, type, value, help FROM settings WHERE "key" NOT LIKE ? ORDER BY "key"').bind('\\_\\_%').all(),
+      // 保留鍵（__ 開頭）在下面用 JavaScript 過濾，不要在 SQL 裡用 LIKE：
+      // SQL 的底線是萬用字元，'__%' 等於「任何兩個字以上」，NOT LIKE 會把全部排除掉（2026-11-17 踩過）
+      env.DB.prepare('SELECT "key", group_name, type, value, help, variables, sample, sort FROM settings ORDER BY group_name, sort, "key"').all(),
       env.DB.prepare('SELECT * FROM permit').all(),
       env.DB.prepare('SELECT * FROM meta_action').all(),
     ]);
@@ -518,7 +520,7 @@ async function api(request, env, url) {
       at: new Date().toISOString(),
       counts: Object.keys(byObject).reduce((t, k) => Object.assign(t, { [k]: byObject[k].length }), {}),
       records: byObject,
-      settings: settings.results || [],
+      settings: (settings.results || []).filter((r) => String(r.key || '').indexOf('__') !== 0),
       permits: permits.results || [],
       actions: actions.results || [],
     });

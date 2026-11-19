@@ -15,13 +15,13 @@ const tracked = { lock_after: { mode: 'tracked' } };
 export const objects = [
   {
     id: 'member', label: '會員', label_plural: '會員名單', icon: 'user', sort: 10,
-    id_rule: '{city}{seq:5}', title_field: 'name', sync: { compute: 'allMembers' },
+    id_rule: '{city}{seq:5}', title_field: 'name', source: 'd1',
     acl: { list: ['member', 'volunteer', 'staff'], read: ['member', 'volunteer', 'staff'], create: ['staff'], update: ['staff'], delete: ['admin'], export: ['staff'] },
     fields: [
       F('id', '會員編號', 'sequence', { ...pub, ...list, ...locked, from: 'id', options: { rule: '{city}{seq:5}' } }),
       F('name', '姓名', 'text', { ...pub, ...list, ...req, ...tracked, from: 'name', help: '團體會員取團體名稱；官網名單依「名單公開方式」顯示或匿名' }),
       F('type', '類別', 'select', { ...pub, ...list, ...req, from: 'type', options: { items: ['個人會員', '個人會員（永久）', '團體會員', '贊助會員', '榮譽會員'] } }),
-      F('status', '會員狀態', 'select', { ...pub, ...list, ...req, from: 'status', options: { items: ['待審核', '待繳費', '新入會', '續會', '停權', '除籍', '榮譽', '未通過', '無回應'],
+      F('status', '會員狀態', 'select', { ...pub, ...list, from: 'status', options: { items: ['待審核', '待繳費', '新入會', '續會', '停權', '已停權', '退出', '除籍', '榮譽', '未通過', '不通過', '無回應', '失效'],
         // main＝算在「會員名單」那一頁的狀態；其餘不管你打的是什麼，
         // 系統會照實際資料各開一頁（例如「已停權」「不通過」「無回應/失效」）。
         // groups＝好幾個狀態併成同一個分頁。
@@ -36,7 +36,57 @@ export const objects = [
       F('since', '會籍起始日', 'date', { ...mem, from: 'since', options: { roc: true } }),
       F('until', '會籍到期日', 'date', { ...mem, ...list, ...tracked, from: 'until', options: { roc: true }, help: '永久與榮譽會員留空' }),
       F('listing', '名單公開方式', 'select', { ...stf, from: 'listing', options: { items: ['公開', '匿名'] } }),
-      F('note', '審核意見', 'textarea', { ...stf, lock_after: { mode: 'append' } }),
+      F('note', '審核意見', 'textarea', { ...stf, from: 'note', lock_after: { mode: 'append' } }),
+      // ── 以下是入會申請表上的原始欄位（搬進 D1 之後，入會表只剩歷史備份）──
+      // 「姓名／手機／Email／地址」上面那四欄是對外用的，團體會員取團體的；
+      // 這裡保留申請表上填的原文，兩邊都看得到。
+      F('person_name', '申請人姓名', 'text', { ...stf, from: 'person_name' }),
+      F('person_phone', '申請人行動電話', 'phone', { ...sec, from: 'person_phone' }),
+      F('person_email', '申請人電子信箱', 'email', { ...stf, from: 'person_email' }),
+      F('person_address', '申請人戶籍或聯絡地址', 'textarea', { ...sec, from: 'person_address' }),
+      F('tel', '聯絡室內電話', 'phone', { ...sec, from: 'tel' }),
+      F('birthday', '出生年月日', 'date', { ...sec, from: 'birthday', options: { roc: true } }),
+      F('gender', '性別', 'text', { ...sec, from: 'gender' }),
+      F('idno', '身分證字號', 'text', { ...sec, from: 'idno', help: '官網從不蒐集也不顯示，只有舊入會表上填過的才有' }),
+      F('job', '現職服務單位與職稱', 'text', { ...sec, from: 'job' }),
+      F('experience', '社區管理委員擔任經歷', 'textarea', { ...stf, from: 'experience' }),
+      F('signature', '申請人簽名圖檔', 'text', { ...sec, from: 'signature' }),
+      // 團體會員
+      F('group_name', '團體名稱', 'text', { ...stf, from: 'group_name' }),
+      F('group_founded', '成立日期', 'date', { ...stf, from: 'group_founded', options: { roc: true } }),
+      F('group_issuer', '發證單位', 'text', { ...stf, from: 'group_issuer' }),
+      F('group_reg_no', '立案或登記字號', 'text', { ...stf, from: 'group_reg_no' }),
+      F('group_address', '團體地址', 'textarea', { ...sec, from: 'group_address' }),
+      F('group_tel', '團體市內電話', 'phone', { ...sec, from: 'group_tel' }),
+      F('group_phone', '團體行動電話', 'phone', { ...sec, from: 'group_phone' }),
+      F('group_email', '團體電子信箱', 'email', { ...stf, from: 'group_email' }),
+      F('group_owner', '負責人資料', 'text', { ...sec, from: 'group_owner' }),
+      F('group_stamp', '組織戳章圖檔', 'text', { ...sec, from: 'group_stamp' }),
+      F('owner_signature', '負責人簽名圖檔', 'text', { ...sec, from: 'owner_signature' }),
+      // 團體會員推派的代表（兩位）
+      F('rep_name', '代表人姓名', 'text', { ...stf, from: 'rep_name' }),
+      F('rep_title', '代表人職稱', 'text', { ...stf, from: 'rep_title' }),
+      F('rep_gender', '代表人性別', 'text', { ...sec, from: 'rep_gender' }),
+      F('rep_birthday', '代表人出生年月日', 'date', { ...sec, from: 'rep_birthday', options: { roc: true } }),
+      F('rep_address', '代表人地址', 'textarea', { ...sec, from: 'rep_address' }),
+      F('rep_signature', '代表人簽名圖檔', 'text', { ...sec, from: 'rep_signature' }),
+      F('rep2_name', '代表人二姓名', 'text', { ...stf, from: 'rep2_name' }),
+      F('rep2_title', '代表人二職稱', 'text', { ...stf, from: 'rep2_title' }),
+      F('rep2_gender', '代表人二性別', 'text', { ...sec, from: 'rep2_gender' }),
+      F('rep2_birthday', '代表人二出生年月日', 'date', { ...sec, from: 'rep2_birthday', options: { roc: true } }),
+      F('rep2_address', '代表人二地址', 'textarea', { ...sec, from: 'rep2_address' }),
+      F('rep2_signature', '代表人二簽名圖檔', 'text', { ...sec, from: 'rep2_signature' }),
+      // 申請與入會過程
+      F('applied_at', '申請時間', 'datetime', { ...stf, from: 'applied_at' }),
+      F('origin', '申請來源', 'text', { ...stf, from: 'origin' }),
+      F('source', '得知管道', 'text', { ...stf, from: 'source' }),
+      F('purpose', '加入目的', 'textarea', { ...stf, from: 'purpose' }),
+      F('plan', '繳費方案', 'text', { ...stf, from: 'plan' }),
+      F('fee_detail', '繳費明細', 'text', { ...stf, from: 'fee_detail', help: '入會①寄繳費通知時記下，入會②據此寫日記帳' }),
+      F('pay_no', '繳費單號', 'text', { ...stf, from: 'pay_no' }),
+      F('gift_opt', '紀念品選項', 'text', { ...stf, from: 'gift_opt' }),
+      F('forum_name', '討論串暱稱', 'text', { ...stf, from: 'forum_name', help: '會員自己在會員專區設的' }),
+      F('removed_at', '除籍日期', 'date', { ...stf, from: 'removed_at' }),
     ],
   },
   {
