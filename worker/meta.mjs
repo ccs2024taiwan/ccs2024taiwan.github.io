@@ -319,7 +319,8 @@ export const objects = [
   },
   {
     id: 'task', label: '任務', icon: 'check', sort: 63,
-    title_field: 'name', sync: { sheet: '任務', key: 'name' },
+    title_field: 'name', // 2026-11-19 搬到 D1：正本在這裡，試算表「任務」已改名「（舊）」
+    source: 'd1',
     acl: { list: ['volunteer', 'staff'], read: ['volunteer', 'staff'], create: ['staff'], update: ['staff'], delete: ['admin'] },
     fields: [
       F('name', '任務名稱', 'text', { ...stf, ...list, ...req, from: '任務名稱' }),
@@ -332,6 +333,9 @@ export const objects = [
       F('points', '積分', 'text', { ...stf, from: '積分' }),
       F('reward', '回饋', 'text', { ...stf, from: '回饋' }),
       F('intro', '說明', 'textarea', { ...stf, from: '說明' }),
+      F('who_needed', '人員條件', 'text', { ...stf, from: '人員條件' }),
+      F('folder', '資料夾連結', 'url', { ...stf, from: '資料夾連結', help: '活動建檔時自動填。' }),
+      F('report', '報告連結', 'url', { ...stf, from: '報告連結', help: '結案時自動填。' }),
     ],
   },
   {
