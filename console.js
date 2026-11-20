@@ -1548,6 +1548,7 @@ async function viewStatement() {
   const years = {};
   rows.forEach((r) => { const y = String((r.data || {}).date || '').slice(0, 4); if (/^\d{4}$/.test(y)) years[y] = (years[y] || 0) + 1; });
   const yearList = Object.keys(years).sort().reverse();
+  sheet.append(hint('資料庫裡的日記帳目前 ' + rows.length + ' 筆（' + yearList.length + ' 個年度）。數字和試算表對不起來時，先到試算表按「同步 → 推上去」再看一次；還是不同就把兩邊的科目金額給我比對。'));
   if (!yearList.length) { info.textContent = '日記帳還沒有資料'; return; }
   let year = yearList[0];
 
