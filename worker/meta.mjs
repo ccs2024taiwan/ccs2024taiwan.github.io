@@ -578,7 +578,7 @@ export const menus = [
   { id: 'fin_claim_items', area: 'admin', parent_id: 'g_money', label: '請款品項（決算用）', icon: 'rows', kind: 'object', target: 'claim_item', sort: 42, roles: ['staff', 'admin', 'board'] },
   { id: 'fin_dues', area: 'admin', parent_id: 'g_money', label: '會費繳納', icon: 'coin', kind: 'object', target: 'dues', sort: 44, roles: ['staff', 'admin'] },
   { id: 'fin_journal', area: 'admin', parent_id: 'g_money', label: '日記帳', icon: 'book', kind: 'object', target: 'journal', sort: 45, roles: ['staff', 'admin', 'board'] },
-  { id: 'fin_statement', area: 'admin', parent_id: 'g_money', label: '收支表', icon: 'book', kind: 'page', target: 'soon:收支表:依月／年彙總的收支，含預算執行率。目前在試算表用公式算，之後搬到這裡。', sort: 46 },
+  { id: 'fin_statement', area: 'admin', parent_id: 'g_money', label: '收支表', icon: 'book', kind: 'page', target: 'statement', sort: 46, roles: ['staff', 'admin', 'board'] },
   { id: 'fin_pl', area: 'admin', parent_id: 'g_money', label: '年度結餘表', icon: 'book', kind: 'page', target: 'soon:年度結餘表:本會是現金收支制，所以不做損益表，改做年度收支結餘。待預算表建好後一起做。', sort: 47 },
   { id: 'fin_cash', area: 'admin', parent_id: 'g_money', label: '現金收支餘額表', icon: 'book', kind: 'page', target: 'soon:現金收支餘額表:取代資產負債表（現金收支制不適用）。列出各帳戶期初、收入、支出、期末。', sort: 48 },
   { id: 'fin_account', area: 'admin', parent_id: 'g_money', label: '會計科目一覽', icon: 'book', kind: 'object', target: 'account', sort: 49, roles: ['staff', 'admin', 'board'] },
