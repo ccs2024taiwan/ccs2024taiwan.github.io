@@ -217,6 +217,7 @@ function go(key) {
   if (key === 'connections') return viewSoon('連線', '藍新金流、LINE 官方帳號、Telegram、Google、MCP 的金鑰會在這裡設定。存進去只會顯示末四碼，每個連線都有「測試連線」與「複製 Webhook 網址」。畫面在下一批加上。');
   if (key.indexOf('soon:') === 0) { const p = key.split(':'); return viewSoon(p[1], p.slice(2).join(':')); }
   if (key === 'statement') return viewStatement();
+  if (key === 'recon') return viewRecon();
   if (key === 'permits') return viewPermits();
   if (key === 'audit') return viewAudit();
   if (key === 'audit_old') return viewSoon('留痕', '誰在什麼時候改了什麼，連改前改後都留著，刪掉的東西可以還原。要等管理台開放「寫入」之後才會有內容，和寫入功能同一批。');
@@ -1677,6 +1678,273 @@ async function viewStatement() {
   };
 
   pick.addEventListener('change', () => { year = pick.value; paint(); });
+  paint();
+}
+
+
+// ── 對帳 ────────────────────────────────────────────────
+// 銀行明細（網銀下載的）對日記帳。規則和試算表那張一樣：同方向、同金額、日期相差 3 天內；
+// 填了「銀行列號」就當作已指定；同一個「付款批號」的幾筆合併成一筆去對。
+// LINE Pay：本會沒有 LINE Pay 帳戶，是秘書長從銀行領現金、再用自己的 LINE Pay 轉給請款人，
+// 所以這種付款方式不跟銀行一筆一筆對，改成整個月「現金取款合計」對「代付支出合計」。
+const CASH_METHODS = ['LINE Pay', '現金', 'linepay', 'LINEPAY'];
+const RECON_DAYS = 3;
+
+function reconDir(income, expense) {
+  return (Number(income) || 0) > 0 ? 'in' : 'out';
+}
+function reconAmount(income, expense) {
+  const i = Number(income) || 0;
+  return i > 0 ? i : (Number(expense) || 0);
+}
+function daysApart(a, b) {
+  const x = new Date(String(a || '').slice(0, 10));
+  const y = new Date(String(b || '').slice(0, 10));
+  if (isNaN(x) || isNaN(y)) return 9999;
+  return Math.abs((x - y) / 86400000);
+}
+const isCashRow = (r) => /現金|取款|提款|ATM/.test(String(r.kind || '') + String(r.memo || '') + String(r.note || ''));
+
+// journal、bank 都是 { data: {...} } 那種列；ym 是 "2026-11"
+function reconcile(journal, bank, ym) {
+  const month = (v) => String(v == null ? '' : v).slice(0, 7);
+  const J = (journal || []).map((r) => r.data || r);
+  const B = (bank || []).map((r) => r.data || r);
+
+  // 日記帳：付款方式「銀行」的才一筆一筆對；LINE Pay／現金 另外一區；其他不對帳
+  const bankJ = J.filter((d) => String(d.method || '').trim() === '銀行');
+  const cashJ = J.filter((d) => CASH_METHODS.indexOf(String(d.method || '').trim()) !== -1);
+
+  // 同一個付款批號合併成一筆
+  const batchTotal = {};
+  bankJ.forEach((d) => {
+    const b = String(d.batch || '').trim();
+    if (!b) return;
+    batchTotal[b] = (batchTotal[b] || 0) + (Number(d.expense) || 0);
+  });
+
+  const bankMatches = (d) => {
+    const batch = String(d.batch || '').trim();
+    const dir = batch ? 'out' : reconDir(d.income, d.expense);
+    const amount = batch ? batchTotal[batch] : reconAmount(d.income, d.expense);
+    if (!amount) return [];
+    return B.filter((b) => {
+      const bDir = (Number(b['in']) || 0) > 0 ? 'in' : 'out';
+      if (bDir !== dir) return false;
+      const bAmount = bDir === 'in' ? Number(b['in']) || 0 : Number(b.out) || 0;
+      if (bAmount !== amount) return false;
+      return daysApart(d.date, b.date) <= RECON_DAYS;
+    });
+  };
+
+  const journalUnmatched = [];
+  const seenBatch = {};
+  bankJ.forEach((d) => {
+    if (month(d.date) !== ym) return;
+    if (String(d.bank_row || '').trim()) return; // 已指定
+    const batch = String(d.batch || '').trim();
+    if (batch) {
+      if (seenBatch[batch]) return;
+      seenBatch[batch] = 1;
+    }
+    const hits = bankMatches(d);
+    if (hits.length === 1) return;
+    journalUnmatched.push({ data: d, why: hits.length ? '多筆同額，要手動指定' : '銀行明細上找不到', batch: batch, hits: hits.length });
+  });
+
+  // 銀行明細那邊：找不到對應日記帳的（利息、手續費、或忘了記的）
+  const bankUnmatched = [];
+  B.forEach((b) => {
+    if (month(b.date) !== ym) return;
+    const bDir = (Number(b['in']) || 0) > 0 ? 'in' : 'out';
+    const bAmount = bDir === 'in' ? Number(b['in']) || 0 : Number(b.out) || 0;
+    if (!bAmount) return;
+    if (isCashRow(b) && bDir === 'out') return; // 現金取款另外一區處理
+    const hit = bankJ.some((d) => {
+      const batch = String(d.batch || '').trim();
+      const dir = batch ? 'out' : reconDir(d.income, d.expense);
+      if (dir !== bDir) return false;
+      const amount = batch ? batchTotal[batch] : reconAmount(d.income, d.expense);
+      return amount === bAmount && daysApart(d.date, b.date) <= RECON_DAYS;
+    });
+    if (!hit) bankUnmatched.push({ data: b });
+  });
+
+  // 這個月的合計
+  const sum = (arr, pick) => arr.reduce((t, x) => t + (Number(pick(x)) || 0), 0);
+  const bankMonth = B.filter((b) => month(b.date) === ym);
+  const cashOutRows = bankMonth.filter((b) => isCashRow(b) && (Number(b.out) || 0) > 0);
+  const bankIn = sum(bankMonth, (b) => b['in']);
+  const bankOut = sum(bankMonth, (b) => b.out);
+  const cashWithdraw = sum(cashOutRows, (b) => b.out);
+  const jMonth = bankJ.filter((d) => month(d.date) === ym);
+  const cashMonth = cashJ.filter((d) => month(d.date) === ym);
+
+  return {
+    ym: ym,
+    bank: { in: bankIn, out: bankOut, rows: bankMonth.length },
+    journal: { in: sum(jMonth, (d) => d.income), out: sum(jMonth, (d) => d.expense), rows: jMonth.length },
+    cash: {
+      withdraw: cashWithdraw, withdrawRows: cashOutRows,
+      paid: sum(cashMonth, (d) => d.expense), paidRows: cashMonth,
+    },
+    diff: {
+      in: bankIn - sum(jMonth, (d) => d.income),
+      out: (bankOut - cashWithdraw) - sum(jMonth, (d) => d.expense),
+    },
+    journalUnmatched: journalUnmatched,
+    bankUnmatched: bankUnmatched,
+  };
+}
+
+async function viewRecon() {
+  $('crumb').textContent = '財務 › 對帳';
+  const main = $('main');
+  main.replaceChildren();
+  const head = el('div', 'head');
+  const box = el('div');
+  const info = el('p', '', '讀取中…');
+  box.append(el('h1', 'page', '對帳'), info);
+  head.append(box, el('span', 'sp'));
+  main.append(head);
+  const sheet = el('div', 'sheet');
+  sheet.style.borderRadius = 'var(--r)';
+  main.append(sheet);
+  sheet.append(hint('銀行明細對日記帳：同方向、同金額、日期相差 3 天以內就算對上；同一個付款批號的幾筆會合併起來對。LINE Pay 不是另一個帳戶（從銀行領現金、再用 LINE Pay 轉給請款人），所以另外一區用「現金取款合計」對「代付支出合計」。'));
+
+  const loadAll = async (object) => {
+    const first = await db('list', { object: object, limit: 200 });
+    if (!first.ok) return null;
+    const rows = first.rows || [];
+    let cursor = first.nextCursor;
+    while (cursor && rows.length < 20000) {
+      const more = await db('list', { object: object, limit: 200, cursor: cursor });
+      if (!more.ok || !(more.rows || []).length) break;
+      rows.push.apply(rows, more.rows);
+      cursor = more.nextCursor;
+    }
+    return rows;
+  };
+
+  const journal = await loadAll('journal');
+  if (!journal) { sheet.append(el('p', 'err', '讀不到日記帳')); return; }
+  const bank = await loadAll('bank');
+  if (!bank) {
+    sheet.append(el('p', 'err', '讀不到銀行明細。請先到試算表按「同步 → 更新設定庫」再按「推上去」，把「銀行明細」這張表也同步過來。'));
+    return;
+  }
+
+  const months = {};
+  journal.concat(bank).forEach((r) => { const m = String((r.data || {}).date || '').slice(0, 7); if (/^\d{4}-\d{2}$/.test(m)) months[m] = 1; });
+  const list = Object.keys(months).sort().reverse();
+  if (!list.length) { info.textContent = '還沒有可以對帳的資料'; return; }
+  let ym = list[0];
+
+  const bar = el('div');
+  bar.style.cssText = 'display:flex;gap:8px;align-items:center;margin:0 0 14px';
+  const pickLabel = el('span', '', '月份：');
+  pickLabel.style.cssText = 'font-size:12.5px;color:var(--muted)';
+  const pick = el('select');
+  pick.style.cssText = 'font:inherit;font-size:13px;padding:4px 10px;border:1px solid var(--line);border-radius:8px;background:var(--sub);color:var(--ink)';
+  list.forEach((m) => { const o = el('option', '', m); o.value = m; pick.append(o); });
+  bar.append(pickLabel, pick);
+  const printBtn = el('button', 'btn quiet');
+  printBtn.type = 'button';
+  printBtn.append(icon('doc'), el('span', '', '列印'));
+  printBtn.addEventListener('click', () => window.print());
+  bar.append(printBtn);
+  sheet.append(bar);
+  const out = el('div');
+  sheet.append(out);
+
+  const rowTable = (title, items, columns, empty) => {
+    const wrap = el('div');
+    wrap.style.cssText = 'margin:0 0 22px';
+    const h = el('h2', '', title + '（' + items.length + '）');
+    h.style.cssText = 'font-size:14px;margin:0 0 8px;color:var(--ink)';
+    wrap.append(h);
+    if (!items.length) { wrap.append(el('p', 'hint', empty)); return wrap; }
+    const tw = el('div', 'tw');
+    const t = el('table');
+    const thead = el('thead');
+    const hr = el('tr');
+    columns.forEach((c) => { const th = el('th', '', c.label); if (c.right) th.style.textAlign = 'right'; hr.append(th); });
+    thead.append(hr);
+    const tb = el('tbody');
+    items.forEach((x) => {
+      const tr = el('tr');
+      columns.forEach((c) => {
+        const td = el('td', '', c.get(x));
+        if (c.right) td.style.cssText = 'text-align:right;font-variant-numeric:tabular-nums';
+        tr.append(td);
+      });
+      tb.append(tr);
+    });
+    t.append(thead, tb);
+    tw.append(t);
+    wrap.append(tw);
+    return wrap;
+  };
+
+  const paint = () => {
+    const r = reconcile(journal, bank, ym);
+    const ok = r.diff.in === 0 && r.diff.out === 0 && !r.journalUnmatched.length && !r.bankUnmatched.length;
+    info.textContent = ym + '　銀行 ' + r.bank.rows + ' 筆、日記帳 ' + r.journal.rows + ' 筆　' + (ok ? '✔ 這個月對平了' : '還有要處理的');
+    out.replaceChildren();
+
+    const cards = el('div', 'tiles');
+    [
+      ['銀行存入', r.bank.in], ['日記帳收入', r.journal.in], ['收入差額', r.diff.in],
+      ['銀行支出（不含取款）', r.bank.out - r.cash.withdraw], ['日記帳支出', r.journal.out], ['支出差額', r.diff.out],
+    ].forEach((pair) => {
+      const c = el('div', 'tile');
+      c.append(el('div', 'k', pair[0]), el('div', 'n', nt(pair[1]) + ' 元'));
+      if (/差額/.test(pair[0]) && pair[1] !== 0) c.style.cssText = 'border-color:var(--bad,#a3271a)';
+      cards.append(c);
+    });
+    out.append(cards);
+
+    out.append(rowTable('日記帳上對不到銀行明細的', r.journalUnmatched, [
+      { label: '日期', get: (x) => String(x.data.date || '').slice(0, 10) },
+      { label: '摘要', get: (x) => String(x.data.summary || '') },
+      { label: '科目', get: (x) => String(x.data.code || '') },
+      { label: '收入', right: 1, get: (x) => (Number(x.data.income) ? nt(x.data.income) : '') },
+      { label: '支出', right: 1, get: (x) => (Number(x.data.expense) ? nt(x.data.expense) : '') },
+      { label: '批號', get: (x) => x.batch || '' },
+      { label: '為什麼', get: (x) => x.why },
+    ], '都對到了。'));
+
+    out.append(rowTable('銀行明細上對不到日記帳的', r.bankUnmatched, [
+      { label: '日期', get: (x) => String(x.data.date || '').slice(0, 10) },
+      { label: '摘要', get: (x) => String(x.data.memo || x.data.kind || '') },
+      { label: '存入', right: 1, get: (x) => (Number(x.data['in']) ? nt(x.data['in']) : '') },
+      { label: '支出', right: 1, get: (x) => (Number(x.data.out) ? nt(x.data.out) : '') },
+      { label: '備註', get: (x) => String(x.data.note || '') },
+    ], '都對到了。'));
+
+    // 現金（LINE Pay 代付）
+    const cashWrap = el('div');
+    const ch = el('h2', '', '現金代付（LINE Pay）');
+    ch.style.cssText = 'font-size:14px;margin:0 0 8px;color:var(--ink)';
+    cashWrap.append(ch);
+    const gap = r.cash.withdraw - r.cash.paid;
+    cashWrap.append(el('p', 'hint', '這個月從銀行領出現金 ' + nt(r.cash.withdraw) + ' 元（' + r.cash.withdrawRows.length + ' 筆），日記帳上用 LINE Pay／現金付掉 ' + nt(r.cash.paid) + ' 元（' + r.cash.paidRows.length + ' 筆）。' + (gap === 0 ? '剛好用完。' : gap > 0 ? '還有 ' + nt(gap) + ' 元在手上（或還沒記帳）。' : '多付了 ' + nt(-gap) + ' 元，是用先前領的錢或您先墊的。')));
+    out.append(cashWrap);
+    out.append(rowTable('　從銀行領出的現金', r.cash.withdrawRows.map((d) => ({ data: d })), [
+      { label: '日期', get: (x) => String(x.data.date || '').slice(0, 10) },
+      { label: '摘要', get: (x) => String(x.data.memo || x.data.kind || '') },
+      { label: '金額', right: 1, get: (x) => nt(x.data.out) },
+    ], '這個月沒有現金取款。'));
+    out.append(rowTable('　用 LINE Pay／現金付掉的', r.cash.paidRows.map((d) => ({ data: d })), [
+      { label: '日期', get: (x) => String(x.data.date || '').slice(0, 10) },
+      { label: '摘要', get: (x) => String(x.data.summary || '') },
+      { label: '科目', get: (x) => String(x.data.code || '') },
+      { label: '對象', get: (x) => String(x.data.target || '') },
+      { label: '金額', right: 1, get: (x) => nt(x.data.expense) },
+    ], '這個月沒有這種付款。'));
+  };
+
+  pick.addEventListener('change', () => { ym = pick.value; paint(); });
   paint();
 }
 

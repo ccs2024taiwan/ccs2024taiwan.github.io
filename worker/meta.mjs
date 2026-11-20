@@ -247,6 +247,23 @@ export const objects = [
     ],
   },
   {
+    // 銀行對帳單匯進來的明細。正本在試算表（網銀下載的檔案由「會計：匯入銀行對帳單」寫進去），
+    // 這裡是鏡像，給管理台對帳用。
+    id: 'bank', label: '銀行明細', icon: 'book', sort: 87,
+    title_field: 'memo', sync: { sheet: '銀行明細', key: ['date', 'memo', 'out', 'in', 'balance'] },
+    acl: { list: ['staff', 'board'], read: ['staff', 'board'], create: ['staff'], update: ['staff'], delete: ['admin'] },
+    fields: [
+      F('date', '交易日期', 'date', { ...stf, ...list, from: '交易日期' }),
+      F('kind', '交易類別', 'text', { ...stf, ...list, from: '交易類別' }),
+      F('out', '支出金額', 'money', { ...stf, ...list, from: '支出金額' }),
+      F('in', '存入金額', 'money', { ...stf, ...list, from: '存入金額' }),
+      F('balance', '餘額', 'money', { ...stf, ...list, from: '餘額' }),
+      F('state', '狀態', 'text', { ...stf, from: '狀態' }),
+      F('note', '備註', 'text', { ...stf, from: '備註' }),
+      F('memo', '摘要', 'text', { ...stf, ...list, from: '摘要' }),
+    ],
+  },
+  {
     // 會計科目一覽：直接鏡像「科目表」
     id: 'account', label: '會計科目一覽', icon: 'book', sort: 86,
     title_field: 'name', sync: { sheet: '科目表', key: 'code' },
@@ -579,10 +596,12 @@ export const menus = [
   { id: 'fin_dues', area: 'admin', parent_id: 'g_money', label: '會費繳納', icon: 'coin', kind: 'object', target: 'dues', sort: 44, roles: ['staff', 'admin'] },
   { id: 'fin_journal', area: 'admin', parent_id: 'g_money', label: '日記帳', icon: 'book', kind: 'object', target: 'journal', sort: 45, roles: ['staff', 'admin', 'board'] },
   { id: 'fin_statement', area: 'admin', parent_id: 'g_money', label: '收支表', icon: 'book', kind: 'page', target: 'statement', sort: 46, roles: ['staff', 'admin', 'board'] },
-  { id: 'fin_pl', area: 'admin', parent_id: 'g_money', label: '年度結餘表', icon: 'book', kind: 'page', target: 'soon:年度結餘表:本會是現金收支制，所以不做損益表，改做年度收支結餘。待預算表建好後一起做。', sort: 47 },
-  { id: 'fin_cash', area: 'admin', parent_id: 'g_money', label: '現金收支餘額表', icon: 'book', kind: 'page', target: 'soon:現金收支餘額表:取代資產負債表（現金收支制不適用）。列出各帳戶期初、收入、支出、期末。', sort: 48 },
-  { id: 'fin_account', area: 'admin', parent_id: 'g_money', label: '會計科目一覽', icon: 'book', kind: 'object', target: 'account', sort: 49, roles: ['staff', 'admin', 'board'] },
-  { id: 'fin_budget', area: 'admin', parent_id: 'g_money', label: '會計科目預算表', icon: 'book', kind: 'page', target: 'soon:會計科目預算表:年度預算（會員大會決議後由秘書長輸入），與實際支出對照顯示執行率，超支提醒。來源是「寓委聯115年度計畫甘特圖與預算表」。', sort: 50 },
+  { id: 'fin_recon', area: 'admin', parent_id: 'g_money', label: '對帳', icon: 'check', kind: 'page', target: 'recon', sort: 47, roles: ['staff', 'admin', 'board'] },
+  { id: 'fin_bank', area: 'admin', parent_id: 'g_money', label: '銀行明細', icon: 'book', kind: 'object', target: 'bank', sort: 52, roles: ['staff', 'admin', 'board'] },
+  { id: 'fin_pl', area: 'admin', parent_id: 'g_money', label: '年度結餘表', icon: 'book', kind: 'page', target: 'soon:年度結餘表:本會是現金收支制，所以不做損益表，改做年度收支結餘。待預算表建好後一起做。', sort: 48 },
+  { id: 'fin_cash', area: 'admin', parent_id: 'g_money', label: '現金收支餘額表', icon: 'book', kind: 'page', target: 'soon:現金收支餘額表:取代資產負債表（現金收支制不適用）。列出各帳戶期初、收入、支出、期末。', sort: 49 },
+  { id: 'fin_account', area: 'admin', parent_id: 'g_money', label: '會計科目一覽', icon: 'book', kind: 'object', target: 'account', sort: 50, roles: ['staff', 'admin', 'board'] },
+  { id: 'fin_budget', area: 'admin', parent_id: 'g_money', label: '會計科目預算表', icon: 'book', kind: 'page', target: 'soon:會計科目預算表:年度預算（會員大會決議後由秘書長輸入），與實際支出對照顯示執行率，超支提醒。來源是「寓委聯115年度計畫甘特圖與預算表」。', sort: 51 },
 
   // LINE 小幫手：兩個子項目
   { id: 'g_line', area: 'admin', label: 'LINE 小幫手', icon: 'menu', kind: 'group', sort: 55 },
