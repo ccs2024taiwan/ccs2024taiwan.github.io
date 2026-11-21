@@ -218,6 +218,8 @@ function go(key) {
   if (key.indexOf('soon:') === 0) { const p = key.split(':'); return viewSoon(p[1], p.slice(2).join(':')); }
   if (key === 'statement') return viewStatement();
   if (key === 'recon') return viewRecon();
+  if (key === 'yearly') return viewYearly();
+  if (key === 'cash') return viewCash();
   if (key === 'permits') return viewPermits();
   if (key === 'audit') return viewAudit();
   if (key === 'audit_old') return viewSoon('留痕', '誰在什麼時候改了什麼，連改前改後都留著，刪掉的東西可以還原。要等管理台開放「寫入」之後才會有內容，和寫入功能同一批。');
@@ -1945,6 +1947,218 @@ async function viewRecon() {
   };
 
   pick.addEventListener('change', () => { ym = pick.value; paint(); });
+  paint();
+}
+
+
+// ── 年度結餘表與現金收支餘額表 ──────────────────────────
+// 本會是現金收支制：不做損益表與資產負債表，改做「各年度收支結餘」與「各帳戶期初期末」。
+
+// 一年一列：收入、支出、本年度結餘、累計結餘（9 字頭不計入收支）
+function yearlyOf(rows) {
+  const byYear = {};
+  (rows || []).forEach((r) => {
+    const d = r.data || r;
+    const y = String(d.date == null ? '' : d.date).slice(0, 4);
+    if (!/^\d{4}$/.test(y)) return;
+    const code = String(d.code == null ? '' : d.code).trim();
+    if (code.indexOf('9') === 0) return; // 暫收、暫付、內部轉帳不算收支
+    const box = byYear[y] || (byYear[y] = { year: Number(y), income: 0, expense: 0, rows: 0 });
+    box.income += Number(d.income) || 0;
+    box.expense += Number(d.expense) || 0;
+    box.rows++;
+  });
+  const list = Object.keys(byYear).sort().map((y) => byYear[y]);
+  let acc = 0;
+  list.forEach((x) => {
+    x.balance = x.income - x.expense;
+    acc += x.balance;
+    x.accumulated = acc;
+  });
+  return list;
+}
+
+// 某一年的各帳戶期初、收入、支出、期末。
+// 銀行：以銀行明細的「餘額」為準（期初＝去年最後一筆餘額，期末＝今年最後一筆餘額）。
+// 現金：秘書長從銀行領出來、還沒付掉的錢（領出 − 用現金／LINE Pay 付掉的）。
+function cashOf(journal, bank, year) {
+  const y = String(year);
+  const num = (v) => Number(v) || 0;
+  const B = (bank || []).map((r) => r.data || r)
+    .filter((b) => /^\d{4}-\d{2}-\d{2}/.test(String(b.date || '')))
+    .sort((a, b) => String(a.date).localeCompare(String(b.date)));
+  const J = (journal || []).map((r) => r.data || r);
+
+  const before = B.filter((b) => String(b.date).slice(0, 4) < y);
+  const thisYear = B.filter((b) => String(b.date).slice(0, 4) === y);
+  const lastBalance = (list) => {
+    for (let i = list.length - 1; i >= 0; i--) if (String(list[i].balance || '') !== '') return num(list[i].balance);
+    return null;
+  };
+  const bankOpen = lastBalance(before);
+  const bankIn = thisYear.reduce((t, b) => t + num(b['in']), 0);
+  const bankOut = thisYear.reduce((t, b) => t + num(b.out), 0);
+  const bankEndSeen = lastBalance(thisYear);
+  const bankOpenGuess = bankOpen == null && bankEndSeen != null ? bankEndSeen - bankIn + bankOut : bankOpen;
+  const bankEnd = bankEndSeen != null ? bankEndSeen : (bankOpenGuess || 0) + bankIn - bankOut;
+
+  // 現金：歷年累計（領出 − 付掉），期初＝去年底為止的累計
+  const isCash = (b) => /現金|取款|提款|ATM/.test(String(b.kind || '') + String(b.memo || '') + String(b.note || ''));
+  const drawnBefore = before.filter(isCash).reduce((t, b) => t + num(b.out), 0);
+  const drawn = thisYear.filter(isCash).reduce((t, b) => t + num(b.out), 0);
+  const paidOf = (list) => list.filter((d) => CASH_METHODS.indexOf(String(d.method || '').trim()) !== -1).reduce((t, d) => t + num(d.expense), 0);
+  const paidBefore = paidOf(J.filter((d) => String(d.date || '').slice(0, 4) < y));
+  const paid = paidOf(J.filter((d) => String(d.date || '').slice(0, 4) === y));
+
+  return {
+    year: Number(year),
+    bank: { open: bankOpenGuess == null ? 0 : bankOpenGuess, in: bankIn, out: bankOut, end: bankEnd, known: bankEndSeen != null },
+    cash: { open: drawnBefore - paidBefore, in: drawn, out: paid, end: (drawnBefore - paidBefore) + drawn - paid },
+  };
+}
+
+async function loadFinance(objects) {
+  const out = {};
+  for (const object of objects) {
+    const first = await db('list', { object: object, limit: 200 });
+    if (!first.ok) { out[object] = null; continue; }
+    const rows = first.rows || [];
+    let cursor = first.nextCursor;
+    while (cursor && rows.length < 20000) {
+      const more = await db('list', { object: object, limit: 200, cursor: cursor });
+      if (!more.ok || !(more.rows || []).length) break;
+      rows.push.apply(rows, more.rows);
+      cursor = more.nextCursor;
+    }
+    out[object] = rows;
+  }
+  return out;
+}
+
+// 表格小工具：欄位定義 + 資料列
+function finTable(columns, items) {
+  const tw = el('div', 'tw');
+  const t = el('table');
+  const thead = el('thead');
+  const hr = el('tr');
+  columns.forEach((c) => { const th = el('th', '', c.label); if (c.right) th.style.textAlign = 'right'; hr.append(th); });
+  thead.append(hr);
+  const tb = el('tbody');
+  items.forEach((x) => {
+    const tr = el('tr');
+    columns.forEach((c) => {
+      const td = el('td', '', c.get(x));
+      if (c.right) td.style.cssText = 'text-align:right;font-variant-numeric:tabular-nums';
+      if (c.strong) td.style.fontWeight = '600';
+      tr.append(td);
+    });
+    tb.append(tr);
+  });
+  t.append(thead, tb);
+  tw.append(t);
+  return tw;
+}
+
+async function viewYearly() {
+  $('crumb').textContent = '財務 › 年度結餘表';
+  const main = $('main');
+  main.replaceChildren();
+  const head = el('div', 'head');
+  const box = el('div');
+  const info = el('p', '', '讀取中…');
+  box.append(el('h1', 'page', '年度結餘表'), info);
+  head.append(box, el('span', 'sp'));
+  main.append(head);
+  const sheet = el('div', 'sheet');
+  sheet.style.borderRadius = 'var(--r)';
+  main.append(sheet);
+  sheet.append(hint('本會是現金收支制，不做損益表，改看各年度的收入、支出與結餘。9 字頭（暫收、暫付、內部轉帳）不計入。'));
+
+  const got = await loadFinance(['journal']);
+  if (!got.journal) { sheet.append(el('p', 'err', '讀不到日記帳')); return; }
+  const years = yearlyOf(got.journal);
+  if (!years.length) { info.textContent = '日記帳還沒有資料'; return; }
+  const last = years[years.length - 1];
+  info.textContent = '共 ' + years.length + ' 個年度　累計結餘 ' + nt(last.accumulated) + ' 元';
+
+  const printBtn = el('button', 'btn quiet');
+  printBtn.type = 'button';
+  printBtn.append(icon('doc'), el('span', '', '列印這一頁'));
+  printBtn.addEventListener('click', () => window.print());
+  sheet.append(printBtn);
+
+  sheet.append(finTable([
+    { label: '年度', get: (x) => '民國 ' + rocOf(x.year) + ' 年（' + x.year + '）' },
+    { label: '筆數', right: 1, get: (x) => String(x.rows) },
+    { label: '收入', right: 1, get: (x) => nt(x.income) + ' 元' },
+    { label: '支出', right: 1, get: (x) => nt(x.expense) + ' 元' },
+    { label: '本年度結餘', right: 1, strong: 1, get: (x) => nt(x.balance) + ' 元' },
+    { label: '累計結餘', right: 1, get: (x) => nt(x.accumulated) + ' 元' },
+  ], years.slice().reverse()));
+}
+
+async function viewCash() {
+  $('crumb').textContent = '財務 › 現金收支餘額表';
+  const main = $('main');
+  main.replaceChildren();
+  const head = el('div', 'head');
+  const box = el('div');
+  const info = el('p', '', '讀取中…');
+  box.append(el('h1', 'page', '現金收支餘額表'), info);
+  head.append(box, el('span', 'sp'));
+  main.append(head);
+  const sheet = el('div', 'sheet');
+  sheet.style.borderRadius = 'var(--r)';
+  main.append(sheet);
+  sheet.append(hint('現金收支制用這張取代資產負債表：各帳戶的期初、本年度收入與支出、期末。銀行以對帳單的餘額為準；「現金在手」是從銀行領出來、還沒用 LINE Pay／現金付掉的錢。'));
+
+  const got = await loadFinance(['journal', 'bank']);
+  if (!got.journal) { sheet.append(el('p', 'err', '讀不到日記帳')); return; }
+  if (!got.bank) {
+    sheet.append(el('p', 'err', '讀不到銀行明細。請先到試算表按「同步 → 更新設定庫」再按「推上去」。'));
+    return;
+  }
+  const years = {};
+  got.journal.concat(got.bank).forEach((r) => { const y = String((r.data || {}).date || '').slice(0, 4); if (/^\d{4}$/.test(y)) years[y] = 1; });
+  const list = Object.keys(years).sort().reverse();
+  if (!list.length) { info.textContent = '還沒有資料'; return; }
+  let year = list[0];
+
+  const bar = el('div');
+  bar.style.cssText = 'display:flex;gap:8px;align-items:center;margin:0 0 14px';
+  const pickLabel = el('span', '', '年度：');
+  pickLabel.style.cssText = 'font-size:12.5px;color:var(--muted)';
+  const pick = el('select');
+  pick.style.cssText = 'font:inherit;font-size:13px;padding:4px 10px;border:1px solid var(--line);border-radius:8px;background:var(--sub);color:var(--ink)';
+  list.forEach((y) => { const o = el('option', '', '民國 ' + rocOf(Number(y)) + ' 年（' + y + '）'); o.value = y; pick.append(o); });
+  const printBtn = el('button', 'btn quiet');
+  printBtn.type = 'button';
+  printBtn.append(icon('doc'), el('span', '', '列印'));
+  printBtn.addEventListener('click', () => window.print());
+  bar.append(pickLabel, pick, printBtn);
+  sheet.append(bar);
+  const out = el('div');
+  sheet.append(out);
+
+  const paint = () => {
+    const c = cashOf(got.journal, got.bank, year);
+    info.textContent = '民國 ' + rocOf(c.year) + ' 年度　期末合計 ' + nt(c.bank.end + c.cash.end) + ' 元（銀行 ' + nt(c.bank.end) + '＋現金在手 ' + nt(c.cash.end) + '）';
+    out.replaceChildren();
+    out.append(finTable([
+      { label: '帳戶', get: (x) => x.name },
+      { label: '期初', right: 1, get: (x) => nt(x.open) + ' 元' },
+      { label: '本年度收入', right: 1, get: (x) => nt(x.in) + ' 元' },
+      { label: '本年度支出', right: 1, get: (x) => nt(x.out) + ' 元' },
+      { label: '期末', right: 1, strong: 1, get: (x) => nt(x.end) + ' 元' },
+    ], [
+      { name: '第一銀行', open: c.bank.open, in: c.bank.in, out: c.bank.out, end: c.bank.end },
+      { name: '現金在手（秘書長代墊用）', open: c.cash.open, in: c.cash.in, out: c.cash.out, end: c.cash.end },
+      { name: '合計', open: c.bank.open + c.cash.open, in: c.bank.in + c.cash.in, out: c.bank.out + c.cash.out, end: c.bank.end + c.cash.end },
+    ]));
+    if (!c.bank.known) out.append(hint('銀行明細上沒有填餘額，期末是用期初加減本年度收支推出來的。'));
+    out.append(hint('現金那一列：「本年度收入」＝從銀行領出的現金，「本年度支出」＝日記帳上付款方式是現金／LINE Pay 的支出。期末不是 0 就表示還有錢在手上（或有單還沒記帳）。'));
+  };
+  pick.addEventListener('change', () => { year = pick.value; paint(); });
   paint();
 }
 

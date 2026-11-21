@@ -598,8 +598,8 @@ export const menus = [
   { id: 'fin_statement', area: 'admin', parent_id: 'g_money', label: '收支表', icon: 'book', kind: 'page', target: 'statement', sort: 46, roles: ['staff', 'admin', 'board'] },
   { id: 'fin_recon', area: 'admin', parent_id: 'g_money', label: '對帳', icon: 'check', kind: 'page', target: 'recon', sort: 47, roles: ['staff', 'admin', 'board'] },
   { id: 'fin_bank', area: 'admin', parent_id: 'g_money', label: '銀行明細', icon: 'book', kind: 'object', target: 'bank', sort: 52, roles: ['staff', 'admin', 'board'] },
-  { id: 'fin_pl', area: 'admin', parent_id: 'g_money', label: '年度結餘表', icon: 'book', kind: 'page', target: 'soon:年度結餘表:本會是現金收支制，所以不做損益表，改做年度收支結餘。待預算表建好後一起做。', sort: 48 },
-  { id: 'fin_cash', area: 'admin', parent_id: 'g_money', label: '現金收支餘額表', icon: 'book', kind: 'page', target: 'soon:現金收支餘額表:取代資產負債表（現金收支制不適用）。列出各帳戶期初、收入、支出、期末。', sort: 49 },
+  { id: 'fin_pl', area: 'admin', parent_id: 'g_money', label: '年度結餘表', icon: 'book', kind: 'page', target: 'yearly', sort: 48, roles: ['staff', 'admin', 'board'] },
+  { id: 'fin_cash', area: 'admin', parent_id: 'g_money', label: '現金收支餘額表', icon: 'book', kind: 'page', target: 'cash', sort: 49, roles: ['staff', 'admin', 'board'] },
   { id: 'fin_account', area: 'admin', parent_id: 'g_money', label: '會計科目一覽', icon: 'book', kind: 'object', target: 'account', sort: 50, roles: ['staff', 'admin', 'board'] },
   { id: 'fin_budget', area: 'admin', parent_id: 'g_money', label: '會計科目預算表', icon: 'book', kind: 'page', target: 'soon:會計科目預算表:年度預算（會員大會決議後由秘書長輸入），與實際支出對照顯示執行率，超支提醒。來源是「寓委聯115年度計畫甘特圖與預算表」。', sort: 51 },
 
