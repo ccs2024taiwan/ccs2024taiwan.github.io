@@ -147,6 +147,7 @@ export const objects = [
       F('note', '備註', 'textarea', { ...stf, from: '備註' }),
       F('last5', '匯款後五碼', 'text', { ...stf, from: '匯款後五碼' }),
       F('receipt_title', '收據抬頭', 'text', { ...stf, from: '收據抬頭' }),
+      F('receipt_no', '收據編號', 'text', { ...stf, ...list, from: '收據編號', help: '開立紙本收據時填；管理台可以勾選好幾筆一次填連號' }),
       F('paid_at', '付款確認日', 'datetime', { ...stf, from: '付款確認日' }),
       F('shipped_at', '出貨日期', 'datetime', { ...stf, from: '出貨日期' }),
       F('tracking', '物流單號', 'text', { ...stf, from: '物流單號' }),

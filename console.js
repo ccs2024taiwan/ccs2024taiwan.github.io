@@ -543,8 +543,14 @@ async function viewObject(objectId) {
   pickBar.style.cssText = 'display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:0 0 12px';
   pickBar.hidden = true;
 
+  // 訂單勾選之後可以做的事（出貨那一套）
+  async function orderBulkDo(what, ids, extra) {
+    const body = Object.assign({ action: 'orderBulk', token: sessionStorageToken(), what: what, ids: ids }, extra || {});
+    return appsScript(body);
+  }
+
   function paintPickBar() {
-    if (!contactFields.length) return;
+    if (!contactFields.length && obj.id !== 'order') return;
     const picked = Object.keys(chosen);
     pickBar.replaceChildren();
     pickBar.hidden = false;
@@ -560,7 +566,9 @@ async function viewObject(objectId) {
     });
     pickBar.append(all);
 
-    const count = el('span', '', picked.length ? '已勾選 ' + picked.length + ' 位' : '勾選後可以複製聯絡方式');
+    const unit = obj.id === 'order' ? ' 筆' : ' 位';
+    const count = el('span', '', picked.length ? '已勾選 ' + picked.length + unit
+      : (obj.id === 'order' ? '勾選後可以產生信封、交貨便匯入表、填收據編號' : '勾選後可以複製聯絡方式'));
     count.style.cssText = 'font-size:12.5px;color:var(--muted)';
     pickBar.append(count);
 
@@ -572,6 +580,60 @@ async function viewObject(objectId) {
       b.addEventListener('click', () => copyContacts(obj, Object.keys(chosen).map((id) => chosen[id]), f));
       pickBar.append(b);
     });
+
+    if (obj.id === 'order') {
+      const rowsOf = () => Object.keys(chosen).map((id) => chosen[id]);
+      const shipBtn = (label, iconName, run) => {
+        const b = el('button', 'btn' + (picked.length ? ' pri' : ''));
+        b.type = 'button';
+        b.disabled = !picked.length;
+        b.append(icon(iconName), el('span', '', label));
+        b.addEventListener('click', async () => {
+          const ids = rowsOf().map((r) => r.id);
+          const old = b.textContent;
+          b.disabled = true;
+          b.replaceChildren(el('span', '', '處理中…'));
+          try { await run(ids, rowsOf()); } finally {
+            b.disabled = false;
+            b.replaceChildren(icon(iconName), el('span', '', old));
+          }
+        });
+        return b;
+      };
+
+      pickBar.append(shipBtn('產生郵局信封', 'doc', async (ids) => {
+        const r = await orderBulkDo('envelope', ids);
+        if (!r || !r.ok) return alert('沒有成功：' + ((r && (r.message || r.error)) || '未知原因') +
+          (r && r.error === 'no_postal_orders' ? '\n\n（勾選的訂單裡沒有「郵局寄送、已付款、還沒出貨」的）' : ''));
+        if (window.confirm('信封已產生（' + r.count + ' 件），順便標成「已備貨」' + (r.marked ? ' ' + r.marked + ' 筆' : '') + '。要現在開啟檔案嗎？')) window.open(r.url, '_blank');
+        viewObject(obj.id);
+      }));
+
+      pickBar.append(shipBtn('產生 7-11 匯入表', 'shop', async (ids) => {
+        const r = await orderBulkDo('cvs', ids);
+        if (!r || !r.ok) return alert('沒有成功：' + ((r && (r.message || r.error)) || '未知原因') +
+          (r && r.error === 'no_cvs_orders' ? '\n\n（勾選的訂單裡沒有「7-11 店到店、已付款、還沒出貨」的）' : ''));
+        if (window.confirm('交貨便匯入表已產生（' + r.count + ' 件），順便標成「已備貨」' + (r.marked ? ' ' + r.marked + ' 筆' : '') + '。要現在開啟檔案嗎？')) window.open(r.url, '_blank');
+        viewObject(obj.id);
+      }));
+
+      pickBar.append(shipBtn('填收據編號', 'receipt', async (ids) => {
+        const start = window.prompt('這批收據的第一個號碼（後面會自動往下加；已經有編號的不會被蓋掉）', '');
+        if (start === null || !start.trim()) return;
+        const r = await orderBulkDo('receipt', ids, { start: start.trim() });
+        if (!r || !r.ok) return alert('沒有成功：' + ((r && (r.message || r.error)) || '未知原因'));
+        alert('填好 ' + r.done + ' 筆：\n' + (r.list || []).join('\n') + '\n\n下一個號碼是 ' + r.next);
+        viewObject(obj.id);
+      }));
+
+      pickBar.append(shipBtn('標記已備貨', 'check', async (ids) => {
+        if (!window.confirm('把勾選的 ' + ids.length + ' 筆標成「已備貨」？（只有已付款的會改）')) return;
+        const r = await orderBulkDo('prepared', ids);
+        if (!r || !r.ok) return alert('沒有成功：' + ((r && (r.message || r.error)) || '未知原因'));
+        alert('已標記 ' + r.marked + ' 筆為已備貨。');
+        viewObject(obj.id);
+      }));
+    }
 
     if (picked.length) {
       const clear = el('button', 'btn quiet');
@@ -811,8 +873,8 @@ function showDetail(obj, row, box) {
   }
   const foot = el('p', 'hint');
   foot.append(icon('info'), el('span', '', acts.length
-    ? '按下去會改試算表那一份正本，再同步回這裡，並留下誰在什麼時候改了什麼。'
-    : '這一筆目前沒有可以按的動作。欄位的修改會在下一批加上。'));
+    ? '按下去會直接改這一筆，並留下誰在什麼時候改了什麼。'
+    : '這一筆目前沒有可以按的動作。要改內容請按上面的「編輯」。'));
   box.append(foot);
   loadRelated(obj, row, box);
 }
