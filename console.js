@@ -711,7 +711,7 @@ async function viewObject(objectId) {
   };
 
   const loadMore = async () => {
-    const result = await db('list', { object: objectId, limit: 200, cursor: cursor });
+    const result = await db('list', { object: objectId, limit: 1000, cursor: cursor });
     if (!result.ok) { sheet.replaceChildren(el('p', 'err', '讀不到：' + (result.message || result.error))); return; }
     if (!cols) {
       cols = (result.fields && result.fields.length ? result.fields : obj.fields.slice(0, 6));
@@ -923,6 +923,7 @@ async function runAction(a, obj, row, button) {
       (result && result.error === 'status_changed' ? '\n\n（這一筆的狀態已經被改過了，重新整理看看最新狀況。）' : ''));
     return;
   }
+  dropRowsCache(obj.id);
   alert(label + '：' + (result.message || '已處理。'));
   if (drawerEls) drawerEls.hide();
   if (current === 'approvals') viewApprovals(); else go(current);
@@ -1490,6 +1491,7 @@ function openForm(obj, row) {
     save.disabled = true;
     msg.hidden = true;
     const result = await db('save', { object: obj.id, id: row ? row.id : '', data: payload });
+    dropRowsCache(obj.id);
     save.disabled = false;
     if (!result.ok) {
       msg.textContent = '沒有存成功：' + (result.message || result.error);
@@ -1510,6 +1512,7 @@ function openForm(obj, row) {
 async function removeRecord(obj, row) {
   if (!confirm('要刪掉「' + (row.title || row.id) + '」嗎？\n\n資料不會真的消失，會標記成已刪除，需要的話救得回來。')) return;
   const result = await db('remove', { object: obj.id, id: row.id });
+  dropRowsCache(obj.id);
   if (!result.ok) { alert('刪不掉：' + (result.message || result.error)); return; }
   if (drawerEls) drawerEls.hide();
   go(current);
@@ -1598,18 +1601,18 @@ async function viewStatement() {
   sheet.append(hint('數字是從日記帳算出來的：4 字頭進收入、5 字頭進支出，9 字頭（暫收、暫付、內部轉帳）不算收支，只在最後列出待沖轉餘額。決算時一個科目一列抄進財報就好。'));
 
   // 日記帳與科目名稱
-  const got = await db('list', { object: 'journal', limit: 200 });
+  const got = await db('list', { object: 'journal', limit: 1000 });
   if (!got.ok) { sheet.append(el('p', 'err', '讀不到日記帳：' + (got.message || got.error))); return; }
   const rows = got.rows || [];
   let cursor = got.nextCursor;
   while (cursor && rows.length < 20000) {
-    const more = await db('list', { object: 'journal', limit: 200, cursor: cursor });
+    const more = await db('list', { object: 'journal', limit: 1000, cursor: cursor });
     if (!more.ok || !(more.rows || []).length) break;
     rows.push.apply(rows, more.rows);
     cursor = more.nextCursor;
   }
   const names = {};
-  const acc = await db('list', { object: 'account', limit: 200 });
+  const acc = await db('list', { object: 'account', limit: 1000 });
   if (acc.ok) (acc.rows || []).forEach((r) => { if (r.data && r.data.code) names[String(r.data.code).trim()] = r.data.name; });
 
   const years = {};
@@ -1883,12 +1886,12 @@ async function viewRecon() {
   sheet.append(hint('下面兩張表的每一列都可以點開來改：日期打錯、金額少一個 0、付款方式選錯邊，改完按上面的「改完重算」就會重對。真的有兩筆同額分不出來時，在日記帳那一筆填「銀行列號」就當作已指定。'));
 
   const loadAll = async (object) => {
-    const first = await db('list', { object: object, limit: 200 });
+    const first = await db('list', { object: object, limit: 1000 });
     if (!first.ok) return null;
     const rows = first.rows || [];
     let cursor = first.nextCursor;
     while (cursor && rows.length < 20000) {
-      const more = await db('list', { object: object, limit: 200, cursor: cursor });
+      const more = await db('list', { object: object, limit: 1000, cursor: cursor });
       if (!more.ok || !(more.rows || []).length) break;
       rows.push.apply(rows, more.rows);
       cursor = more.nextCursor;
@@ -1925,7 +1928,7 @@ async function viewRecon() {
   const againBtn = el('button', 'btn quiet');
   againBtn.type = 'button';
   againBtn.append(icon('check'), el('span', '', '改完重算'));
-  againBtn.addEventListener('click', () => viewRecon());
+  againBtn.addEventListener('click', () => { dropRowsCache('journal'); dropRowsCache('bank'); viewRecon(); });
   bar.append(printBtn, againBtn);
   sheet.append(bar);
   const out = el('div');
@@ -2096,19 +2099,30 @@ function cashOf(journal, bank, year) {
   };
 }
 
-async function loadFinance(objects) {
+// 讀過就留著，90 秒內再進同一頁不用重抓（寫入之後會自己失效）
+const ROWS_CACHE = {};
+const ROWS_CACHE_MS = 90000;
+function dropRowsCache(object) {
+  if (object) delete ROWS_CACHE[object];
+  else Object.keys(ROWS_CACHE).forEach((k) => delete ROWS_CACHE[k]);
+}
+
+async function loadFinance(objects, fresh) {
   const out = {};
   for (const object of objects) {
-    const first = await db('list', { object: object, limit: 200 });
+    const hit = ROWS_CACHE[object];
+    if (!fresh && hit && Date.now() - hit.at < ROWS_CACHE_MS) { out[object] = hit.rows; continue; }
+    const first = await db('list', { object: object, limit: 1000 });
     if (!first.ok) { out[object] = null; continue; }
     const rows = first.rows || [];
     let cursor = first.nextCursor;
     while (cursor && rows.length < 20000) {
-      const more = await db('list', { object: object, limit: 200, cursor: cursor });
+      const more = await db('list', { object: object, limit: 1000, cursor: cursor });
       if (!more.ok || !(more.rows || []).length) break;
       rows.push.apply(rows, more.rows);
       cursor = more.nextCursor;
     }
+    ROWS_CACHE[object] = { at: Date.now(), rows: rows };
     out[object] = rows;
   }
   return out;
@@ -2410,6 +2424,7 @@ async function viewBankImport() {
       let merged = 0;
       for (let i = 0; i < rows.length; i += 200) {
         const r = await db('bulk', { object: 'bank', rows: rows.slice(i, i + 200), dedupe: ['fp'], who: '上傳對帳單' });
+        dropRowsCache('bank');
         if (!r.ok) {
           msg.className = 'err';
           msg.textContent = '沒有成功：' + (r.message || r.error);
@@ -2470,7 +2485,9 @@ async function stockAdd(edition, count, source, note) {
       fp: edition + '｜' + (last + i),
     });
   }
-  return db('bulk', { object: 'book_copy', rows: list, dedupe: ['fp'], who: '新增庫存' });
+  const done = await db('bulk', { object: 'book_copy', rows: list, dedupe: ['fp'], who: '新增庫存' });
+  dropRowsCache('book_copy');
+  return done;
 }
 
 // 出庫：從還在庫的裡面照流水號拿 n 本，填上來源、用途
@@ -2493,6 +2510,7 @@ async function stockTake(edition, count, data) {
       note: i === 0 ? (data.note || '') + (count > 1 ? '（共 ' + count + ' 本，第 ' + from + '～' + to + ' 本）' : '') : '↑ 同上',
     });
     const saved = await db('save', { object: 'book_copy', id: r.id, data: patch });
+    dropRowsCache('book_copy');
     if (!saved.ok) return { ok: false, message: '第 ' + r.data.seq + ' 本沒有成功：' + (saved.message || saved.error) };
   }
   return { ok: true, from: from, to: to, count: count };

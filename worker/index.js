@@ -1074,7 +1074,9 @@ async function api(request, env, url) {
 
     // acl.guestLimit：訪客只拿得到前幾列（例如討論串前 3 則），其餘要登入
     const guestCap = role === 'guest' && Number(object.acl.guestLimit) > 0 ? Number(object.acl.guestLimit) : 0;
-    const limit = Math.min(guestCap || 200, Math.max(1, Number(body.limit) || 50));
+    // 秘書處與秘書長一次可以拿多一點：整份日記帳、整批庫存都是一趟拿完，不用來回好幾次
+    const cap = guestCap || (role === 'staff' || role === 'admin' ? 1000 : 200);
+    const limit = Math.min(cap, Math.max(1, Number(body.limit) || 50));
     const cursor = body.cursor ? String(body.cursor) : null;
     const args = [object.id];
     let where = 'object_id = ? AND deleted_at IS NULL';
