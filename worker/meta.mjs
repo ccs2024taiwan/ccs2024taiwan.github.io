@@ -128,7 +128,9 @@ export const objects = [
     fields: [
       F('id', '訂單編號', 'text', { ...stf, ...list, ...req, from: '訂單編號' }),
       F('created', '訂購時間', 'datetime', { ...stf, ...list, from: '訂購時間' }),
-      F('status', '狀態', 'select', { ...stf, ...list, from: '狀態', options: { items: ['待付款', '已回報匯款', '已付款', '已備貨', '已出貨', '已面交', '取消'], main: ['待付款', '已回報匯款', '已付款', '已備貨'] } }),
+      F('status', '狀態', 'select', { ...stf, ...list, from: '狀態', options: { items: ['待付款', '已回報匯款', '已付款', '已備貨', '已出貨', '已面交', '取消'],
+        // 訂單名單＝還要處理的；已備貨、已出貨各自一頁，順序照這裡
+        main: ['待付款', '已回報匯款', '已付款'], order: ['已備貨', '已出貨', '已面交', '取消'] } }),
       F('name', '姓名', 'text', { ...stf, ...list, from: '姓名' }),
       F('phone', '手機', 'phone', { ...sec, from: '手機', options: { contact: 1 }, help: '出貨與聯絡用；官網不回傳' }),
       F('email', 'Email', 'email', { ...stf, from: 'Email', options: { contact: 1 } }),

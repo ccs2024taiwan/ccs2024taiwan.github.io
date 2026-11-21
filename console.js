@@ -360,7 +360,7 @@ async function viewObject(objectId) {
 
   function paintStatusBar() {
     if (!statusField || !mainList.length) return;
-    const others = asideStatuses(rows.map(statusOf), mainList, statusGroups);
+    const others = asideStatuses(rows.map(statusOf), mainList, statusGroups, (statusField.options && statusField.options.order) || []);
     if (!others.length) { statusBar.hidden = true; return; }
     const mainCount = rows.filter((r) => mainList.indexOf(statusOf(r)) !== -1).length;
     statusBar.replaceChildren();
@@ -1273,14 +1273,17 @@ function statusTabOf(value, groups) {
 }
 
 // 資料裡實際出現、而且不算主要名單的狀態，照人數多的排前面
-function asideStatuses(values, main, groups) {
+// main 以外的狀態各開一頁。order 指定了順序的照它排，其餘照筆數多的在前面。
+function asideStatuses(values, main, groups, order) {
   const count = {};
   values.forEach((v) => {
     if ((main || []).indexOf(v) !== -1) return;
     const tab = statusTabOf(v, groups);
     count[tab] = (count[tab] || 0) + 1;
   });
-  return Object.keys(count).sort((a, b) => count[b] - count[a]).map((v) => ({ value: v, count: count[v] }));
+  const want = (order || []).filter((v) => count[v]);
+  const rest = Object.keys(count).filter((v) => want.indexOf(v) === -1).sort((a, b) => count[b] - count[a]);
+  return want.concat(rest).map((v) => ({ value: v, count: count[v] }));
 }
 
 // ── 一格裡好幾個標籤（例如來源「交流日；購書」）────────────
