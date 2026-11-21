@@ -393,7 +393,9 @@ async function api(request, env, url) {
   // 同步對照表：哪些物件要從試算表同步、每個欄位對應哪一欄
   if (path === 'sync-map') {
     if (!(await keyOk(request, env))) return fail('unauthorized', 401);
-    const objects = await env.DB.prepare("SELECT id, label, source, title_field, extras FROM meta_object WHERE (source LIKE 'sheet:%' OR source LIKE 'compute:%') AND status = 'active' ORDER BY sort").all();
+    // 全部物件都回傳：Apps Script 寫 D1 時也要靠這張表把欄名對到欄位代號。
+    // 有 sheet／compute 的才會被同步推上來；兩個都空的就是正本已經在 D1。
+    const objects = await env.DB.prepare("SELECT id, label, source, title_field, extras FROM meta_object WHERE status = 'active' ORDER BY sort").all();
     // 所有欄位都同步，含 privacy=secret 的手機：CRM 要靠它把同一個人的會員與志工身分合起來，
     // 登入搬到 Worker 之後也要用它比對末三碼。保護靠的是「誰讀得到」：secret 欄位只有秘書長拿得到（見 VISIBLE.admin 與 shape()）。
     const fields = await env.DB.prepare('SELECT object_id, "key", type, options FROM meta_field ORDER BY object_id, sort').all();
