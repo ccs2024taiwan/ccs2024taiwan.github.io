@@ -707,6 +707,8 @@ async function api(request, env, url) {
     const keys = Array.isArray(b.dedupe) ? b.dedupe.filter(Boolean).slice(0, 3) : [];
     const appendFields = Array.isArray(b.appendFields) ? b.appendFields : [];
     const onlyExisting = b.onlyExisting === true;
+    // overwrite＝重新匯入：對得上的那一筆，用新的內容覆蓋（預設只補原本空著的欄位）
+    const overwrite = b.overwrite === true;
     const who = String(b.who || '匯入');
     const now = new Date().toISOString();
 
@@ -756,6 +758,7 @@ async function api(request, env, url) {
             changed = true;
             return;
           }
+          if (overwrite) { if (current !== incomingValue) { next[k] = data[k]; changed = true; } return; }
           if (!current) { next[k] = data[k]; changed = true; }
         });
         if (!changed) { merged++; return; }

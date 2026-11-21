@@ -2456,6 +2456,48 @@ function stockOf(rows) {
   return Object.keys(byEdition).sort().map((k) => byEdition[k]);
 }
 
+// 進貨：某個版次再加 n 本（流水號接在最後一本後面）
+async function stockAdd(edition, count, source, note) {
+  const got = await loadFinance(['book_copy']);
+  const rows = (got.book_copy || []).filter((r) => String((r.data || {}).edition || '').trim() === edition);
+  let last = 0;
+  rows.forEach((r) => { const n = Number((r.data || {}).seq) || 0; if (n > last) last = n; });
+  const list = [];
+  for (let i = 1; i <= count; i++) {
+    list.push({
+      edition: edition, seq: last + i,
+      source: source || '', note: note || '',
+      fp: edition + '｜' + (last + i),
+    });
+  }
+  return db('bulk', { object: 'book_copy', rows: list, dedupe: ['fp'], who: '新增庫存' });
+}
+
+// 出庫：從還在庫的裡面照流水號拿 n 本，填上來源、用途
+async function stockTake(edition, count, data) {
+  const got = await loadFinance(['book_copy']);
+  const free = (got.book_copy || [])
+    .filter((r) => String((r.data || {}).edition || '').trim() === edition)
+    .filter((r) => !String((r.data || {}).source || '').trim() && !String((r.data || {}).use || '').trim())
+    .sort((a, b) => (Number((a.data || {}).seq) || 0) - (Number((b.data || {}).seq) || 0));
+  if (free.length < count) return { ok: false, message: '庫存只剩 ' + free.length + ' 本，不夠出 ' + count + ' 本。' };
+  const take = free.slice(0, count);
+  const from = Number(take[0].data.seq) || 0;
+  const to = Number(take[take.length - 1].data.seq) || 0;
+  for (let i = 0; i < take.length; i++) {
+    const r = take[i];
+    const patch = Object.assign({}, r.data, {
+      source: data.source,
+      use: i === 0 ? data.use : '↑ 同上',
+      income: i === 0 ? data.income : '',
+      note: i === 0 ? (data.note || '') + (count > 1 ? '（共 ' + count + ' 本，第 ' + from + '～' + to + ' 本）' : '') : '↑ 同上',
+    });
+    const saved = await db('save', { object: 'book_copy', id: r.id, data: patch });
+    if (!saved.ok) return { ok: false, message: '第 ' + r.data.seq + ' 本沒有成功：' + (saved.message || saved.error) };
+  }
+  return { ok: true, from: from, to: to, count: count };
+}
+
 async function viewStock() {
   $('crumb').textContent = '資料 › 書籍庫存';
   const main = $('main');
@@ -2476,6 +2518,23 @@ async function viewStock() {
   const rows = got.book_copy;
   if (!rows.length) { info.textContent = '還沒有資料'; sheet.append(el('p', 'hint', '請到試算表選單「同步 → 搬家：匯入書籍庫存（只做一次）」把現在那份銷售紀錄搬進來。')); return; }
   const list = stockOf(rows);
+  const editions = list.map((x) => x.edition);
+
+  // 進貨與出庫
+  const tools = el('div');
+  tools.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;margin:4px 0 16px';
+  if (canEdit((META.objects || []).find((o) => o.id === 'book_copy') || {})) {
+    const addBtn = el('button', 'btn pri');
+    addBtn.type = 'button';
+    addBtn.append(icon('check'), el('span', '', '新增庫存（進貨）'));
+    addBtn.addEventListener('click', () => stockForm('add', editions));
+    const outBtn = el('button', 'btn');
+    outBtn.type = 'button';
+    outBtn.append(icon('out'), el('span', '', '出庫登記（贈送、現場販售…）'));
+    outBtn.addEventListener('click', () => stockForm('take', editions));
+    tools.append(addBtn, outBtn);
+    sheet.append(tools);
+  }
   const total = list.reduce((t, x) => ({ printed: t.printed + x.printed, used: t.used + x.used, left: t.left + x.left, income: t.income + x.income }), { printed: 0, used: 0, left: 0, income: 0 });
   info.textContent = '印了 ' + total.printed + ' 本　已出 ' + total.used + ' 本　還剩 ' + total.left + ' 本　累計收入 ' + nt(total.income) + ' 元';
 
@@ -2527,6 +2586,109 @@ async function viewStock() {
   }
   sheet.append(table);
   if (taken.length > 30) sheet.append(el('p', 'hint', '…還有 ' + (taken.length - 30) + ' 本。完整清單在「資料 → 書籍庫存」。'));
+}
+
+// 進貨／出庫的小表單，從右邊滑出來
+function stockForm(mode, editions) {
+  const d = ensureDrawer();
+  const add = mode === 'add';
+  d.title.replaceChildren(el('span', '', add ? '新增庫存（進貨）' : '出庫登記'));
+  d.body.replaceChildren();
+  d.body.append(hint(add
+    ? '印了一刷、或收到一批書的時候用。會照這個版次現有的最後一本往下編號。'
+    : '公關贈送、現場販售、樣書這些不是從官網訂單出去的，在這裡登記。會從還在庫的裡面照流水號拿。'));
+
+  const field = (label, node, help) => {
+    const wrap = el('div', 'fld');
+    wrap.append(el('label', '', label), node);
+    if (help) { const t = el('small', '', help); t.style.cssText = 'color:var(--muted);font-size:12px'; wrap.append(t); }
+    d.body.append(wrap);
+    return node;
+  };
+  const style = 'font:inherit;font-size:13.5px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--sub);color:var(--ink);width:100%';
+
+  const editionInput = el('input');
+  editionInput.setAttribute('list', 'stock-editions');
+  editionInput.style.cssText = style;
+  editionInput.value = editions[editions.length - 1] || '';
+  const datalist = el('datalist');
+  datalist.id = 'stock-editions';
+  editions.forEach((x) => { const o = el('option'); o.value = x; datalist.append(o); });
+  d.body.append(datalist);
+  field('版次', editionInput, add ? '新的一刷直接打新名字，例如「二版二刷」' : '');
+
+  const countInput = el('input');
+  countInput.type = 'number';
+  countInput.min = '1';
+  countInput.value = add ? '100' : '1';
+  countInput.style.cssText = style;
+  field(add ? '這一批幾本' : '出幾本', countInput);
+
+  let sourceInput = null;
+  let useInput = null;
+  let incomeInput = null;
+  if (!add) {
+    sourceInput = el('select');
+    sourceInput.style.cssText = style;
+    ['贈送', '現場販售', '樣書', '損毀', '其他'].forEach((x) => { const o = el('option', '', x); o.value = x; sourceInput.append(o); });
+    field('來源（出去的原因）', sourceInput);
+    useInput = el('input');
+    useInput.style.cssText = style;
+    field('用途（給誰／做什麼）', useInput, '例：臺中市政府王科長、11/30 會員大會');
+    incomeInput = el('input');
+    incomeInput.type = 'number';
+    incomeInput.style.cssText = style;
+    field('收入（沒收錢就留白）', incomeInput);
+  }
+  const noteInput = el('input');
+  noteInput.style.cssText = style;
+  field('備註', noteInput, add ? '例：2026/11 二刷 100 本，印刷費 18,000' : '');
+
+  const msg = el('p', 'err');
+  msg.hidden = true;
+  d.body.append(msg);
+  const bar = el('div');
+  bar.style.cssText = 'display:flex;gap:8px;margin-top:18px;padding-top:16px;border-top:1px solid var(--line)';
+  const go = el('button', 'btn pri');
+  go.type = 'button';
+  go.append(icon('check'), el('span', '', add ? '加入庫存' : '登記出庫'));
+  const cancel = el('button', 'btn quiet');
+  cancel.type = 'button';
+  cancel.textContent = '取消';
+  cancel.addEventListener('click', () => d.hide());
+  bar.append(go, cancel);
+  d.body.append(bar);
+
+  go.addEventListener('click', async () => {
+    const edition = editionInput.value.trim();
+    const count = Math.floor(Number(countInput.value) || 0);
+    const fail = (text) => { msg.textContent = text; msg.hidden = false; go.disabled = false; };
+    go.disabled = true;
+    msg.hidden = true;
+    if (!edition) return fail('要填版次。');
+    if (!(count > 0)) return fail('本數要大於 0。');
+    if (add) {
+      const r = await stockAdd(edition, count, '', noteInput.value.trim());
+      if (!r.ok) return fail('沒有成功：' + (r.message || r.error));
+      d.hide();
+      alert(edition + ' 加了 ' + (r.created || count) + ' 本。');
+      return viewStock();
+    }
+    if (!useInput.value.trim()) return fail('要填用途（給誰／做什麼）。');
+    const r = await stockTake(edition, count, {
+      source: sourceInput.value, use: useInput.value.trim(),
+      income: incomeInput.value.trim() ? Number(incomeInput.value) : '',
+      note: noteInput.value.trim(),
+    });
+    if (!r.ok) return fail(r.message || '沒有成功');
+    d.hide();
+    alert('已登記出庫：' + edition + ' 第 ' + r.from + (r.count > 1 ? '～' + r.to : '') + ' 本。');
+    viewStock();
+  });
+
+  d.scrim.classList.add('on');
+  d.drawer.classList.add('on');
+  d.body.scrollTop = 0;
 }
 
 async function viewPermits() {
