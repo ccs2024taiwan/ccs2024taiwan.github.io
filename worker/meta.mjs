@@ -266,7 +266,7 @@ export const objects = [
   {
     // 會計科目一覽：直接鏡像「科目表」
     id: 'account', label: '會計科目一覽', icon: 'book', sort: 86,
-    title_field: 'name', sync: { sheet: '科目表', key: 'code' },
+    title_field: 'name', source: 'd1', // 正本 2026-11-21 搬到 D1
     acl: { list: ['staff', 'board'], read: ['staff', 'board'], create: ['staff'], update: ['staff'], delete: ['admin'] },
     fields: [
       F('code', '科目代號', 'text', { ...stf, ...list, ...req, from: '科目代號' }),
@@ -491,17 +491,17 @@ export const objects = [
   },
   {
     id: 'journal', label: '日記帳', icon: 'book', sort: 80,
-    title_field: 'summary', sync: { sheet: '日記帳', key: ['date', 'no', 'summary'] },
+    title_field: 'summary', source: 'd1', // 正本 2026-11-21 搬到 D1；試算表那張改名「（舊）」只留歷史
     acl: { list: ['staff', 'board'], read: ['staff', 'board'], create: ['staff'], update: ['staff'], delete: ['admin'] },
     fields: [
-      F('date', '日期', 'date', { ...stf, ...list, ...req, from: '日期', lock_after: { mode: 'reverse_only' } }),
+      F('date', '日期', 'date', { ...stf, ...list, ...req, ...tracked, from: '日期' }),
       F('source', '來源', 'text', { ...stf, from: '來源' }),
       F('no', '單號', 'text', { ...stf, ...locked, from: '單號' }),
       F('summary', '摘要', 'text', { ...stf, ...list, ...req, from: '摘要' }),
-      F('code', '科目代號', 'text', { ...stf, ...list, ...req, from: '科目代號', lock_after: { mode: 'reverse_only' } }),
+      F('code', '科目代號', 'text', { ...stf, ...list, ...req, ...tracked, from: '科目代號' }),
       F('code_name', '科目名稱', 'text', { ...stf, from: '科目名稱' }),
-      F('income', '收入', 'money', { ...stf, ...list, from: '收入', lock_after: { mode: 'reverse_only' } }),
-      F('expense', '支出', 'money', { ...stf, ...list, from: '支出', lock_after: { mode: 'reverse_only' } }),
+      F('income', '收入', 'money', { ...stf, ...list, ...tracked, from: '收入' }),
+      F('expense', '支出', 'money', { ...stf, ...list, ...tracked, from: '支出' }),
       F('target', '對象', 'text', { ...stf, from: '對象' }),
       F('task', '任務／活動', 'text', { ...stf, ...list, from: '任務／活動' }),
       F('method', '付款方式', 'text', { ...stf, from: '付款方式' }),
