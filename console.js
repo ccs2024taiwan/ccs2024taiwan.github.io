@@ -1711,8 +1711,11 @@ const isCashRow = (r) => /現金|取款|提款|ATM/.test(String(r.kind || '') + 
 // journal、bank 都是 { data: {...} } 那種列；ym 是 "2026-11"
 function reconcile(journal, bank, ym) {
   const month = (v) => String(v == null ? '' : v).slice(0, 7);
-  const J = (journal || []).map((r) => r.data || r);
-  const B = (bank || []).map((r) => r.data || r);
+  // 留著原本那一筆（含資料庫編號），畫面上才點得開來改
+  const srcOf = new Map();
+  const take = (list) => (list || []).map((r) => { const d = r.data || r; srcOf.set(d, r); return d; });
+  const J = take(journal);
+  const B = take(bank);
 
   // 日記帳：付款方式「銀行」的才一筆一筆對；LINE Pay／現金 另外一區；其他不對帳
   const bankJ = J.filter((d) => String(d.method || '').trim() === '銀行');
@@ -1752,7 +1755,7 @@ function reconcile(journal, bank, ym) {
     }
     const hits = bankMatches(d);
     if (hits.length === 1) return;
-    journalUnmatched.push({ data: d, why: hits.length ? '多筆同額，要手動指定' : '銀行明細上找不到', batch: batch, hits: hits.length });
+    journalUnmatched.push({ data: d, row: srcOf.get(d), why: hits.length ? '多筆同額，要手動指定' : '銀行明細上找不到', batch: batch, hits: hits.length });
   });
 
   // 銀行明細那邊：找不到對應日記帳的（利息、手續費、或忘了記的）
@@ -1770,7 +1773,7 @@ function reconcile(journal, bank, ym) {
       const amount = batch ? batchTotal[batch] : reconAmount(d.income, d.expense);
       return amount === bAmount && daysApart(d.date, b.date) <= RECON_DAYS;
     });
-    if (!hit) bankUnmatched.push({ data: b });
+    if (!hit) bankUnmatched.push({ data: b, row: srcOf.get(b) });
   });
 
   // 這個月的合計
@@ -1814,6 +1817,7 @@ async function viewRecon() {
   sheet.style.borderRadius = 'var(--r)';
   main.append(sheet);
   sheet.append(hint('銀行明細對日記帳：同方向、同金額、日期相差 3 天以內就算對上；同一個付款批號的幾筆會合併起來對。LINE Pay 不是另一個帳戶（從銀行領現金、再用 LINE Pay 轉給請款人），所以另外一區用「現金取款合計」對「代付支出合計」。'));
+  sheet.append(hint('下面兩張表的每一列都可以點開來改：日期打錯、金額少一個 0、付款方式選錯邊，改完按上面的「改完重算」就會重對。真的有兩筆同額分不出來時，在日記帳那一筆填「銀行列號」就當作已指定。'));
 
   const loadAll = async (object) => {
     const first = await db('list', { object: object, limit: 200 });
@@ -1855,12 +1859,16 @@ async function viewRecon() {
   printBtn.type = 'button';
   printBtn.append(icon('doc'), el('span', '', '列印'));
   printBtn.addEventListener('click', () => window.print());
-  bar.append(printBtn);
+  const againBtn = el('button', 'btn quiet');
+  againBtn.type = 'button';
+  againBtn.append(icon('check'), el('span', '', '改完重算'));
+  againBtn.addEventListener('click', () => viewRecon());
+  bar.append(printBtn, againBtn);
   sheet.append(bar);
   const out = el('div');
   sheet.append(out);
 
-  const rowTable = (title, items, columns, empty) => {
+  const rowTable = (title, items, columns, empty, objectId) => {
     const wrap = el('div');
     wrap.style.cssText = 'margin:0 0 22px';
     const h = el('h2', '', title + '（' + items.length + '）');
@@ -1874,6 +1882,7 @@ async function viewRecon() {
     columns.forEach((c) => { const th = el('th', '', c.label); if (c.right) th.style.textAlign = 'right'; hr.append(th); });
     thead.append(hr);
     const tb = el('tbody');
+    const obj = objectId ? (META.objects || []).find((o) => o.id === objectId) : null;
     items.forEach((x) => {
       const tr = el('tr');
       columns.forEach((c) => {
@@ -1881,6 +1890,12 @@ async function viewRecon() {
         if (c.right) td.style.cssText = 'text-align:right;font-variant-numeric:tabular-nums';
         tr.append(td);
       });
+      // 點一下就開那一筆，可以直接改日期、金額、付款方式，或填銀行列號指定對到哪一列
+      if (obj && x.row && x.row.id) {
+        tr.style.cursor = 'pointer';
+        tr.title = '點一下可以修改這一筆';
+        tr.addEventListener('click', () => openDrawer(obj, x.row));
+      }
       tb.append(tr);
     });
     t.append(thead, tb);
@@ -1915,7 +1930,7 @@ async function viewRecon() {
       { label: '支出', right: 1, get: (x) => (Number(x.data.expense) ? nt(x.data.expense) : '') },
       { label: '批號', get: (x) => x.batch || '' },
       { label: '為什麼', get: (x) => x.why },
-    ], '都對到了。'));
+    ], '都對到了。', 'journal'));
 
     out.append(rowTable('銀行明細上對不到日記帳的', r.bankUnmatched, [
       { label: '日期', get: (x) => String(x.data.date || '').slice(0, 10) },
@@ -1923,7 +1938,7 @@ async function viewRecon() {
       { label: '存入', right: 1, get: (x) => (Number(x.data['in']) ? nt(x.data['in']) : '') },
       { label: '支出', right: 1, get: (x) => (Number(x.data.out) ? nt(x.data.out) : '') },
       { label: '備註', get: (x) => String(x.data.note || '') },
-    ], '都對到了。'));
+    ], '都對到了。', 'bank'));
 
     // 現金（LINE Pay 代付）
     const cashWrap = el('div');
