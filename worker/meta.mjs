@@ -247,10 +247,9 @@ export const objects = [
     ],
   },
   {
-    // 銀行對帳單匯進來的明細。正本在試算表（網銀下載的檔案由「會計：匯入銀行對帳單」寫進去），
-    // 這裡是鏡像，給管理台對帳用。
+    // 銀行對帳單。正本 2026-11-21 起在 D1：網銀下載的檔案直接在管理台「財務 → 銀行明細」上傳。
     id: 'bank', label: '銀行明細', icon: 'book', sort: 87,
-    title_field: 'memo', sync: { sheet: '銀行明細', key: ['date', 'memo', 'out', 'in', 'balance'] },
+    title_field: 'memo', source: 'd1',
     acl: { list: ['staff', 'board'], read: ['staff', 'board'], create: ['staff'], update: ['staff'], delete: ['admin'] },
     fields: [
       F('date', '交易日期', 'date', { ...stf, ...list, from: '交易日期' }),
@@ -261,6 +260,8 @@ export const objects = [
       F('state', '狀態', 'text', { ...stf, from: '狀態' }),
       F('note', '備註', 'text', { ...stf, from: '備註' }),
       F('memo', '摘要', 'text', { ...stf, ...list, from: '摘要' }),
+      // 核對碼＝日期｜摘要｜支出｜存入｜餘額，上傳同一份對帳單兩次不會變兩筆
+      F('fp', '核對碼', 'text', { ...stf, from: '核對碼' }),
     ],
   },
   {
@@ -597,6 +598,7 @@ export const menus = [
   { id: 'fin_journal', area: 'admin', parent_id: 'g_money', label: '日記帳', icon: 'book', kind: 'object', target: 'journal', sort: 45, roles: ['staff', 'admin', 'board'] },
   { id: 'fin_statement', area: 'admin', parent_id: 'g_money', label: '收支表', icon: 'book', kind: 'page', target: 'statement', sort: 46, roles: ['staff', 'admin', 'board'] },
   { id: 'fin_recon', area: 'admin', parent_id: 'g_money', label: '對帳', icon: 'check', kind: 'page', target: 'recon', sort: 47, roles: ['staff', 'admin', 'board'] },
+  { id: 'fin_bank_import', area: 'admin', parent_id: 'g_money', label: '匯入對帳單', icon: 'doc', kind: 'page', target: 'bankimport', sort: 51, roles: ['staff', 'admin'] },
   { id: 'fin_bank', area: 'admin', parent_id: 'g_money', label: '銀行明細', icon: 'book', kind: 'object', target: 'bank', sort: 52, roles: ['staff', 'admin', 'board'] },
   { id: 'fin_pl', area: 'admin', parent_id: 'g_money', label: '年度結餘表', icon: 'book', kind: 'page', target: 'yearly', sort: 48, roles: ['staff', 'admin', 'board'] },
   { id: 'fin_cash', area: 'admin', parent_id: 'g_money', label: '現金收支餘額表', icon: 'book', kind: 'page', target: 'cash', sort: 49, roles: ['staff', 'admin', 'board'] },

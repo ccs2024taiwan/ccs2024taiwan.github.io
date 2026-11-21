@@ -695,7 +695,8 @@ async function api(request, env, url) {
   // 搬家時一次塞幾百筆用的。一筆一筆打 API 會打到逾時，所以這裡一次收一整批。
   // dedupe 填哪些欄位算「同一個人」（例如 ["phone","email"]）：對得上就補資料，不會變兩筆。
   if (path === 'bulk' && request.method === 'POST') {
-    if (!(await keyOk(request, env))) return fail('unauthorized', 401);
+    // 金鑰（Apps Script 搬家用）或秘書長的通行證（管理台上傳對帳單用）
+    if (!(await keyOk(request, env)) && role !== 'admin') return fail('unauthorized', 401);
     const b = await request.json().catch(() => ({}));
     const meta = await loadMeta(env);
     const object = meta.objects.find((o) => o.id === b.object);

@@ -220,6 +220,7 @@ function go(key) {
   if (key === 'recon') return viewRecon();
   if (key === 'yearly') return viewYearly();
   if (key === 'cash') return viewCash();
+  if (key === 'bankimport') return viewBankImport();
   if (key === 'permits') return viewPermits();
   if (key === 'audit') return viewAudit();
   if (key === 'audit_old') return viewSoon('留痕', '誰在什麼時候改了什麼，連改前改後都留著，刪掉的東西可以還原。要等管理台開放「寫入」之後才會有內容，和寫入功能同一批。');
@@ -2160,6 +2161,196 @@ async function viewCash() {
   };
   pick.addEventListener('change', () => { year = pick.value; paint(); });
   paint();
+}
+
+
+// ── 匯入銀行對帳單 ──────────────────────────────────────
+// 網銀下載的檔案直接丟進來：CSV 自己解析，XLS／XLSX 用 SheetJS（第一銀行的 .xls 其實是 HTML 表格，也讀得動）。
+// 每一列算一個「核對碼」＝日期｜摘要｜支出｜存入｜餘額，同一份檔案匯第二次不會變兩筆。
+
+// CSV → 二維陣列（支援引號內的逗號與換行）
+function parseCsv(text) {
+  const rows = [];
+  let row = [];
+  let cell = '';
+  let quoted = false;
+  const t = String(text).replace(/^\uFEFF/, '');
+  for (let i = 0; i < t.length; i++) {
+    const c = t[i];
+    if (quoted) {
+      if (c === '"') {
+        if (t[i + 1] === '"') { cell += '"'; i++; }
+        else quoted = false;
+      } else cell += c;
+      continue;
+    }
+    if (c === '"') { quoted = true; continue; }
+    if (c === ',') { row.push(cell); cell = ''; continue; }
+    if (c === '\r') continue;
+    if (c === '\n') { row.push(cell); rows.push(row); row = []; cell = ''; continue; }
+    cell += c;
+  }
+  if (cell !== '' || row.length) { row.push(cell); rows.push(row); }
+  return rows;
+}
+
+// 二維陣列 → 銀行明細的列。找含「交易日期」的那一列當標題。
+function bankRowsFrom(grid) {
+  const clean = (v) => String(v == null ? '' : v).replace(/\s+/g, '');
+  const at = (grid || []).findIndex((r) => (r || []).some((v) => clean(v).indexOf('交易日期') !== -1));
+  if (at < 0) return { error: '這個檔案裡找不到「交易日期」那一列，可能不是對帳單，或格式不一樣。' };
+  const head = (grid[at] || []).map(clean);
+  const col = (name) => head.findIndex((x) => x.indexOf(name) !== -1);
+  const idx = { date: col('交易日期'), kind: col('交易類別'), out: col('支出'), in: col('存入'), balance: col('餘額'), state: col('狀態'), note: col('備註'), memo: col('摘要') };
+  const num = (v) => {
+    const n = Number(String(v == null ? '' : v).replace(/[,\s元$]/g, ''));
+    return isNaN(n) || !n ? 0 : n;
+  };
+  const date = (v) => {
+    const t = String(v == null ? '' : v).trim();
+    if (!t) return '';
+    const m = /^(\d{4})[-/.年]?(\d{1,2})[-/.月]?(\d{1,2})/.exec(t);
+    if (m) return m[1] + '-' + ('0' + m[2]).slice(-2) + '-' + ('0' + m[3]).slice(-2);
+    const d = new Date(t);
+    return isNaN(d) ? '' : d.toISOString().slice(0, 10);
+  };
+  const text = (r, i) => (i < 0 ? '' : String(r[i] == null ? '' : r[i]).trim());
+  const rows = [];
+  const bad = [];
+  grid.slice(at + 1).forEach((r) => {
+    if (!r || !r.length) return;
+    const d = date(r[idx.date]);
+    if (!d) { if ((r || []).some((v) => String(v || '').trim())) bad.push(r.join(' ').slice(0, 40)); return; }
+    const row = {
+      date: d, kind: text(r, idx.kind), out: num(r[idx.out]), in: num(r[idx.in]),
+      balance: num(r[idx.balance]), state: text(r, idx.state), note: text(r, idx.note), memo: text(r, idx.memo),
+    };
+    row.fp = [row.date, row.memo, row.out, row.in, row.balance].join('|');
+    if (!row.out && !row.in) return; // 沒有金額的列（小計、說明）不要
+    rows.push(row);
+  });
+  return { rows: rows, bad: bad };
+}
+
+// 需要 SheetJS 時才載入（CSV 不用）
+let sheetJsReady = null;
+function loadSheetJs() {
+  if (sheetJsReady) return sheetJsReady;
+  sheetJsReady = new Promise((resolve, reject) => {
+    const tag = document.createElement('script');
+    tag.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+    tag.onload = () => resolve(window.XLSX);
+    tag.onerror = () => reject(new Error('載不到試算表解析程式，請改用 CSV 檔'));
+    document.head.append(tag);
+  });
+  return sheetJsReady;
+}
+
+async function viewBankImport() {
+  $('crumb').textContent = '財務 › 匯入對帳單';
+  const main = $('main');
+  main.replaceChildren();
+  const head = el('div', 'head');
+  const box = el('div');
+  const info = el('p', '', '把網銀下載的對帳單丟進來');
+  box.append(el('h1', 'page', '匯入對帳單'), info);
+  head.append(box, el('span', 'sp'));
+  main.append(head);
+  const sheet = el('div', 'sheet');
+  sheet.style.borderRadius = 'var(--r)';
+  main.append(sheet);
+  sheet.append(hint('第一銀行網銀下載的檔案（.csv／.xls／.xlsx）都可以。系統會自己找「交易日期」那一列當標題，同一份檔案匯第二次不會重複——每一列都比對日期、摘要、支出、存入、餘額。'));
+
+  // 丟檔案的地方
+  const drop = el('div');
+  drop.style.cssText = 'border:1.5px dashed var(--line);border-radius:12px;padding:28px 18px;text-align:center;margin:4px 0 16px;cursor:pointer;background:var(--sub)';
+  const dropText = el('p', '', '把檔案拖進來，或點一下選檔案');
+  dropText.style.cssText = 'margin:0;color:var(--muted);font-size:13px';
+  drop.append(dropText);
+  const picker = el('input');
+  picker.type = 'file';
+  picker.accept = '.csv,.xls,.xlsx,text/csv';
+  picker.style.display = 'none';
+  sheet.append(drop, picker);
+  const out = el('div');
+  sheet.append(out);
+
+  const read = async (file) => {
+    out.replaceChildren(el('p', 'hint', '讀取中…'));
+    let grid = null;
+    try {
+      if (/\.csv$/i.test(file.name)) {
+        grid = parseCsv(await file.text());
+      } else {
+        const XLSX = await loadSheetJs();
+        const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+        const first = wb.Sheets[wb.SheetNames[0]];
+        grid = XLSX.utils.sheet_to_json(first, { header: 1, raw: false, defval: '' });
+      }
+    } catch (err) {
+      out.replaceChildren(el('p', 'err', '讀不了這個檔案：' + (err.message || err)));
+      return;
+    }
+    const got = bankRowsFrom(grid);
+    if (got.error) { out.replaceChildren(el('p', 'err', got.error)); return; }
+    if (!got.rows.length) { out.replaceChildren(el('p', 'err', '這個檔案裡沒有看得懂的交易列。')); return; }
+    preview(file.name, got);
+  };
+
+  const preview = (name, got) => {
+    out.replaceChildren();
+    const rows = got.rows;
+    const first = rows[0], last = rows[rows.length - 1];
+    out.append(el('p', '', name + '：讀到 ' + rows.length + ' 筆，' + first.date + ' ～ ' + last.date));
+    out.append(finTable([
+      { label: '交易日期', get: (x) => x.date },
+      { label: '摘要', get: (x) => x.memo || x.kind },
+      { label: '支出', right: 1, get: (x) => (x.out ? nt(x.out) : '') },
+      { label: '存入', right: 1, get: (x) => (x.in ? nt(x.in) : '') },
+      { label: '餘額', right: 1, get: (x) => (x.balance ? nt(x.balance) : '') },
+    ], rows.slice(0, 12)));
+    if (rows.length > 12) out.append(el('p', 'hint', '…還有 ' + (rows.length - 12) + ' 筆'));
+    if (got.bad.length) out.append(el('p', 'hint', '有 ' + got.bad.length + ' 列看不懂日期，會跳過（通常是表頭或小計）。'));
+
+    const bar = el('div');
+    bar.style.cssText = 'display:flex;gap:8px;margin:16px 0 0';
+    const go = el('button', 'btn pri');
+    go.type = 'button';
+    go.append(icon('check'), el('span', '', '匯入這 ' + rows.length + ' 筆'));
+    const cancel = el('button', 'btn quiet');
+    cancel.type = 'button';
+    cancel.textContent = '取消';
+    cancel.addEventListener('click', () => out.replaceChildren());
+    bar.append(go, cancel);
+    const msg = el('p', 'hint');
+    out.append(bar, msg);
+
+    go.addEventListener('click', async () => {
+      go.disabled = true;
+      msg.textContent = '匯入中…';
+      let created = 0;
+      let merged = 0;
+      for (let i = 0; i < rows.length; i += 200) {
+        const r = await db('bulk', { object: 'bank', rows: rows.slice(i, i + 200), dedupe: ['fp'], who: '上傳對帳單' });
+        if (!r.ok) {
+          msg.className = 'err';
+          msg.textContent = '沒有成功：' + (r.message || r.error);
+          go.disabled = false;
+          return;
+        }
+        created += r.created || 0;
+        merged += r.merged || 0;
+      }
+      msg.className = 'hint';
+      msg.textContent = '完成：新增 ' + created + ' 筆' + (merged ? '、已經有了 ' + merged + ' 筆（跳過）' : '') + '。可以到「對帳」看這個月對得平不平。';
+    });
+  };
+
+  drop.addEventListener('click', () => picker.click());
+  picker.addEventListener('change', () => { if (picker.files[0]) read(picker.files[0]); });
+  ['dragenter', 'dragover'].forEach((e) => drop.addEventListener(e, (ev) => { ev.preventDefault(); drop.style.borderColor = 'var(--accent)'; }));
+  ['dragleave', 'drop'].forEach((e) => drop.addEventListener(e, (ev) => { ev.preventDefault(); drop.style.borderColor = 'var(--line)'; }));
+  drop.addEventListener('drop', (ev) => { const f = ev.dataTransfer.files[0]; if (f) read(f); });
 }
 
 async function viewPermits() {
