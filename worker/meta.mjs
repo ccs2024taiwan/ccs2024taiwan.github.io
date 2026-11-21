@@ -248,6 +248,25 @@ export const objects = [
     ],
   },
   {
+    // 書籍庫存：一本一列，照「書籍銷售紀錄明細」原本的結構（流水號＝第幾本）。
+    // 空的（沒有來源、用途）＝還在庫；賣掉或送出去就填上來源、用途、收入。
+    id: 'book_copy', label: '書籍庫存', icon: 'cube', sort: 24,
+    title_field: 'use', source: 'd1',
+    acl: { list: ['staff', 'board'], read: ['staff', 'board'], create: ['staff'], update: ['staff'], delete: ['admin'] },
+    fields: [
+      F('edition', '版次', 'text', { ...stf, ...list, ...req, from: '版次', options: { facet: 1 }, help: '例：二版一刷。原本是銷售紀錄表的工作表名稱' }),
+      F('seq', '流水號', 'number', { ...stf, ...list, ...req, from: '流水號', help: '第幾本' }),
+      F('source', '來源', 'text', { ...stf, ...list, from: '來源', help: '官網購買、現場販售、贈送…；空白＝還在庫' }),
+      F('use', '用途', 'text', { ...stf, ...list, from: '用途', help: '誰拿走的，或做什麼用' }),
+      F('ship', '寄出方式', 'text', { ...stf, from: '寄出方式' }),
+      F('cost', '花費', 'money', { ...stf, ...list, from: '花費', help: '運費等' }),
+      F('subsidy', '補助', 'money', { ...stf, from: '補助' }),
+      F('income', '收入', 'money', { ...stf, ...list, from: '收入' }),
+      F('order_no', '訂單編號', 'text', { ...stf, from: '訂單編號' }),
+      F('note', '備註', 'text', { ...stf, ...list, from: '備註' }),
+    ],
+  },
+  {
     // 銀行對帳單。正本 2026-11-21 起在 D1：網銀下載的檔案直接在管理台「財務 → 銀行明細」上傳。
     id: 'bank', label: '銀行明細', icon: 'book', sort: 87,
     title_field: 'memo', source: 'd1',
@@ -575,6 +594,7 @@ export const menus = [
   { id: 'adm_prospect', area: 'admin', label: '潛在會員', icon: 'user', kind: 'object', target: 'prospect', sort: 21 },
   { id: 'adm_volunteer', area: 'admin', label: '志工', icon: 'user', kind: 'object', target: 'volunteer', sort: 22 },
   { id: 'adm_order', area: 'admin', label: '書籍訂購', icon: 'shop', kind: 'object', target: 'order', sort: 23 },
+  { id: 'adm_book_stock', area: 'admin', label: '書籍庫存', icon: 'cube', kind: 'page', target: 'stock', sort: 24, roles: ['staff', 'admin', 'board'] },
   { id: 'adm_event', area: 'admin', label: '課程活動', icon: 'cal', kind: 'object', target: 'event', sort: 24 },
   { id: 'adm_task', area: 'admin', label: '任務', icon: 'check', kind: 'object', target: 'task', sort: 25 },
   { id: 'adm_meeting', area: 'admin', label: '會議', icon: 'cal', kind: 'object', target: 'meeting', sort: 26 },

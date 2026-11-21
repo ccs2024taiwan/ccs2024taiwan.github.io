@@ -221,6 +221,7 @@ function go(key) {
   if (key === 'yearly') return viewYearly();
   if (key === 'cash') return viewCash();
   if (key === 'bankimport') return viewBankImport();
+  if (key === 'stock') return viewStock();
   if (key === 'permits') return viewPermits();
   if (key === 'audit') return viewAudit();
   if (key === 'audit_old') return viewSoon('留痕', '誰在什麼時候改了什麼，連改前改後都留著，刪掉的東西可以還原。要等管理台開放「寫入」之後才會有內容，和寫入功能同一批。');
@@ -2428,6 +2429,104 @@ async function viewBankImport() {
   ['dragenter', 'dragover'].forEach((e) => drop.addEventListener(e, (ev) => { ev.preventDefault(); drop.style.borderColor = 'var(--accent)'; }));
   ['dragleave', 'drop'].forEach((e) => drop.addEventListener(e, (ev) => { ev.preventDefault(); drop.style.borderColor = 'var(--line)'; }));
   drop.addEventListener('drop', (ev) => { const f = ev.dataTransfer.files[0]; if (f) read(f); });
+}
+
+
+// ── 書籍庫存（進銷存）────────────────────────────────────
+// 一本一列。沒填來源也沒填用途＝還在庫；填了就是賣掉或送出去了。
+function stockOf(rows) {
+  const byEdition = {};
+  (rows || []).forEach((r) => {
+    const d = r.data || r;
+    const edition = String(d.edition || '（沒填版次）').trim();
+    const box = byEdition[edition] || (byEdition[edition] = {
+      edition: edition, printed: 0, used: 0, left: 0, income: 0, cost: 0, lastSeq: 0, bySource: {},
+    });
+    box.printed++;
+    const seq = Number(d.seq) || 0;
+    if (seq > box.lastSeq) box.lastSeq = seq;
+    const taken = String(d.source || '').trim() || String(d.use || '').trim();
+    if (!taken) { box.left++; return; }
+    box.used++;
+    box.income += Number(d.income) || 0;
+    box.cost += Number(d.cost) || 0;
+    const key = String(d.source || '（沒填來源）').trim();
+    box.bySource[key] = (box.bySource[key] || 0) + 1;
+  });
+  return Object.keys(byEdition).sort().map((k) => byEdition[k]);
+}
+
+async function viewStock() {
+  $('crumb').textContent = '資料 › 書籍庫存';
+  const main = $('main');
+  main.replaceChildren();
+  const head = el('div', 'head');
+  const box = el('div');
+  const info = el('p', '', '讀取中…');
+  box.append(el('h1', 'page', '書籍庫存'), info);
+  head.append(box, el('span', 'sp'));
+  main.append(head);
+  const sheet = el('div', 'sheet');
+  sheet.style.borderRadius = 'var(--r)';
+  main.append(sheet);
+  sheet.append(hint('一本一列，流水號就是第幾本。沒填來源也沒填用途的就是還在庫的；訂單確認收款時會自動從流水號最小的那幾本開始填。要調整某一本（例如送人、損毀），到下面的清單點那一列改。'));
+
+  const got = await loadFinance(['book_copy']);
+  if (!got.book_copy) { sheet.append(el('p', 'err', '讀不到書籍庫存。請先到試算表按「同步 → 更新設定庫」，再按「搬家：匯入書籍庫存（只做一次）」。')); return; }
+  const rows = got.book_copy;
+  if (!rows.length) { info.textContent = '還沒有資料'; sheet.append(el('p', 'hint', '請到試算表選單「同步 → 搬家：匯入書籍庫存（只做一次）」把現在那份銷售紀錄搬進來。')); return; }
+  const list = stockOf(rows);
+  const total = list.reduce((t, x) => ({ printed: t.printed + x.printed, used: t.used + x.used, left: t.left + x.left, income: t.income + x.income }), { printed: 0, used: 0, left: 0, income: 0 });
+  info.textContent = '印了 ' + total.printed + ' 本　已出 ' + total.used + ' 本　還剩 ' + total.left + ' 本　累計收入 ' + nt(total.income) + ' 元';
+
+  const cards = el('div', 'tiles');
+  [['印量（進）', total.printed + ' 本'], ['已出（銷）', total.used + ' 本'], ['庫存（存）', total.left + ' 本'], ['累計收入', nt(total.income) + ' 元']].forEach((pair) => {
+    const c = el('div', 'tile');
+    c.append(el('div', 'k', pair[0]), el('div', 'n', pair[1]));
+    cards.append(c);
+  });
+  sheet.append(cards);
+
+  // 一個版次一列
+  const h2 = el('h2', '', '各版次');
+  h2.style.cssText = 'font-size:14px;margin:18px 0 8px;color:var(--ink)';
+  sheet.append(h2);
+  sheet.append(finTable([
+    { label: '版次', get: (x) => x.edition },
+    { label: '印量', right: 1, get: (x) => x.printed + ' 本' },
+    { label: '已出', right: 1, get: (x) => x.used + ' 本' },
+    { label: '庫存', right: 1, strong: 1, get: (x) => x.left + ' 本' },
+    { label: '累計收入', right: 1, get: (x) => nt(x.income) + ' 元' },
+    { label: '出去的用途', get: (x) => Object.keys(x.bySource).sort((a, b) => x.bySource[b] - x.bySource[a]).map((k) => k + ' ' + x.bySource[k]).join('、') },
+  ], list));
+
+  // 最近出去的幾本
+  const taken = rows.filter((r) => String((r.data || {}).source || '').trim() || String((r.data || {}).use || '').trim())
+    .sort((a, b) => (Number((b.data || {}).seq) || 0) - (Number((a.data || {}).seq) || 0));
+  const h3 = el('h2', '', '最近出去的');
+  h3.style.cssText = 'font-size:14px;margin:22px 0 8px;color:var(--ink)';
+  sheet.append(h3);
+  const obj = (META.objects || []).find((o) => o.id === 'book_copy');
+  const table = finTable([
+    { label: '版次', get: (x) => String(x.data.edition || '') },
+    { label: '第幾本', right: 1, get: (x) => String(x.data.seq || '') },
+    { label: '來源', get: (x) => String(x.data.source || '') },
+    { label: '用途', get: (x) => String(x.data.use || '') },
+    { label: '寄出方式', get: (x) => String(x.data.ship || '') },
+    { label: '收入', right: 1, get: (x) => (Number(x.data.income) ? nt(x.data.income) + ' 元' : '') },
+    { label: '備註', get: (x) => String(x.data.note || '') },
+  ], taken.slice(0, 30));
+  // 點一列可以改那一本
+  if (obj) {
+    Array.from(table.querySelectorAll('tbody tr')).forEach((tr, i) => {
+      const row = taken[i];
+      if (!row) return;
+      tr.style.cursor = 'pointer';
+      tr.addEventListener('click', () => openDrawer(obj, row));
+    });
+  }
+  sheet.append(table);
+  if (taken.length > 30) sheet.append(el('p', 'hint', '…還有 ' + (taken.length - 30) + ' 本。完整清單在「資料 → 書籍庫存」。'));
 }
 
 async function viewPermits() {
