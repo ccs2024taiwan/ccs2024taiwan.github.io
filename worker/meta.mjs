@@ -264,6 +264,8 @@ export const objects = [
       F('income', '收入', 'money', { ...stf, ...list, from: '收入' }),
       F('order_no', '訂單編號', 'text', { ...stf, from: '訂單編號' }),
       F('note', '備註', 'text', { ...stf, ...list, from: '備註' }),
+      // 核對碼＝版次｜流水號，重複匯入不會變兩本
+      F('fp', '核對碼', 'text', { ...stf, from: '核對碼' }),
     ],
   },
   {
