@@ -324,7 +324,7 @@ async function viewObject(objectId) {
     const add = el('button', 'btn pri');
     add.type = 'button';
     add.append(icon('check'), el('span', '', '新增' + obj.label));
-    add.addEventListener('click', () => openForm(obj, null));
+    add.addEventListener('click', () => openForm(obj, null, rows));
     head.append(add);
   }
   main.append(head);
@@ -1404,7 +1404,30 @@ function copyContacts(obj, picked, field) {
 
 // ── 新增與修改 ──────────────────────────────────────────
 // 表單是照設定庫的欄位長出來的，所以加一個欄位不用改這裡的程式。
-function openForm(obj, row) {
+// 照設定庫的編號規則想一個新編號，例如 B{yyMMdd}{seq:3} → B261122003
+// 只看現有資料中同前綴的最大號碼，所以不會跟既有的撞號。
+function nextIdFrom(rule, rows, key) {
+  if (!rule) return '';
+  const now = new Date();
+  const p = (n) => ('0' + n).slice(-2);
+  const prefix = String(rule).replace(/\{seq:\d+\}/, '')
+    .replace('{yyMMdd}', String(now.getFullYear()).slice(2) + p(now.getMonth() + 1) + p(now.getDate()))
+    .replace('{yyyyMMdd}', String(now.getFullYear()) + p(now.getMonth() + 1) + p(now.getDate()))
+    .replace('{roc}', String(now.getFullYear() - 1911));
+  if (/\{[a-z]+\}/i.test(prefix)) return ''; // 還有看不懂的變數（例如 {city}）就不猜
+  const m = /\{seq:(\d+)\}/.exec(String(rule));
+  const width = m ? Number(m[1]) : 3;
+  let max = 0;
+  (rows || []).forEach((r) => {
+    const v = String((r.data && r.data[key]) || '').trim();
+    if (v.indexOf(prefix) !== 0) return;
+    const n = Number(v.slice(prefix.length));
+    if (n > max) max = n;
+  });
+  return prefix + ('000000' + (max + 1)).slice(-width);
+}
+
+function openForm(obj, row, allRows) {
   const d = ensureDrawer();
   d.title.replaceChildren(el('span', '', (row ? '編輯' : '新增') + obj.label));
   d.body.replaceChildren();
@@ -1445,6 +1468,8 @@ function openForm(obj, row) {
     }
     const raw = data[f.key];
     let shown = raw == null ? '' : typeof raw === 'object' ? JSON.stringify(raw) : String(raw);
+    // 新增一筆時，編號那一欄先帶出下一號（可以自己改）
+    if (!row && !shown && obj.idRule && f.key === 'id') shown = nextIdFrom(obj.idRule, allRows || [], f.key);
     if (shown && (input.type === 'date' || input.type === 'datetime-local')) {
       const fitted = forDateInput(shown, input.type);
       if (fitted) shown = fitted;
