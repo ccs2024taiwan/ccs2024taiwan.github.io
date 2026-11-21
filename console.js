@@ -649,7 +649,10 @@ async function viewObject(objectId) {
     const raw = r.data[f.key];
     const text = raw == null ? '' : Array.isArray(raw) ? raw.length + ' 項' : typeof raw === 'object' ? JSON.stringify(raw).slice(0, 40) : String(raw);
     const kind = /date|datetime/.test(f.type) || i === 0 ? 'mono' : /money|number/.test(f.type) ? 'num mono' : /textarea|text/.test(f.type) ? 'wrap-ok' : '';
-    return el('td', kind, text);
+    const td = el('td', kind, text);
+    // 狀態、日期、金額這種短欄位不要被擠成一字一行
+    if (/select|date|datetime|money|number|phone|sequence/.test(f.type)) td.style.whiteSpace = 'nowrap';
+    return td;
   };
 
   const paint = (keyword) => {
@@ -1281,9 +1284,9 @@ function asideStatuses(values, main, groups, order) {
     const tab = statusTabOf(v, groups);
     count[tab] = (count[tab] || 0) + 1;
   });
-  const want = (order || []).filter((v) => count[v]);
+  const want = (order || []).slice(); // 指定過順序的一定顯示，0 筆也看得到
   const rest = Object.keys(count).filter((v) => want.indexOf(v) === -1).sort((a, b) => count[b] - count[a]);
-  return want.concat(rest).map((v) => ({ value: v, count: count[v] }));
+  return want.concat(rest).map((v) => ({ value: v, count: count[v] || 0 }));
 }
 
 // ── 一格裡好幾個標籤（例如來源「交流日；購書」）────────────
