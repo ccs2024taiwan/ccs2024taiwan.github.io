@@ -124,6 +124,7 @@ export const objects = [
   {
     id: 'order', label: '訂單', icon: 'shop', sort: 30,
     id_rule: 'B{yyMMdd}{seq:3}', title_field: 'name', source: 'd1',
+    extras: { sort: { field: 'created', dir: 'desc' } }, // 清單預設：最新的訂單在第一列
     acl: { list: ['staff'], read: ['staff'], create: ['staff'], update: ['staff'], delete: ['admin'] },
     fields: [
       F('id', '訂單編號', 'text', { ...stf, ...list, ...req, from: '訂單編號' }),

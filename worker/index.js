@@ -76,7 +76,7 @@ async function loadMeta(env) {
     objects: (objects.results || []).map((o) => ({
       id: o.id, label: o.label, labelPlural: o.label_plural, icon: o.icon,
       idRule: o.id_rule, titleField: o.title_field, source: o.source,
-      acl: parse(o.acl) || {}, sort: o.sort, fields: byObject[o.id] || [],
+      acl: parse(o.acl) || {}, sort: o.sort, extras: parse(o.extras) || {}, fields: byObject[o.id] || [],
     })),
     actions: (actions.results || []).map((a) => {
       const extra = parse(a.confirm_text) || {}; // 備註欄的設定跟確認語一起存在這裡
@@ -135,7 +135,7 @@ async function seedMeta(env) {
     ).bind(o.id, o.label, o.label_plural || null, o.icon || null, o.id_rule || null, o.title_field || null,
       o.sync ? (o.sync.compute ? 'compute:' + o.sync.compute : 'sheet:' + o.sync.sheet) : (o.source || 'd1'),
       o.soft_delete === 0 ? 0 : 1, o.audit_level || 'full', J(o.acl), o.sort || 0, o.status || 'active',
-      J(o.sync ? { syncKey: o.sync.key || null } : null), now, 'seed'));
+      J(Object.assign({}, o.extras || {}, o.sync ? { syncKey: o.sync.key || null } : {})), now, 'seed'));
     o.fields.forEach((f, i) => batch.push(env.DB.prepare(
       'INSERT INTO meta_field (id,object_id,"key",label,type,options,required,is_unique,default_value,validate,privacy,lock_after,show_in_list,sort,help) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
     ).bind(o.id + '.' + f.key, o.id, f.key, f.label, f.type,

@@ -674,6 +674,16 @@ async function viewObject(objectId) {
     return td;
   };
 
+  // 設定庫可以指定清單的排序（例如訂單＝訂購時間新的在前）
+  const sortSpec = (obj.extras && obj.extras.sort) || null;
+  const sortRows = (list) => {
+    if (!sortSpec || !sortSpec.field) return list;
+    const dir = sortSpec.dir === 'asc' ? 1 : -1;
+    const key = sortSpec.field;
+    const at = (r) => String((r.data && r.data[key]) || '');
+    return list.slice().sort((a, b) => (at(a) < at(b) ? -1 : at(a) > at(b) ? 1 : 0) * dir);
+  };
+
   const paint = (keyword) => {
     body.replaceChildren();
     const lower = String(keyword || '').trim().toLowerCase();
@@ -705,6 +715,7 @@ async function viewObject(objectId) {
       tr.addEventListener('click', () => openDrawer(obj, r));
       body.append(tr);
     });
+    shown = sortRows(shown);
     lastShown = shown;
     paintStatusBar();
     paintTagBar();
@@ -2743,9 +2754,11 @@ async function viewStock() {
 
   // 最近出去的幾本
   const stateOf = (d) => String(d.state || '').trim() || ((String(d.source || '').trim() || String(d.use || '').trim()) ? '已出' : '在庫');
+  // 預留中的排最前面（那是還要處理的），其餘照流水號由大到小
+  const rank = (d) => (stateOf(d) === '預留' ? 0 : 1);
   const taken = rows.filter((r) => stateOf(r.data || {}) !== '在庫')
-    .sort((a, b) => (Number((b.data || {}).seq) || 0) - (Number((a.data || {}).seq) || 0));
-  const h3 = el('h2', '', '最近出去的與預留中的');
+    .sort((a, b) => rank(a.data || {}) - rank(b.data || {}) || (Number((b.data || {}).seq) || 0) - (Number((a.data || {}).seq) || 0));
+  const h3 = el('h2', '', '預留中的與最近出去的');
   h3.style.cssText = 'font-size:14px;margin:22px 0 8px;color:var(--ink)';
   sheet.append(h3);
   const obj = (META.objects || []).find((o) => o.id === 'book_copy');
