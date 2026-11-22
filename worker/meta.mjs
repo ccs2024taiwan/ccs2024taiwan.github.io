@@ -621,9 +621,9 @@ export const menus = [
   // 財務管理：十個子項目收在裡面
   { id: 'g_money', area: 'admin', label: '財務', icon: 'book', kind: 'group', sort: 40, roles: ['staff', 'admin', 'board'] },
   { id: 'fin_claim', area: 'admin', parent_id: 'g_money', label: '志工請款', icon: 'receipt', kind: 'object', target: 'claim', sort: 41, roles: ['staff', 'admin', 'board'] },
-  { id: 'fin_expense', area: 'admin', parent_id: 'g_money', label: '支出登錄', icon: 'receipt', kind: 'page', target: 'soon:支出登錄:本會帳戶直接付出去的錢（網銀轉帳廠商、自動扣繳、秘書薪資）在這裡登錄，寫進日記帳。志工或秘書長先墊的錢走「志工請款」—— 以「錢從誰口袋出」區分。', sort: 42 },
+  { id: 'fin_expense', area: 'admin', parent_id: 'g_money', label: '支出登錄', icon: 'receipt', kind: 'page', target: 'pay_out', sort: 42, roles: ['staff', 'admin'] },
   { id: 'fin_forms', area: 'admin', parent_id: 'g_money', label: '表單管理', icon: 'doc', kind: 'page', target: 'soon:表單管理:支出證明單、講師費領據、印領清冊、補助金領據。之後會由系統帶入資料後直接產生，不用手填。', sort: 43 },
-  { id: 'fin_income', area: 'admin', parent_id: 'g_money', label: '收入登錄', icon: 'coin', kind: 'page', target: 'soon:收入登錄:官網來的訂單、報名、會費會自動入帳；贊助、補助、捐款在這裡手動登錄，寫進日記帳並登記收據編號。', sort: 44 },
+  { id: 'fin_income', area: 'admin', parent_id: 'g_money', label: '收入登錄', icon: 'coin', kind: 'page', target: 'pay_in', sort: 44, roles: ['staff', 'admin'] },
   { id: 'fin_claim_items', area: 'admin', parent_id: 'g_money', label: '請款品項（決算用）', icon: 'rows', kind: 'object', target: 'claim_item', sort: 42, roles: ['staff', 'admin', 'board'] },
   { id: 'fin_dues', area: 'admin', parent_id: 'g_money', label: '會費繳納', icon: 'coin', kind: 'object', target: 'dues', sort: 44, roles: ['staff', 'admin'] },
   { id: 'fin_journal', area: 'admin', parent_id: 'g_money', label: '日記帳', icon: 'book', kind: 'object', target: 'journal', sort: 45, roles: ['staff', 'admin', 'board'] },

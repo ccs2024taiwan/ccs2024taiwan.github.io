@@ -222,6 +222,8 @@ function go(key) {
   if (key === 'cash') return viewCash();
   if (key === 'bankimport') return viewBankImport();
   if (key === 'stock') return viewStock();
+  if (key === 'pay_in') return viewLedgerEntry('in');
+  if (key === 'pay_out') return viewLedgerEntry('out');
   if (key === 'permits') return viewPermits();
   if (key === 'audit') return viewAudit();
   if (key === 'audit_old') return viewSoon('留痕', '誰在什麼時候改了什麼，連改前改後都留著，刪掉的東西可以還原。要等管理台開放「寫入」之後才會有內容，和寫入功能同一批。');
@@ -3191,6 +3193,164 @@ function colChooser(obj, objectId, defaultCols) {
   d.scrim.classList.add('on');
   d.drawer.classList.add('on');
   d.body.scrollTop = 0;
+}
+
+
+// ── 收入登錄／支出登錄 ──────────────────────────────────
+// 官網來的訂單、報名、會費、請款撥款都會自動進日記帳；
+// 這一頁是給「沒有經過官網」的那些：贊助、補助、捐款、網銀直接轉給廠商、自動扣繳…
+async function viewLedgerEntry(kind) {
+  const income = kind === 'in';
+  const title = income ? '收入登錄' : '支出登錄';
+  $('crumb').textContent = '財務 › ' + title;
+  const main = $('main');
+  main.replaceChildren();
+  const head = el('div', 'head');
+  const box = el('div');
+  const info = el('p', '', income ? '贊助、補助、捐款這些沒有經過官網的收入，在這裡記一筆' : '本會帳戶直接付出去的錢（轉帳給廠商、自動扣繳、秘書薪資）');
+  box.append(el('h1', 'page', title), info);
+  head.append(box, el('span', 'sp'));
+  main.append(head);
+  const sheet = el('div', 'sheet');
+  sheet.style.borderRadius = 'var(--r)';
+  main.append(sheet);
+  sheet.append(hint(income
+    ? '官網的書籍訂單、課程報名、會費繳納都會自動寫進日記帳，不用在這裡重複登記。'
+    : '志工或您先墊的錢走「志工請款」，撥款時會自動寫帳；這一頁是本會帳戶直接付出去的。'));
+
+  const got = await loadFinance(['account', 'journal']);
+  const accounts = (got.account || [])
+    .map((r) => r.data || {})
+    .filter((d) => String(d.code || '').trim())
+    .filter((d) => (income ? /^4/ : /^[59]/).test(String(d.code).trim()))
+    .sort((a, b) => String(a.code).localeCompare(String(b.code)));
+
+  const field = (label, node, help) => {
+    const wrap = el('div', 'fld');
+    wrap.style.cssText = 'margin:0 0 12px';
+    wrap.append(el('label', '', label), node);
+    if (help) { const t = el('small', '', help); t.style.cssText = 'color:var(--muted);font-size:12px'; wrap.append(t); }
+    return wrap;
+  };
+  const style = 'font:inherit;font-size:13.5px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--sub);color:var(--ink);width:100%';
+  const form = el('div');
+  form.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:0 14px;max-width:760px';
+
+  const dateInput = el('input');
+  dateInput.type = 'date';
+  dateInput.style.cssText = style;
+  dateInput.value = new Date().toISOString().slice(0, 10);
+  const amountInput = el('input');
+  amountInput.type = 'number';
+  amountInput.min = '0';
+  amountInput.style.cssText = style;
+  const summaryInput = el('input');
+  summaryInput.style.cssText = style;
+  summaryInput.placeholder = income ? '例：臺中市政府社區營造補助款' : '例：11 月官網主機費';
+  const targetInput = el('input');
+  targetInput.style.cssText = style;
+  targetInput.placeholder = income ? '誰給的' : '付給誰';
+  const codeInput = el('select');
+  codeInput.style.cssText = style;
+  accounts.forEach((a) => {
+    const o = el('option', '', a.code + '　' + (a.name || ''));
+    o.value = a.code;
+    codeInput.append(o);
+  });
+  if (!accounts.length) { const o = el('option', '', '（讀不到科目表）'); o.value = ''; codeInput.append(o); }
+  const methodInput = el('select');
+  methodInput.style.cssText = style;
+  ['銀行', '現金', '其他'].forEach((m) => { const o = el('option', '', m); o.value = m; methodInput.append(o); });
+  const noInput = el('input');
+  noInput.style.cssText = style;
+  noInput.placeholder = income ? '例：收據 1024' : '例：發票 AB12345678';
+  const taskInput = el('input');
+  taskInput.style.cssText = style;
+  taskInput.placeholder = '例：中秋音樂會（沒有就留白）';
+  const noteInput = el('input');
+  noteInput.style.cssText = style;
+
+  form.append(field('日期', dateInput), field('金額', amountInput));
+  form.append(field('摘要', summaryInput, '帳上會看到的那一句'));
+  form.append(field(income ? '對象（誰給的）' : '對象（付給誰）', targetInput));
+  form.append(field('會計科目', codeInput, income ? '4 開頭是收入科目' : '5 開頭是支出科目；9 開頭是暫收暫付'));
+  form.append(field('付款方式', methodInput, '銀行＝經本會帳戶，對帳時會去比對銀行明細'));
+  form.append(field(income ? '單號／收據編號' : '單號／發票號碼', noInput));
+  form.append(field('任務／活動', taskInput));
+  form.append(field('備註', noteInput));
+  sheet.append(form);
+
+  const msg = el('p', 'err');
+  msg.hidden = true;
+  const bar = el('div');
+  bar.style.cssText = 'display:flex;gap:8px;margin:6px 0 0';
+  const save = el('button', 'btn pri');
+  save.type = 'button';
+  save.append(icon('check'), el('span', '', '記一筆'));
+  bar.append(save);
+  sheet.append(msg, bar);
+
+  // 最近登記的（同一種進出）
+  const recent = el('div');
+  recent.style.cssText = 'margin:22px 0 0';
+  sheet.append(recent);
+  const paintRecent = (rows) => {
+    const mine = (rows || [])
+      .map((r) => r.data || {})
+      .filter((d) => (income ? Number(d.income) > 0 : Number(d.expense) > 0))
+      .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')))
+      .slice(0, 10);
+    recent.replaceChildren();
+    if (!mine.length) return;
+    const h = el('h2', '', '最近 10 筆' + (income ? '收入' : '支出'));
+    h.style.cssText = 'font-size:14px;margin:0 0 8px;color:var(--ink)';
+    recent.append(h);
+    recent.append(finTable([
+      { label: '日期', get: (x) => String(x.date || '').slice(0, 10) },
+      { label: '摘要', get: (x) => String(x.summary || '') },
+      { label: '科目', get: (x) => String(x.code || '') },
+      { label: '對象', get: (x) => String(x.target || '') },
+      { label: '金額', right: 1, get: (x) => nt(income ? x.income : x.expense) + ' 元' },
+      { label: '來源', get: (x) => String(x.source || '') },
+    ], mine, 'ledger.' + kind));
+  };
+  paintRecent(got.journal);
+
+  save.addEventListener('click', async () => {
+    const amount = Math.round(Number(amountInput.value) || 0);
+    const fail = (text) => { msg.textContent = text; msg.hidden = false; save.disabled = false; };
+    save.disabled = true;
+    msg.hidden = true;
+    if (!dateInput.value) return fail('要填日期。');
+    if (!(amount > 0)) return fail('金額要大於 0。');
+    if (!summaryInput.value.trim()) return fail('要填摘要。');
+    if (!codeInput.value) return fail('要挑一個會計科目。');
+    const data = {
+      date: dateInput.value,
+      source: income ? '收入登錄' : '支出登錄',
+      no: noInput.value.trim(),
+      summary: summaryInput.value.trim(),
+      code: codeInput.value,
+      income: income ? amount : '',
+      expense: income ? '' : amount,
+      target: targetInput.value.trim(),
+      task: taskInput.value.trim(),
+      method: methodInput.value,
+      note: noteInput.value.trim(),
+    };
+    const r = await db('save', { object: 'journal', id: '', data: data });
+    save.disabled = false;
+    if (!r.ok) return fail('沒有記成功：' + (r.message || r.error));
+    dropRowsCache('journal');
+    alert('記好了：' + data.summary + '　' + nt(amount) + ' 元');
+    amountInput.value = '';
+    summaryInput.value = '';
+    targetInput.value = '';
+    noInput.value = '';
+    noteInput.value = '';
+    const fresh = await loadFinance(['journal'], true);
+    paintRecent(fresh.journal);
+  });
 }
 
 async function viewPermits() {
