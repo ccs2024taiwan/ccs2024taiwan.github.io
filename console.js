@@ -2693,7 +2693,27 @@ async function viewStock() {
     outBtn.type = 'button';
     outBtn.append(icon('out'), el('span', '', '出庫登記（贈送、現場販售…）'));
     outBtn.addEventListener('click', () => stockForm('take', editions));
-    tools.append(addBtn, outBtn);
+    const syncBtn = el('button', 'btn quiet');
+    syncBtn.type = 'button';
+    syncBtn.append(icon('check'), el('span', '', '跟訂單對一下'));
+    syncBtn.addEventListener('click', async () => {
+      const old = syncBtn.textContent;
+      syncBtn.disabled = true;
+      syncBtn.replaceChildren(el('span', '', '對帳中…'));
+      const r = await appsScript({ action: 'orderBulk', token: sessionStorageToken(), what: 'stocksync', ids: [] });
+      syncBtn.disabled = false;
+      syncBtn.replaceChildren(icon('check'), el('span', '', old));
+      if (!r || !r.ok) return alert('沒有成功：' + ((r && (r.message || r.error)) || '未知原因'));
+      alert('對完了：' + String.fromCharCode(10) +
+        '・鎖起來（預留）' + r.reserved + ' 本' + String.fromCharCode(10) +
+        '・標成已出 ' + r.shipped + ' 本' + String.fromCharCode(10) +
+        '・放回在庫 ' + r.released + ' 本' +
+        ((r.notes || []).length ? String.fromCharCode(10) + String.fromCharCode(10) + r.notes.join(String.fromCharCode(10)) : '') +
+        ((r.missing || []).length ? String.fromCharCode(10) + String.fromCharCode(10) + '庫存不夠的：' + String.fromCharCode(10) + r.missing.join(String.fromCharCode(10)) : ''));
+      dropRowsCache('book_copy');
+      viewStock();
+    });
+    tools.append(addBtn, outBtn, syncBtn);
     sheet.append(tools);
   }
   const total = list.reduce((t, x) => ({ printed: t.printed + x.printed, used: t.used + x.used, held: t.held + x.held, left: t.left + x.left, income: t.income + x.income }), { printed: 0, used: 0, held: 0, left: 0, income: 0 });
