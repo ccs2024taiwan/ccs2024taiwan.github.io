@@ -308,6 +308,22 @@ const headerRow = (labels) => {
 // ── 任一物件的列表（欄位全部來自設定庫）────────────────────
 // 任一物件的列表。欄位、權限、要顯示哪幾欄全部來自設定庫；
 // 資料多的時候先載入前 200 筆，按「載入更多」再接下去（日記帳這類會越長越多）。
+// 清單的欄位設定（哪些欄位、各多寬）記在這台電腦的瀏覽器裡，一頁一份
+const colPrefKey = (objectId) => 'cols:' + objectId;
+function colPrefGet(objectId) {
+  try {
+    const raw = localStorage.getItem(colPrefKey(objectId));
+    const got = raw ? JSON.parse(raw) : null;
+    return got && typeof got === 'object' ? got : {};
+  } catch (err) { return {}; }
+}
+function colPrefSet(objectId, pref) {
+  try { localStorage.setItem(colPrefKey(objectId), JSON.stringify(pref)); } catch (err) { /* 瀏覽器不給存就算了 */ }
+}
+function colPrefClear(objectId) {
+  try { localStorage.removeItem(colPrefKey(objectId)); } catch (err) { /* 同上 */ }
+}
+
 async function viewObject(objectId) {
   const obj = (META.objects || []).find((o) => o.id === objectId);
   const main = $('main');
@@ -652,6 +668,9 @@ async function viewObject(objectId) {
     const td = el('td', kind, text);
     // 狀態、日期、金額這種短欄位不要被擠成一字一行
     if (/select|date|datetime|money|number|phone|sequence/.test(f.type)) td.style.whiteSpace = 'nowrap';
+    // 自己調過欄寬的：超出就用「…」收起來（完整內容點進去看得到）
+    const w = pref.width && pref.width[f.key];
+    if (w) { td.style.maxWidth = w + 'px'; td.style.overflow = 'hidden'; td.style.textOverflow = 'ellipsis'; td.style.whiteSpace = 'nowrap'; td.title = text; }
     return td;
   };
 
@@ -713,15 +732,82 @@ async function viewObject(objectId) {
       + '　·　' + obj.fields.length + ' 個欄位';
   };
 
+  // 要顯示哪幾欄：自己設過就照設的，沒設過就照設定庫的預設
+  let defaultCols = [];
+  const pref = colPrefGet(objectId);
+  const fieldOf = (key) => obj.fields.filter((f) => f.key === key)[0];
+  const pickedCols = () => {
+    const keys = (pref.show && pref.show.length ? pref.show : defaultCols).filter((k) => fieldOf(k));
+    return (keys.length ? keys : defaultCols).map(fieldOf).filter(Boolean);
+  };
+
+  // 表頭：可以拖右邊界調寬
+  const colHeader = () => {
+    const thead = el('thead');
+    const tr = el('tr');
+    if (contactFields.length || obj.id === 'order') tr.append(el('th'));
+    cols.forEach((f) => {
+      const th = el('th', /money|number/.test(f.type) ? 'num' : '', f.label);
+      th.style.position = 'relative';
+      const w = pref.width && pref.width[f.key];
+      if (w) { th.style.width = w + 'px'; th.style.minWidth = w + 'px'; th.style.maxWidth = w + 'px'; }
+      // 右邊界：按住往左右拉就能調寬
+      const grip = el('span');
+      grip.title = '拖曳調整欄寬（雙擊回到自動）';
+      grip.style.cssText = 'position:absolute;top:0;right:-3px;width:8px;height:100%;cursor:col-resize;user-select:none';
+      grip.addEventListener('mousedown', (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        const startX = ev.clientX;
+        const startW = th.getBoundingClientRect().width;
+        const move = (e) => {
+          const next = Math.max(48, Math.round(startW + e.clientX - startX));
+          th.style.width = next + 'px';
+          th.style.minWidth = next + 'px';
+          th.style.maxWidth = next + 'px';
+        };
+        const up = () => {
+          document.removeEventListener('mousemove', move);
+          document.removeEventListener('mouseup', up);
+          pref.width = pref.width || {};
+          pref.width[f.key] = Math.round(th.getBoundingClientRect().width);
+          colPrefSet(objectId, pref);
+        };
+        document.addEventListener('mousemove', move);
+        document.addEventListener('mouseup', up);
+      });
+      grip.addEventListener('dblclick', (ev) => {
+        ev.stopPropagation();
+        if (pref.width) delete pref.width[f.key];
+        colPrefSet(objectId, pref);
+        viewObject(objectId);
+      });
+      th.append(grip);
+      tr.append(th);
+    });
+    thead.append(tr);
+    return thead;
+  };
+
+  // 「顯示欄位」那顆按鈕
+  const colBar = el('div');
+  colBar.style.cssText = 'display:flex;justify-content:flex-end;margin:0 0 8px';
+  const colBtn = el('button', 'btn quiet');
+  colBtn.type = 'button';
+  colBtn.append(icon('rows'), el('span', '', '顯示欄位'));
+  colBtn.addEventListener('click', () => colChooser(obj, objectId, defaultCols));
+  colBar.append(colBtn);
+
   const loadMore = async () => {
     const result = await db('list', { object: objectId, limit: 1000, cursor: cursor });
     if (!result.ok) { sheet.replaceChildren(el('p', 'err', '讀不到：' + (result.message || result.error))); return; }
     if (!cols) {
-      cols = (result.fields && result.fields.length ? result.fields : obj.fields.slice(0, 6));
-      table.append(headerRow((contactFields.length ? [''] : []).concat(cols.map((f) => f.label))));
+      defaultCols = (result.fields && result.fields.length ? result.fields : obj.fields.slice(0, 6)).map((f) => f.key);
+      cols = pickedCols();
+      table.append(colHeader());
       table.append(body);
       tw.append(table);
-      sheet.replaceChildren(statusBar, tagBar, pickBar, tw, moreBox);
+      sheet.replaceChildren(colBar, statusBar, tagBar, pickBar, tw, moreBox);
     }
     rows.push.apply(rows, result.rows);
     cursor = result.nextCursor;
@@ -2734,6 +2820,101 @@ function stockForm(mode, editions) {
     alert('已登記出庫：' + edition + ' 第 ' + r.from + (r.count > 1 ? '～' + r.to : '') + ' 本。');
     viewStock();
   });
+
+  d.scrim.classList.add('on');
+  d.drawer.classList.add('on');
+  d.body.scrollTop = 0;
+}
+
+
+// ── 挑要顯示哪些欄位 ────────────────────────────────────
+// 勾選、上下移動排順序，存在這台電腦的瀏覽器裡（不影響別人）。
+function colChooser(obj, objectId, defaultCols) {
+  const d = ensureDrawer();
+  const pref = colPrefGet(objectId);
+  const all = obj.fields.slice();
+  let order = (pref.show && pref.show.length ? pref.show : defaultCols).filter((k) => all.some((f) => f.key === k));
+  all.forEach((f) => { if (order.indexOf(f.key) === -1) order.push(f.key); });
+  const shown = {};
+  (pref.show && pref.show.length ? pref.show : defaultCols).forEach((k) => (shown[k] = true));
+
+  d.title.replaceChildren(el('span', '', obj.label + '：顯示欄位'));
+  d.body.replaceChildren();
+  d.body.append(hint('勾起來的會出現在清單上，由上到下就是欄位的順序。欄寬在清單上拖欄位的右邊界就能調（雙擊邊界回到自動）。這些設定只記在這台電腦。'));
+
+  const listBox = el('div');
+  listBox.style.cssText = 'display:flex;flex-direction:column;gap:2px;margin:6px 0 0';
+  d.body.append(listBox);
+
+  const paint = () => {
+    listBox.replaceChildren();
+    order.forEach((key, i) => {
+      const f = all.filter((x) => x.key === key)[0];
+      if (!f) return;
+      const row = el('div');
+      row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:' + (shown[key] ? 'var(--sub)' : 'transparent');
+      const box = el('input');
+      box.type = 'checkbox';
+      box.checked = Boolean(shown[key]);
+      box.addEventListener('change', () => { shown[key] = box.checked; paint(); });
+      const name = el('span', '', f.label);
+      name.style.cssText = 'flex:1;font-size:13.5px' + (shown[key] ? '' : ';color:var(--muted)');
+      const p = PRIVACY[f.privacy];
+      const tag = p ? el('span', 'chip ' + p[1], p[0]) : el('span');
+      const move = (step) => {
+        const at = order.indexOf(key);
+        const to = at + step;
+        if (to < 0 || to >= order.length) return;
+        order.splice(at, 1);
+        order.splice(to, 0, key);
+        paint();
+      };
+      const up = el('button', 'btn quiet');
+      up.type = 'button';
+      up.style.cssText = 'padding:2px 8px';
+      up.textContent = '↑';
+      up.disabled = i === 0;
+      up.addEventListener('click', () => move(-1));
+      const down = el('button', 'btn quiet');
+      down.type = 'button';
+      down.style.cssText = 'padding:2px 8px';
+      down.textContent = '↓';
+      down.disabled = i === order.length - 1;
+      down.addEventListener('click', () => move(1));
+      row.append(box, name, tag, up, down);
+      listBox.append(row);
+    });
+  };
+  paint();
+
+  const bar = el('div');
+  bar.style.cssText = 'display:flex;gap:8px;margin-top:18px;padding-top:16px;border-top:1px solid var(--line)';
+  const save = el('button', 'btn pri');
+  save.type = 'button';
+  save.append(icon('check'), el('span', '', '套用'));
+  save.addEventListener('click', () => {
+    const show = order.filter((k) => shown[k]);
+    if (!show.length) { alert('至少要留一個欄位。'); return; }
+    const next = colPrefGet(objectId);
+    next.show = show;
+    colPrefSet(objectId, next);
+    d.hide();
+    viewObject(objectId);
+  });
+  const reset = el('button', 'btn quiet');
+  reset.type = 'button';
+  reset.append(el('span', '', '回到預設'));
+  reset.addEventListener('click', () => {
+    colPrefClear(objectId);
+    d.hide();
+    viewObject(objectId);
+  });
+  const cancel = el('button', 'btn quiet');
+  cancel.type = 'button';
+  cancel.textContent = '取消';
+  cancel.addEventListener('click', () => d.hide());
+  bar.append(save, reset, cancel);
+  d.body.append(bar);
 
   d.scrim.classList.add('on');
   d.drawer.classList.add('on');
