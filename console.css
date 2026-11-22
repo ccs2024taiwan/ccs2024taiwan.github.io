@@ -117,8 +117,9 @@ h1.page{font-family:"Noto Serif TC",serif;font-weight:600;font-size:22px;margin:
 .tw{overflow-x:auto;margin:0 -4px}
 table{border-collapse:collapse;width:100%;font-size:13.5px}
 th{text-align:left;font-weight:600;color:var(--muted);font-size:12px;padding:0 12px 9px;border-bottom:1px solid var(--line);white-space:nowrap}
-td{padding:10px 12px;border-bottom:1px solid var(--line-soft);vertical-align:middle}
-td.wrap-ok{white-space:normal;min-width:160px}
+/* 表格的字一律不換行：塞不下就用「…」收起來（滑過去看得到全文，點進去是完整的） */
+td{padding:10px 12px;border-bottom:1px solid var(--line-soft);vertical-align:middle;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:420px}
+td.wrap-ok{min-width:160px}
 /* 自己調過欄寬之後：欄寬固定，內容超出就收起來，不會把版面撐開 */
 .fixed-cols td{overflow:hidden;text-overflow:ellipsis}
 .fixed-cols td.wrap-ok{min-width:0}

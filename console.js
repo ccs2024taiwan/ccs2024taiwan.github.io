@@ -2823,8 +2823,12 @@ async function viewStock() {
   editionTabs.style.cssText = 'margin:18px 0 10px';
   const stateBar = el('div');
   stateBar.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px';
+  const bulkBar = el('div');
+  bulkBar.style.cssText = 'display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:0 0 10px';
+  bulkBar.hidden = true;
   const listBox = el('div');
-  sheet.append(editionTabs, stateBar, listBox);
+  sheet.append(editionTabs, stateBar, bulkBar, listBox);
+  const picked = {}; // 勾起來的那幾本
 
   const stateOf = (d) => String(d.state || '').trim() || ((String(d.source || '').trim() || String(d.use || '').trim()) ? '已出' : '在庫');
   // 預設打開最新那一刷：還有在庫的優先，其餘取排在最後面的
@@ -2863,6 +2867,9 @@ async function viewStock() {
     listBox.append(el('p', 'hint', edition + '：第 ' + first + '～' + last + ' 本，共 ' + shown.length + ' 筆。點任何一列可以改那一本（例如送人、損毀、記錯）。'));
     const obj = (META.objects || []).find((o) => o.id === 'book_copy');
     const table = finTable([
+      {
+        label: '', get: () => '',
+      },
       { label: '第幾本', right: 1, get: (x) => String(x.data.seq || '') },
       { label: '狀態', get: (x) => stateOf(x.data) },
       { label: '來源', get: (x) => String(x.data.source || '') },
@@ -2873,15 +2880,95 @@ async function viewStock() {
       { label: '出庫日期', get: (x) => String(x.data.out_at || '') },
       { label: '備註', get: (x) => String(x.data.note || '') },
     ], shown, 'stock.list');
-    if (obj) {
-      Array.from(table.querySelectorAll('tbody tr')).forEach((tr, i) => {
-        const row = shown[i];
-        if (!row) return;
+    Array.from(table.querySelectorAll('tbody tr')).forEach((tr, i) => {
+      const row = shown[i];
+      if (!row) return;
+      // 第一格放勾選框
+      const cell = tr.querySelector('td');
+      if (cell) {
+        cell.style.width = '34px';
+        const box = el('input');
+        box.type = 'checkbox';
+        box.checked = Boolean(picked[row.id]);
+        box.style.cssText = 'width:15px;height:15px;accent-color:var(--accent);cursor:pointer';
+        box.addEventListener('click', (e) => e.stopPropagation());
+        box.addEventListener('change', () => { if (box.checked) picked[row.id] = row; else delete picked[row.id]; paintBulk(shown); });
+        cell.append(box);
+      }
+      if (obj) {
         tr.style.cursor = 'pointer';
         tr.addEventListener('click', () => openDrawer(obj, row));
-      });
-    }
+      }
+    });
     listBox.append(table);
+    paintBulk(shown);
+  };
+
+  // 勾選之後可以一起改狀態
+  const paintBulk = (shown) => {
+    const ids = Object.keys(picked);
+    bulkBar.replaceChildren();
+    bulkBar.hidden = false;
+    const all = el('button', 'btn quiet');
+    all.type = 'button';
+    const everyShown = shown.length > 0 && shown.every((r) => picked[r.id]);
+    all.append(el('span', '', everyShown ? '取消全選' : '全選這一頁（' + shown.length + '）'));
+    all.addEventListener('click', () => {
+      if (everyShown) shown.forEach((r) => delete picked[r.id]);
+      else shown.forEach((r) => (picked[r.id] = r));
+      paintList();
+    });
+    bulkBar.append(all);
+    const count = el('span', '', ids.length ? '已勾選 ' + ids.length + ' 本' : '勾選後可以一次改狀態');
+    count.style.cssText = 'font-size:12.5px;color:var(--muted)';
+    bulkBar.append(count);
+
+    const act = (label, run) => {
+      const b = el('button', 'btn' + (ids.length ? ' pri' : ''));
+      b.type = 'button';
+      b.disabled = !ids.length;
+      b.append(el('span', '', label));
+      b.addEventListener('click', async () => {
+        b.disabled = true;
+        await run(ids.map((id) => picked[id]));
+        b.disabled = false;
+      });
+      bulkBar.append(b);
+    };
+
+    const save = async (list, patchOf) => {
+      for (const row of list) {
+        const data = Object.assign({}, row.data, patchOf(row));
+        const r = await db('save', { object: 'book_copy', id: row.id, data: data });
+        if (!r.ok) { alert('第 ' + row.data.seq + ' 本沒有成功：' + (r.message || r.error)); break; }
+      }
+      Object.keys(picked).forEach((k) => delete picked[k]);
+      dropRowsCache('book_copy');
+      viewStock();
+    };
+
+    act('標為已出…', async (list) => {
+      const source = window.prompt('這幾本的去向（來源欄）：贈送／現場販售／樣書／損毀／其他', '贈送');
+      if (source === null || !source.trim()) return;
+      const use = window.prompt('給誰／做什麼（用途欄）', '');
+      if (use === null) return;
+      await save(list, (row, i) => ({ state: '已出', source: source.trim(), use: use.trim() || row.data.use || '', out_at: new Date().toISOString().slice(0, 10) }));
+    });
+    act('標為預留', async (list) => {
+      if (!window.confirm('把勾選的 ' + list.length + ' 本標成「預留」？')) return;
+      await save(list, () => ({ state: '預留' }));
+    });
+    act('放回在庫', async (list) => {
+      if (!window.confirm('把勾選的 ' + list.length + ' 本放回「在庫」？來源、用途、訂單編號會清掉。')) return;
+      await save(list, () => ({ state: '在庫', source: '', use: '', ship: '', income: '', order_no: '', out_at: '', note: '' }));
+    });
+    if (ids.length) {
+      const clear = el('button', 'btn quiet');
+      clear.type = 'button';
+      clear.append(el('span', '', '清除勾選'));
+      clear.addEventListener('click', () => { Object.keys(picked).forEach((k) => delete picked[k]); paintList(); });
+      bulkBar.append(clear);
+    }
   };
 
   const paintTabs = () => {
