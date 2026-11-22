@@ -668,9 +668,9 @@ async function viewObject(objectId) {
     const td = el('td', kind, text);
     // 狀態、日期、金額這種短欄位不要被擠成一字一行
     if (/select|date|datetime|money|number|phone|sequence/.test(f.type)) td.style.whiteSpace = 'nowrap';
-    // 自己調過欄寬的：超出就用「…」收起來（完整內容點進去看得到）
+    // 自己調過欄寬的：超出就用「…」收起來（滑過去看得到全文，點進去是完整的）
     const w = pref.width && pref.width[f.key];
-    if (w) { td.style.maxWidth = w + 'px'; td.style.overflow = 'hidden'; td.style.textOverflow = 'ellipsis'; td.style.whiteSpace = 'nowrap'; td.title = text; }
+    if (w) { td.style.overflow = 'hidden'; td.style.textOverflow = 'ellipsis'; td.style.whiteSpace = 'nowrap'; td.title = text; }
     return td;
   };
 
@@ -741,6 +741,20 @@ async function viewObject(objectId) {
     return (keys.length ? keys : defaultCols).map(fieldOf).filter(Boolean);
   };
 
+  // 把現在的欄寬固定下來，表格才拉得動（自動寬度的表格會被內容撐著不動）
+  const lockWidths = () => {
+    const ths = Array.from(table.querySelectorAll('thead th'));
+    if (!ths.length) return;
+    ths.forEach((x) => {
+      if (x.style.width) return;
+      const w = Math.round(x.getBoundingClientRect().width);
+      if (w) { x.style.width = w + 'px'; }
+    });
+    table.style.tableLayout = 'fixed';
+    table.style.width = Math.round(table.getBoundingClientRect().width) + 'px';
+    table.classList.add('fixed-cols');
+  };
+
   // 表頭：可以拖右邊界調寬
   const colHeader = () => {
     const thead = el('thead');
@@ -750,25 +764,31 @@ async function viewObject(objectId) {
       const th = el('th', /money|number/.test(f.type) ? 'num' : '', f.label);
       th.style.position = 'relative';
       const w = pref.width && pref.width[f.key];
-      if (w) { th.style.width = w + 'px'; th.style.minWidth = w + 'px'; th.style.maxWidth = w + 'px'; }
+      if (w) th.style.width = w + 'px';
       // 右邊界：按住往左右拉就能調寬
       const grip = el('span');
-      grip.title = '拖曳調整欄寬（雙擊回到自動）';
-      grip.style.cssText = 'position:absolute;top:0;right:-3px;width:8px;height:100%;cursor:col-resize;user-select:none';
+      grip.title = '按住往左右拉可以調整欄寬（雙擊回到自動）';
+      grip.style.cssText = 'position:absolute;top:0;right:-4px;width:9px;height:100%;cursor:col-resize;user-select:none;border-right:2px solid transparent';
+      grip.addEventListener('mouseenter', () => { grip.style.borderRightColor = 'var(--accent)'; });
+      grip.addEventListener('mouseleave', () => { grip.style.borderRightColor = 'transparent'; });
       grip.addEventListener('mousedown', (ev) => {
         ev.preventDefault();
         ev.stopPropagation();
+        lockWidths(); // 先把每一欄現在的寬度固定住，拉才會動
         const startX = ev.clientX;
         const startW = th.getBoundingClientRect().width;
+        const startTable = table.getBoundingClientRect().width;
+        document.body.style.cursor = 'col-resize';
         const move = (e) => {
-          const next = Math.max(48, Math.round(startW + e.clientX - startX));
+          const delta = e.clientX - startX;
+          const next = Math.max(48, Math.round(startW + delta));
           th.style.width = next + 'px';
-          th.style.minWidth = next + 'px';
-          th.style.maxWidth = next + 'px';
+          table.style.width = Math.max(240, Math.round(startTable + (next - startW))) + 'px';
         };
         const up = () => {
           document.removeEventListener('mousemove', move);
           document.removeEventListener('mouseup', up);
+          document.body.style.cursor = '';
           pref.width = pref.width || {};
           pref.width[f.key] = Math.round(th.getBoundingClientRect().width);
           colPrefSet(objectId, pref);
@@ -808,6 +828,8 @@ async function viewObject(objectId) {
       table.append(body);
       tw.append(table);
       sheet.replaceChildren(colBar, statusBar, tagBar, pickBar, tw, moreBox);
+      // 調過欄寬的，畫完第一批資料就把寬度固定住，畫面才跟設定一致
+      if (pref.width && Object.keys(pref.width).length) setTimeout(lockWidths, 0);
     }
     rows.push.apply(rows, result.rows);
     cursor = result.nextCursor;
