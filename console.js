@@ -2834,19 +2834,26 @@ async function viewStock() {
   // 預設打開最新那一刷：還有在庫的優先，其餘取排在最後面的
   const withStock = list.filter((x) => x.left > 0);
   let edition = (withStock.length ? withStock[withStock.length - 1] : list[list.length - 1]).edition;
-  let stateFilter = '全部';
+  let stateFilter = '已登記'; // 空白的（還在庫、沒登記過）預設不顯示
 
   const paintList = () => {
     // 這一刷的每一本，照流水號由小到大
+    // 最新登記的排最上面（第 1 本在最下面）
     const mine = rows
       .filter((r) => String((r.data || {}).edition || '').trim() === edition)
-      .sort((a, b) => (Number((a.data || {}).seq) || 0) - (Number((b.data || {}).seq) || 0));
-    const count = { 在庫: 0, 預留: 0, 已出: 0 };
-    mine.forEach((r) => { count[stateOf(r.data || {})] = (count[stateOf(r.data || {})] || 0) + 1; });
+      .sort((a, b) => (Number((b.data || {}).seq) || 0) - (Number((a.data || {}).seq) || 0));
+    // 「已登記」＝有寫過東西的（預留、已出，或在庫但有備註）；空白的本數不列
+    const logged = (d) => stateOf(d) !== '在庫' || String(d.source || '').trim() || String(d.use || '').trim() || String(d.note || '').trim();
+    const count = { 在庫: 0, 預留: 0, 已出: 0, 已登記: 0 };
+    mine.forEach((r) => {
+      const d = r.data || {};
+      count[stateOf(d)] = (count[stateOf(d)] || 0) + 1;
+      if (logged(d)) count.已登記++;
+    });
 
     // 狀態篩選
     stateBar.replaceChildren();
-    [['全部', mine.length], ['在庫', count['在庫'] || 0], ['預留', count['預留'] || 0], ['已出', count['已出'] || 0]].forEach((pair) => {
+    [['已登記', count['已登記'] || 0], ['預留', count['預留'] || 0], ['已出', count['已出'] || 0], ['在庫', count['在庫'] || 0], ['全部', mine.length]].forEach((pair) => {
       const b = el('button', 'btn quiet');
       b.type = 'button';
       b.style.cssText = 'padding:4px 11px;font-size:12.5px;border-radius:20px' +
@@ -2856,15 +2863,19 @@ async function viewStock() {
       stateBar.append(b);
     });
 
-    const shown = stateFilter === '全部' ? mine : mine.filter((r) => stateOf(r.data || {}) === stateFilter);
+    const shown = stateFilter === '全部' ? mine
+      : stateFilter === '已登記' ? mine.filter((r) => logged(r.data || {}))
+      : mine.filter((r) => stateOf(r.data || {}) === stateFilter);
     listBox.replaceChildren();
     if (!shown.length) {
-      listBox.append(el('p', 'hint', '這一刷沒有' + (stateFilter === '全部' ? '任何紀錄' : stateFilter + '的書') + '。'));
+      listBox.append(el('p', 'hint', '這一刷沒有' + (stateFilter === '全部' ? '任何紀錄' : stateFilter === '已登記' ? '登記過的書（都還在庫）' : stateFilter + '的書') + '。'));
       return;
     }
-    const first = Number(shown[0].data.seq) || 0;
-    const last = Number(shown[shown.length - 1].data.seq) || 0;
-    listBox.append(el('p', 'hint', edition + '：第 ' + first + '～' + last + ' 本，共 ' + shown.length + ' 筆。點任何一列可以改那一本（例如送人、損毀、記錯）。'));
+    const newest = Number(shown[0].data.seq) || 0;
+    const oldest = Number(shown[shown.length - 1].data.seq) || 0;
+    listBox.append(el('p', 'hint', edition + '：第 ' + oldest + '～' + newest + ' 本，共 ' + shown.length + ' 筆，最新登記的在最上面。' +
+      (stateFilter === '已登記' && count['在庫'] ? '還有 ' + count['在庫'] + ' 本在庫還沒登記（按上面的「在庫」看）。' : '') +
+      '點任何一列可以改那一本（例如送人、損毀、記錯）。'));
     const obj = (META.objects || []).find((o) => o.id === 'book_copy');
     const table = finTable([
       {
