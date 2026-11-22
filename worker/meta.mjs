@@ -258,6 +258,8 @@ export const objects = [
     fields: [
       F('edition', '版次', 'text', { ...stf, ...list, ...req, from: '版次', options: { facet: 1 }, help: '例：二版一刷。原本是銷售紀錄表的工作表名稱' }),
       F('seq', '流水號', 'number', { ...stf, ...list, ...req, from: '流水號', help: '第幾本' }),
+      F('state', '狀態', 'select', { ...stf, ...list, from: '狀態', options: { items: ['在庫', '預留', '已出'], main: ['在庫', '預留'], order: ['已出'] },
+        help: '收款後先「預留」（書還在，但不能再賣給別人），出貨或面交之後才變「已出」' }),
       F('source', '來源', 'text', { ...stf, ...list, from: '來源', help: '官網購買、現場販售、贈送…；空白＝還在庫' }),
       F('use', '用途', 'text', { ...stf, ...list, from: '用途', help: '誰拿走的，或做什麼用' }),
       F('ship', '寄出方式', 'text', { ...stf, from: '寄出方式' }),
@@ -265,6 +267,7 @@ export const objects = [
       F('subsidy', '補助', 'money', { ...stf, from: '補助' }),
       F('income', '收入', 'money', { ...stf, ...list, from: '收入' }),
       F('order_no', '訂單編號', 'text', { ...stf, from: '訂單編號' }),
+      F('out_at', '出庫日期', 'date', { ...stf, from: '出庫日期' }),
       F('note', '備註', 'text', { ...stf, ...list, from: '備註' }),
       // 核對碼＝版次｜流水號，重複匯入不會變兩本
       F('fp', '核對碼', 'text', { ...stf, from: '核對碼' }),

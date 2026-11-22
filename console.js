@@ -2594,13 +2594,15 @@ function stockOf(rows) {
     const d = r.data || r;
     const edition = String(d.edition || '（沒填版次）').trim();
     const box = byEdition[edition] || (byEdition[edition] = {
-      edition: edition, printed: 0, used: 0, left: 0, income: 0, cost: 0, lastSeq: 0, bySource: {},
+      edition: edition, printed: 0, used: 0, held: 0, left: 0, income: 0, cost: 0, lastSeq: 0, bySource: {},
     });
     box.printed++;
     const seq = Number(d.seq) || 0;
     if (seq > box.lastSeq) box.lastSeq = seq;
-    const taken = String(d.source || '').trim() || String(d.use || '').trim();
-    if (!taken) { box.left++; return; }
+    // 舊資料沒有「狀態」欄：有來源或用途就當已出，否則在庫
+    const state = String(d.state || '').trim() || ((String(d.source || '').trim() || String(d.use || '').trim()) ? '已出' : '在庫');
+    if (state === '在庫') { box.left++; return; }
+    if (state === '預留') { box.held++; box.income += Number(d.income) || 0; const k0 = String(d.source || '（預留）').trim(); box.bySource[k0] = (box.bySource[k0] || 0) + 1; return; }
     box.used++;
     box.income += Number(d.income) || 0;
     box.cost += Number(d.cost) || 0;
@@ -2620,7 +2622,7 @@ async function stockAdd(edition, count, source, note) {
   for (let i = 1; i <= count; i++) {
     list.push({
       edition: edition, seq: last + i,
-      source: source || '', note: note || '',
+      state: '在庫', source: source || '', note: note || '',
       fp: edition + '｜' + (last + i),
     });
   }
@@ -2634,7 +2636,7 @@ async function stockTake(edition, count, data) {
   const got = await loadFinance(['book_copy']);
   const free = (got.book_copy || [])
     .filter((r) => String((r.data || {}).edition || '').trim() === edition)
-    .filter((r) => !String((r.data || {}).source || '').trim() && !String((r.data || {}).use || '').trim())
+    .filter((r) => { const d = r.data || {}; const st = String(d.state || '').trim() || ((String(d.source || '').trim() || String(d.use || '').trim()) ? '已出' : '在庫'); return st === '在庫'; })
     .sort((a, b) => (Number((a.data || {}).seq) || 0) - (Number((b.data || {}).seq) || 0));
   if (free.length < count) return { ok: false, message: '庫存只剩 ' + free.length + ' 本，不夠出 ' + count + ' 本。' };
   const take = free.slice(0, count);
@@ -2643,6 +2645,8 @@ async function stockTake(edition, count, data) {
   for (let i = 0; i < take.length; i++) {
     const r = take[i];
     const patch = Object.assign({}, r.data, {
+      state: '已出',
+      out_at: new Date().toISOString().slice(0, 10),
       source: data.source,
       use: i === 0 ? data.use : '↑ 同上',
       income: i === 0 ? data.income : '',
@@ -2668,7 +2672,7 @@ async function viewStock() {
   const sheet = el('div', 'sheet');
   sheet.style.borderRadius = 'var(--r)';
   main.append(sheet);
-  sheet.append(hint('一本一列，流水號就是第幾本。沒填來源也沒填用途的就是還在庫的；訂單確認收款時會自動從流水號最小的那幾本開始填。要調整某一本（例如送人、損毀），到下面的清單點那一列改。'));
+  sheet.append(hint('一本一列，流水號就是第幾本。每一本有三種狀態：在庫（可以賣）、預留（訂單已收款、書先鎖起來還沒寄出）、已出（真的離開了）。訂單確認收款時自動從流水號最小的在庫本預留；按「標記已出貨／已面交」時才轉成已出。要調整某一本（送人、損毀、記錯），到下面的清單點那一列改。'));
 
   const got = await loadFinance(['book_copy']);
   if (!got.book_copy) { sheet.append(el('p', 'err', '讀不到書籍庫存。請先到試算表按「同步 → 更新設定庫」，再按「搬家：匯入書籍庫存（只做一次）」。')); return; }
@@ -2692,11 +2696,11 @@ async function viewStock() {
     tools.append(addBtn, outBtn);
     sheet.append(tools);
   }
-  const total = list.reduce((t, x) => ({ printed: t.printed + x.printed, used: t.used + x.used, left: t.left + x.left, income: t.income + x.income }), { printed: 0, used: 0, left: 0, income: 0 });
-  info.textContent = '印了 ' + total.printed + ' 本　已出 ' + total.used + ' 本　還剩 ' + total.left + ' 本　累計收入 ' + nt(total.income) + ' 元';
+  const total = list.reduce((t, x) => ({ printed: t.printed + x.printed, used: t.used + x.used, held: t.held + x.held, left: t.left + x.left, income: t.income + x.income }), { printed: 0, used: 0, held: 0, left: 0, income: 0 });
+  info.textContent = '印了 ' + total.printed + ' 本　在庫 ' + total.left + ' 本　預留 ' + total.held + ' 本　已出 ' + total.used + ' 本　累計收入 ' + nt(total.income) + ' 元';
 
   const cards = el('div', 'tiles');
-  [['印量（進）', total.printed + ' 本'], ['已出（銷）', total.used + ' 本'], ['庫存（存）', total.left + ' 本'], ['累計收入', nt(total.income) + ' 元']].forEach((pair) => {
+  [['印量（進）', total.printed + ' 本'], ['在庫（可賣）', total.left + ' 本'], ['預留（已收款待出貨）', total.held + ' 本'], ['已出（銷）', total.used + ' 本'], ['累計收入', nt(total.income) + ' 元']].forEach((pair) => {
     const c = el('div', 'tile');
     c.append(el('div', 'k', pair[0]), el('div', 'n', pair[1]));
     cards.append(c);
@@ -2711,21 +2715,24 @@ async function viewStock() {
     { label: '版次', get: (x) => x.edition },
     { label: '印量', right: 1, get: (x) => x.printed + ' 本' },
     { label: '已出', right: 1, get: (x) => x.used + ' 本' },
-    { label: '庫存', right: 1, strong: 1, get: (x) => x.left + ' 本' },
+    { label: '預留', right: 1, get: (x) => (x.held ? x.held + ' 本' : '') },
+    { label: '在庫', right: 1, strong: 1, get: (x) => x.left + ' 本' },
     { label: '累計收入', right: 1, get: (x) => nt(x.income) + ' 元' },
     { label: '出去的用途', get: (x) => Object.keys(x.bySource).sort((a, b) => x.bySource[b] - x.bySource[a]).map((k) => k + ' ' + x.bySource[k]).join('、') },
   ], list));
 
   // 最近出去的幾本
-  const taken = rows.filter((r) => String((r.data || {}).source || '').trim() || String((r.data || {}).use || '').trim())
+  const stateOf = (d) => String(d.state || '').trim() || ((String(d.source || '').trim() || String(d.use || '').trim()) ? '已出' : '在庫');
+  const taken = rows.filter((r) => stateOf(r.data || {}) !== '在庫')
     .sort((a, b) => (Number((b.data || {}).seq) || 0) - (Number((a.data || {}).seq) || 0));
-  const h3 = el('h2', '', '最近出去的');
+  const h3 = el('h2', '', '最近出去的與預留中的');
   h3.style.cssText = 'font-size:14px;margin:22px 0 8px;color:var(--ink)';
   sheet.append(h3);
   const obj = (META.objects || []).find((o) => o.id === 'book_copy');
   const table = finTable([
     { label: '版次', get: (x) => String(x.data.edition || '') },
     { label: '第幾本', right: 1, get: (x) => String(x.data.seq || '') },
+    { label: '狀態', get: (x) => stateOf(x.data) },
     { label: '來源', get: (x) => String(x.data.source || '') },
     { label: '用途', get: (x) => String(x.data.use || '') },
     { label: '寄出方式', get: (x) => String(x.data.ship || '') },
