@@ -696,6 +696,7 @@ async function viewObject(objectId) {
     if (statusField && mainList.length) {
       shown = shown.filter((r) => matchStatus(statusOf(r), activeStatus, mainList, statusGroups));
     }
+    shown = sortRows(shown); // 設定庫指定的排序（例如訂單：最新的在第一列）
     shown.forEach((r) => {
       const tr = el('tr');
       if (contactFields.length) {
@@ -1832,6 +1833,7 @@ async function viewStatement() {
     foot.append(fl, fm, el('td'));
     tb.append(foot);
     t.append(thead, tb);
+    makeResizable(t, 'statement.' + title);
     tw.append(t);
     wrap.append(tw);
     return wrap;
@@ -2115,6 +2117,7 @@ async function viewRecon() {
       tb.append(tr);
     });
     t.append(thead, tb);
+    makeResizable(t, 'recon.' + title);
     tw.append(t);
     wrap.append(tw);
     return wrap;
@@ -2278,8 +2281,70 @@ async function loadFinance(objects, fresh) {
   return out;
 }
 
-// 表格小工具：欄位定義 + 資料列
-function finTable(columns, items) {
+// 讓一張表格可以拖欄寬（寬度記在這台電腦，key 是這張表的名字）
+function makeResizable(table, key) {
+  if (!key) return table;
+  const pref = colPrefGet(key);
+  const ths = Array.from(table.querySelectorAll('thead th'));
+  const lock = () => {
+    ths.forEach((x) => {
+      if (x.style.width) return;
+      const w = Math.round(x.getBoundingClientRect().width);
+      if (w) x.style.width = w + 'px';
+    });
+    table.style.tableLayout = 'fixed';
+    table.style.width = Math.round(table.getBoundingClientRect().width) + 'px';
+    table.classList.add('fixed-cols');
+  };
+  ths.forEach((th, i) => {
+    const saved = pref.width && pref.width[i];
+    if (saved) th.style.width = saved + 'px';
+    th.style.position = 'relative';
+    const grip = el('span');
+    grip.title = '按住往左右拉可以調整欄寬（雙擊回到自動）';
+    grip.style.cssText = 'position:absolute;top:0;right:-4px;width:9px;height:100%;cursor:col-resize;user-select:none;border-right:2px solid transparent';
+    grip.addEventListener('mouseenter', () => { grip.style.borderRightColor = 'var(--accent)'; });
+    grip.addEventListener('mouseleave', () => { grip.style.borderRightColor = 'transparent'; });
+    grip.addEventListener('mousedown', (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      lock();
+      const startX = ev.clientX;
+      const startW = th.getBoundingClientRect().width;
+      const startTable = table.getBoundingClientRect().width;
+      document.body.style.cursor = 'col-resize';
+      const move = (e) => {
+        const next = Math.max(48, Math.round(startW + e.clientX - startX));
+        th.style.width = next + 'px';
+        table.style.width = Math.max(240, Math.round(startTable + (next - startW))) + 'px';
+      };
+      const up = () => {
+        document.removeEventListener('mousemove', move);
+        document.removeEventListener('mouseup', up);
+        document.body.style.cursor = '';
+        const now = colPrefGet(key);
+        now.width = now.width || {};
+        now.width[i] = Math.round(th.getBoundingClientRect().width);
+        colPrefSet(key, now);
+      };
+      document.addEventListener('mousemove', move);
+      document.addEventListener('mouseup', up);
+    });
+    grip.addEventListener('dblclick', (ev) => {
+      ev.stopPropagation();
+      const now = colPrefGet(key);
+      if (now.width) delete now.width[i];
+      colPrefSet(key, now);
+      th.style.width = '';
+    });
+    th.append(grip);
+  });
+  if (pref.width && Object.keys(pref.width).length) setTimeout(lock, 0);
+  return table;
+}
+
+// 表格小工具：欄位定義 + 資料列（給 key 就可以調欄寬）
+function finTable(columns, items, key) {
   const tw = el('div', 'tw');
   const t = el('table');
   const thead = el('thead');
@@ -2298,6 +2363,7 @@ function finTable(columns, items) {
     tb.append(tr);
   });
   t.append(thead, tb);
+  makeResizable(t, key);
   tw.append(t);
   return tw;
 }
@@ -2337,7 +2403,7 @@ async function viewYearly() {
     { label: '支出', right: 1, get: (x) => nt(x.expense) + ' 元' },
     { label: '本年度結餘', right: 1, strong: 1, get: (x) => nt(x.balance) + ' 元' },
     { label: '累計結餘', right: 1, get: (x) => nt(x.accumulated) + ' 元' },
-  ], years.slice().reverse()));
+  ], years.slice().reverse(), 'yearly'));
 }
 
 async function viewCash() {
@@ -2397,7 +2463,7 @@ async function viewCash() {
       { name: '第一銀行', open: c.bank.open, in: c.bank.in, out: c.bank.out, end: c.bank.end },
       { name: '現金在手（秘書長代墊用）', open: c.cash.open, in: c.cash.in, out: c.cash.out, end: c.cash.end },
       { name: '合計', open: c.bank.open + c.cash.open, in: c.bank.in + c.cash.in, out: c.bank.out + c.cash.out, end: c.bank.end + c.cash.end },
-    ]));
+    ], 'cash'));
     if (!c.bank.known) out.append(hint('銀行明細上沒有填餘額，期末是用期初加減本年度收支推出來的。'));
     out.append(hint('現金那一列：「本年度收入」＝從銀行領出的現金，「本年度支出」＝日記帳上付款方式是現金／LINE Pay 的支出。期末不是 0 就表示還有錢在手上（或有單還沒記帳）。'));
   };
@@ -2750,7 +2816,7 @@ async function viewStock() {
     { label: '在庫', right: 1, strong: 1, get: (x) => x.left + ' 本' },
     { label: '累計收入', right: 1, get: (x) => nt(x.income) + ' 元' },
     { label: '出去的用途', get: (x) => Object.keys(x.bySource).sort((a, b) => x.bySource[b] - x.bySource[a]).map((k) => k + ' ' + x.bySource[k]).join('、') },
-  ], list));
+  ], list, 'stock.editions'));
 
   // 最近出去的幾本
   const stateOf = (d) => String(d.state || '').trim() || ((String(d.source || '').trim() || String(d.use || '').trim()) ? '已出' : '在庫');
@@ -2771,7 +2837,7 @@ async function viewStock() {
     { label: '寄出方式', get: (x) => String(x.data.ship || '') },
     { label: '收入', right: 1, get: (x) => (Number(x.data.income) ? nt(x.data.income) + ' 元' : '') },
     { label: '備註', get: (x) => String(x.data.note || '') },
-  ], taken.slice(0, 30));
+  ], taken.slice(0, 30), 'stock.list');
   // 點一列可以改那一本
   if (obj) {
     Array.from(table.querySelectorAll('tbody tr')).forEach((tr, i) => {
