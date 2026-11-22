@@ -2848,7 +2848,7 @@ async function viewStock() {
     });
   }
   sheet.append(table);
-  if (taken.length > 30) sheet.append(el('p', 'hint', '…還有 ' + (taken.length - 30) + ' 本。完整清單在「資料 → 書籍庫存」。'));
+  if (taken.length > 30) sheet.append(el('p', 'hint', '…還有 ' + (taken.length - 30) + ' 本。要看每一本（含還在庫的、查某一本在誰手上）請點左邊「書籍訂購 → 庫存明細（每一本）」，那一頁可以搜尋、依版次與狀態分頁、也能改。'));
 }
 
 // 進貨／出庫的小表單，從右邊滑出來

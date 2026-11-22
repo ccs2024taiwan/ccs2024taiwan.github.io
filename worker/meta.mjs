@@ -255,6 +255,7 @@ export const objects = [
     // 空的（沒有來源、用途）＝還在庫；賣掉或送出去就填上來源、用途、收入。
     id: 'book_copy', label: '書籍庫存', icon: 'cube', sort: 24,
     title_field: 'use', source: 'd1',
+    extras: { sort: { field: 'seq', dir: 'asc' } }, // 清單預設照流水號排
     acl: { list: ['staff', 'board'], read: ['staff', 'board'], create: ['staff'], update: ['staff'], delete: ['admin'] },
     fields: [
       F('edition', '版次', 'text', { ...stf, ...list, ...req, from: '版次', options: { facet: 1 }, help: '例：二版一刷。原本是銷售紀錄表的工作表名稱' }),
@@ -604,6 +605,7 @@ export const menus = [
   { id: 'g_book', area: 'admin', label: '書籍訂購', icon: 'shop', kind: 'group', sort: 23 },
   { id: 'adm_order', area: 'admin', parent_id: 'g_book', label: '訂單', icon: 'shop', kind: 'object', target: 'order', sort: 23 },
   { id: 'adm_book_stock', area: 'admin', parent_id: 'g_book', label: '書籍庫存', icon: 'cube', kind: 'page', target: 'stock', sort: 24, roles: ['staff', 'admin', 'board'] },
+  { id: 'adm_book_copies', area: 'admin', parent_id: 'g_book', label: '庫存明細（每一本）', icon: 'rows', kind: 'object', target: 'book_copy', sort: 25, roles: ['staff', 'admin', 'board'] },
   { id: 'adm_event', area: 'admin', label: '課程活動', icon: 'cal', kind: 'object', target: 'event', sort: 24 },
   { id: 'adm_task', area: 'admin', label: '任務', icon: 'check', kind: 'object', target: 'task', sort: 25 },
   { id: 'adm_meeting', area: 'admin', label: '會議', icon: 'cal', kind: 'object', target: 'meeting', sort: 26 },
