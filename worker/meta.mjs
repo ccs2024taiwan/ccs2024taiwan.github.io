@@ -605,7 +605,6 @@ export const menus = [
   { id: 'g_book', area: 'admin', label: '書籍訂購', icon: 'shop', kind: 'group', sort: 23 },
   { id: 'adm_order', area: 'admin', parent_id: 'g_book', label: '訂單', icon: 'shop', kind: 'object', target: 'order', sort: 23 },
   { id: 'adm_book_stock', area: 'admin', parent_id: 'g_book', label: '書籍庫存', icon: 'cube', kind: 'page', target: 'stock', sort: 24, roles: ['staff', 'admin', 'board'] },
-  { id: 'adm_book_copies', area: 'admin', parent_id: 'g_book', label: '庫存明細（每一本）', icon: 'rows', kind: 'object', target: 'book_copy', sort: 25, roles: ['staff', 'admin', 'board'] },
   { id: 'adm_event', area: 'admin', label: '課程活動', icon: 'cal', kind: 'object', target: 'event', sort: 24 },
   { id: 'adm_task', area: 'admin', label: '任務', icon: 'check', kind: 'object', target: 'task', sort: 25 },
   { id: 'adm_meeting', area: 'admin', label: '會議', icon: 'cal', kind: 'object', target: 'meeting', sort: 26 },

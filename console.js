@@ -2818,39 +2818,85 @@ async function viewStock() {
     { label: '出去的用途', get: (x) => Object.keys(x.bySource).sort((a, b) => x.bySource[b] - x.bySource[a]).map((k) => k + ' ' + x.bySource[k]).join('、') },
   ], list, 'stock.editions'));
 
-  // 最近出去的幾本
-  const stateOf = (d) => String(d.state || '').trim() || ((String(d.source || '').trim() || String(d.use || '').trim()) ? '已出' : '在庫');
-  // 預留中的排最前面（那是還要處理的），其餘照流水號由大到小
-  const rank = (d) => (stateOf(d) === '預留' ? 0 : 1);
-  const taken = rows.filter((r) => stateOf(r.data || {}) !== '在庫')
-    .sort((a, b) => rank(a.data || {}) - rank(b.data || {}) || (Number((b.data || {}).seq) || 0) - (Number((a.data || {}).seq) || 0));
-  const h3 = el('h2', '', '預留中的與最近出去的');
-  h3.style.cssText = 'font-size:14px;margin:22px 0 8px;color:var(--ink)';
-  sheet.append(h3);
-  const obj = (META.objects || []).find((o) => o.id === 'book_copy');
-  const table = finTable([
-    { label: '版次', get: (x) => String(x.data.edition || '') },
-    { label: '第幾本', right: 1, get: (x) => String(x.data.seq || '') },
-    { label: '狀態', get: (x) => stateOf(x.data) },
-    { label: '來源', get: (x) => String(x.data.source || '') },
-    { label: '用途', get: (x) => String(x.data.use || '') },
-    { label: '寄出方式', get: (x) => String(x.data.ship || '') },
-    { label: '收入', right: 1, get: (x) => (Number(x.data.income) ? nt(x.data.income) + ' 元' : '') },
-    { label: '備註', get: (x) => String(x.data.note || '') },
-  ], taken.slice(0, 30), 'stock.list');
-  // 點一列可以改那一本
-  if (obj) {
-    Array.from(table.querySelectorAll('tbody tr')).forEach((tr, i) => {
-      const row = taken[i];
-      if (!row) return;
-      tr.style.cursor = 'pointer';
-      tr.addEventListener('click', () => openDrawer(obj, row));
-    });
-  }
-  sheet.append(table);
-  if (taken.length > 30) sheet.append(el('p', 'hint', '…還有 ' + (taken.length - 30) + ' 本。要看每一本（含還在庫的、查某一本在誰手上）請點左邊「書籍訂購 → 庫存明細（每一本）」，那一頁可以搜尋、依版次與狀態分頁、也能改。'));
-}
+  // 下面：版次分頁，內容就是那一刷的每一本
+  const editionTabs = el('div', 'tabs');
+  editionTabs.style.cssText = 'margin:18px 0 10px';
+  const stateBar = el('div');
+  stateBar.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px';
+  const listBox = el('div');
+  sheet.append(editionTabs, stateBar, listBox);
 
+  const stateOf = (d) => String(d.state || '').trim() || ((String(d.source || '').trim() || String(d.use || '').trim()) ? '已出' : '在庫');
+  // 預設打開最新那一刷：還有在庫的優先，其餘取排在最後面的
+  const withStock = list.filter((x) => x.left > 0);
+  let edition = (withStock.length ? withStock[withStock.length - 1] : list[list.length - 1]).edition;
+  let stateFilter = '全部';
+
+  const paintList = () => {
+    // 這一刷的每一本，照流水號由小到大
+    const mine = rows
+      .filter((r) => String((r.data || {}).edition || '').trim() === edition)
+      .sort((a, b) => (Number((a.data || {}).seq) || 0) - (Number((b.data || {}).seq) || 0));
+    const count = { 在庫: 0, 預留: 0, 已出: 0 };
+    mine.forEach((r) => { count[stateOf(r.data || {})] = (count[stateOf(r.data || {})] || 0) + 1; });
+
+    // 狀態篩選
+    stateBar.replaceChildren();
+    [['全部', mine.length], ['在庫', count['在庫'] || 0], ['預留', count['預留'] || 0], ['已出', count['已出'] || 0]].forEach((pair) => {
+      const b = el('button', 'btn quiet');
+      b.type = 'button';
+      b.style.cssText = 'padding:4px 11px;font-size:12.5px;border-radius:20px' +
+        (stateFilter === pair[0] ? ';background:var(--accent-soft);color:var(--accent);border-color:var(--accent-soft)' : '');
+      b.append(el('span', '', pair[0] + '（' + pair[1] + '）'));
+      b.addEventListener('click', () => { stateFilter = pair[0]; paintList(); });
+      stateBar.append(b);
+    });
+
+    const shown = stateFilter === '全部' ? mine : mine.filter((r) => stateOf(r.data || {}) === stateFilter);
+    listBox.replaceChildren();
+    if (!shown.length) {
+      listBox.append(el('p', 'hint', '這一刷沒有' + (stateFilter === '全部' ? '任何紀錄' : stateFilter + '的書') + '。'));
+      return;
+    }
+    const first = Number(shown[0].data.seq) || 0;
+    const last = Number(shown[shown.length - 1].data.seq) || 0;
+    listBox.append(el('p', 'hint', edition + '：第 ' + first + '～' + last + ' 本，共 ' + shown.length + ' 筆。點任何一列可以改那一本（例如送人、損毀、記錯）。'));
+    const obj = (META.objects || []).find((o) => o.id === 'book_copy');
+    const table = finTable([
+      { label: '第幾本', right: 1, get: (x) => String(x.data.seq || '') },
+      { label: '狀態', get: (x) => stateOf(x.data) },
+      { label: '來源', get: (x) => String(x.data.source || '') },
+      { label: '用途', get: (x) => String(x.data.use || '') },
+      { label: '寄出方式', get: (x) => String(x.data.ship || '') },
+      { label: '收入', right: 1, get: (x) => (Number(x.data.income) ? nt(x.data.income) + ' 元' : '') },
+      { label: '訂單', get: (x) => String(x.data.order_no || '') },
+      { label: '出庫日期', get: (x) => String(x.data.out_at || '') },
+      { label: '備註', get: (x) => String(x.data.note || '') },
+    ], shown, 'stock.list');
+    if (obj) {
+      Array.from(table.querySelectorAll('tbody tr')).forEach((tr, i) => {
+        const row = shown[i];
+        if (!row) return;
+        tr.style.cursor = 'pointer';
+        tr.addEventListener('click', () => openDrawer(obj, row));
+      });
+    }
+    listBox.append(table);
+  };
+
+  const paintTabs = () => {
+    editionTabs.replaceChildren();
+    list.forEach((x) => {
+      const b = el('button', 'tab' + (edition === x.edition ? ' on' : ''));
+      b.type = 'button';
+      b.append(el('span', '', x.edition + '（在庫 ' + x.left + '）'));
+      b.addEventListener('click', () => { edition = x.edition; paintTabs(); paintList(); });
+      editionTabs.append(b);
+    });
+  };
+  paintTabs();
+  paintList();
+}
 // 進貨／出庫的小表單，從右邊滑出來
 function stockForm(mode, editions) {
   const d = ensureDrawer();
