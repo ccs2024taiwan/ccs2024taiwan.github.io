@@ -683,44 +683,160 @@ if (vendorSearch && vendorResults) {
 }
 
 // ── 會員分布：哪些地區、哪些社區加入了我們（官網不公開姓名與會員編號）──
+// 地圖只是概覽：顏色深淺＝會員多寡，點一下看該縣市的社區。真正好按的是地圖下面那排縣市按鈕
+// （手機上小縣市只有幾個像素，不能只靠地圖）。
 const memberCities = document.getElementById('memberCities');
 
 if (memberCities) {
   const statusLine = document.getElementById('memberStatus');
   const groupBox = document.getElementById('memberGroupBox');
   const honorBox = document.getElementById('memberHonorBox');
+  const mapBox = document.getElementById('twMap');
+  const tip = document.getElementById('twTip');
+  const chipBox = document.getElementById('cityChips');
+  const INSET_CITIES = ['金門縣', '連江縣'];
+  let selected = '';
+  let cities = [];
 
   const setText = (id, text) => {
     const node = document.getElementById(id);
     if (node) node.textContent = text;
   };
+  const cityOf = (name) => cities.filter((box) => box.city === name)[0];
+  // 顏色分五級（CIS 藍綠色階）；0 位會員用米色
+  const tierOf = (count) => (!count ? 0 : count < 3 ? 1 : count < 10 ? 2 : count < 30 ? 3 : 4);
 
-  const render = (rows) => {
-    if (!rows?.length) return false;
-    const people = rows.filter((r) => r.type !== '榮譽會員');
-    const groups = rows.filter((r) => r.type === '團體會員');
-    const honors = rows.filter((r) => r.type === '榮譽會員');
-
-    // 地區 → 社區（同一個社區只列一次），沒寫地區的收在最後
-    const byCity = new Map();
-    people.forEach((r) => {
-      const city = (r.city || '').trim() || '其他地區';
-      if (!byCity.has(city)) byCity.set(city, { city, count: 0, communities: new Map() });
-      const box = byCity.get(city);
-      box.count++;
-      const community = (r.community || '').trim();
-      if (community) box.communities.set(community, (box.communities.get(community) || 0) + 1);
+  // ── 地圖 ──
+  const paintMap = () => {
+    if (!mapBox) return;
+    const svg = mapBox.querySelector('svg');
+    if (!svg) return;
+    svg.querySelectorAll('.tw-label').forEach((node) => node.remove());
+    svg.querySelectorAll('[data-city]').forEach((shape) => {
+      const name = shape.dataset.city;
+      const box = cityOf(name);
+      const count = box ? box.count : 0;
+      shape.setAttribute('data-tier', String(tierOf(count)));
+      shape.classList.toggle('is-active', Boolean(selected) && selected === name);
+      shape.classList.toggle('is-dim', Boolean(selected) && selected !== name);
+      shape.setAttribute('tabindex', '0');
+      shape.setAttribute('role', 'button');
+      shape.setAttribute('aria-label', name + '：' + count + ' 位會員' + (box ? '、' + box.communities.size + ' 個社區' : ''));
+      const title = shape.querySelector('title');
+      if (title) title.textContent = name + '　' + count + ' 位會員';
+      if (shape.classList.contains('tw-hit')) return;
+      // 有會員的縣市才寫名字與人數（22 個標籤會擠在一起）；離島插圖固定寫名字，不然看不出那一格是什麼
+      if (!count && INSET_CITIES.indexOf(name) === -1) return;
+      // 有會員的縣市才寫名字與人數，不然 22 個標籤會擠在一起
+      const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      label.setAttribute('class', 'tw-label' + (tierOf(count) >= 3 ? ' tw-label-light' : ''));
+      label.setAttribute('x', shape.dataset.cx);
+      label.setAttribute('y', shape.dataset.cy);
+      label.setAttribute('text-anchor', 'middle');
+      label.textContent = name;
+      const num = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
+      num.setAttribute('x', shape.dataset.cx);
+      num.setAttribute('dy', '14');
+      num.setAttribute('class', 'tw-label-count');
+      num.textContent = count ? count + ' 位' : '—';
+      label.append(num);
+      svg.append(label);
     });
-    const cities = Array.from(byCity.values()).sort((a, b) => b.count - a.count || a.city.localeCompare(b.city, 'zh-Hant'));
-    const communityTotal = cities.reduce((total, box) => total + box.communities.size, 0);
+  };
 
-    setText('statMembers', String(rows.length));
-    setText('statCities', String(cities.filter((box) => box.city !== '其他地區').length));
-    setText('statCommunities', String(communityTotal));
-    if (statusLine) statusLine.textContent = '依地區排列，同一個社區只列一次。選擇不公開社區名稱的會員，只列入該地區的人數。';
+  const showTip = (name, event) => {
+    if (!tip) return;
+    const box = cityOf(name);
+    const count = box ? box.count : 0;
+    const names = box ? Array.from(box.communities.keys()) : [];
+    tip.replaceChildren();
+    const head = document.createElement('strong');
+    head.textContent = name + '　' + count + ' 位會員';
+    tip.append(head);
+    const line = document.createElement('span');
+    line.textContent = count
+      ? (names.length ? names.slice(0, 6).join('、') + (names.length > 6 ? ' 等 ' + names.length + ' 個社區' : '') : '會員選擇不公開社區名稱')
+      : '還沒有會員，歡迎成為第一位';
+    tip.append(line);
+    tip.hidden = false;
+    const wrap = mapBox.getBoundingClientRect();
+    const x = event.clientX - wrap.left;
+    const y = event.clientY - wrap.top;
+    tip.style.left = Math.max(8, Math.min(wrap.width - 8 - tip.offsetWidth, x + 14)) + 'px';
+    tip.style.top = Math.max(8, y - tip.offsetHeight - 12) + 'px';
+  };
+  const hideTip = () => { if (tip) tip.hidden = true; };
 
+  const select = (name) => {
+    selected = selected === name ? '' : name;
+    hideTip();
+    paintMap();
+    paintChips();
+    paintCards();
+    if (selected) {
+      const card = memberCities.querySelector('.city-card');
+      if (card) card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  };
+
+  const bindMap = () => {
+    if (!mapBox) return;
+    const svg = mapBox.querySelector('svg');
+    if (!svg) return;
+    svg.querySelectorAll('[data-city]').forEach((shape) => {
+      shape.addEventListener('click', () => select(shape.dataset.city));
+      shape.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); select(shape.dataset.city); }
+      });
+      shape.addEventListener('mousemove', (event) => showTip(shape.dataset.city, event));
+      shape.addEventListener('mouseleave', hideTip);
+      shape.addEventListener('focus', () => {
+        const rect = shape.getBoundingClientRect();
+        showTip(shape.dataset.city, { clientX: rect.left + rect.width / 2, clientY: rect.top + rect.height / 2 });
+      });
+      shape.addEventListener('blur', hideTip);
+    });
+    svg.addEventListener('mouseleave', hideTip);
+  };
+
+  const loadMap = () => {
+    if (!mapBox) return;
+    fetch('assets/taiwan-counties.svg')
+      .then((r) => (r.ok ? r.text() : ''))
+      .then((text) => {
+        if (!text) { mapBox.remove(); return; }
+        mapBox.innerHTML = text;
+        bindMap();
+        paintMap();
+      })
+      .catch(() => mapBox.remove());
+  };
+
+  // ── 縣市按鈕（手機主要靠這個）──
+  const paintChips = () => {
+    if (!chipBox) return;
+    chipBox.replaceChildren();
+    const all = document.createElement('button');
+    all.type = 'button';
+    all.className = 'city-chip' + (selected ? '' : ' is-on');
+    all.textContent = '全部地區';
+    all.addEventListener('click', () => { selected = ''; paintMap(); paintChips(); paintCards(); });
+    chipBox.append(all);
+    cities.filter((box) => box.count).forEach((box) => {
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'city-chip' + (selected === box.city ? ' is-on' : '');
+      chip.textContent = box.city + ' ' + box.count;
+      chip.addEventListener('click', () => select(box.city));
+      chipBox.append(chip);
+    });
+  };
+
+  // ── 地區卡片 ──
+  const paintCards = () => {
+    const shown = selected ? cities.filter((box) => box.city === selected) : cities;
     memberCities.replaceChildren(
-      ...cities.map((box) => {
+      ...shown.map((box) => {
         const card = document.createElement('div');
         card.className = 'city-card';
         const title = document.createElement('h3');
@@ -746,6 +862,39 @@ if (memberCities) {
         return card;
       })
     );
+    if (statusLine) {
+      statusLine.textContent = selected
+        ? '目前只看「' + selected + '」。再按一次同一個縣市，或按「全部地區」就看全部。'
+        : '依地區排列，同一個社區只列一次。點地圖或下面的縣市按鈕可以只看某一個地區。';
+    }
+  };
+
+  const render = (rows) => {
+    if (!rows?.length) return false;
+    const people = rows.filter((r) => r.type !== '榮譽會員');
+    const groups = rows.filter((r) => r.type === '團體會員');
+    const honors = rows.filter((r) => r.type === '榮譽會員');
+
+    // 地區 → 社區（同一個社區只列一次），沒寫地區的收在最後
+    const byCity = new Map();
+    people.forEach((r) => {
+      const city = (r.city || '').trim() || '其他地區';
+      if (!byCity.has(city)) byCity.set(city, { city, count: 0, communities: new Map() });
+      const box = byCity.get(city);
+      box.count++;
+      const community = (r.community || '').trim();
+      if (community) box.communities.set(community, (box.communities.get(community) || 0) + 1);
+    });
+    cities = Array.from(byCity.values()).sort((a, b) => b.count - a.count || a.city.localeCompare(b.city, 'zh-Hant'));
+    const communityTotal = cities.reduce((total, box) => total + box.communities.size, 0);
+
+    setText('statMembers', String(rows.length));
+    setText('statCities', String(cities.filter((box) => box.city !== '其他地區').length));
+    setText('statCommunities', String(communityTotal));
+
+    paintMap();
+    paintChips();
+    paintCards();
 
     const groupList = document.getElementById('memberGroups');
     if (groupList && groups.length) {
@@ -781,6 +930,7 @@ if (memberCities) {
     return true;
   };
 
+  loadMap();
   // 先問官網資料庫（0.1 秒），沒有才退回 Apps Script
   dbList('public_member').then((rows) => {
     if (rows && render(rows.map((r) => ({ type: r.type, city: r.city, community: r.community, name: r.name, note: r.note })))) return;

@@ -4916,3 +4916,144 @@ a.service-tile {
 .welcome-note p:last-child {
   margin: 0;
 }
+
+/* ── 會員分布地圖（CIS 藍綠色階；0 位會員＝米色）── */
+.tw-map-wrap {
+  position: relative;
+  max-width: 460px;
+  margin: 26px auto 10px;
+}
+
+.tw-map svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.tw-county {
+  fill: #f3e9dc;
+  stroke: var(--surface);
+  stroke-width: 1.1;
+  cursor: pointer;
+  transition: fill 0.15s ease, opacity 0.15s ease;
+}
+
+.tw-county[data-tier="1"] { fill: var(--teal-soft); }
+.tw-county[data-tier="2"] { fill: #a9d4e0; }
+.tw-county[data-tier="3"] { fill: var(--teal); }
+.tw-county[data-tier="4"] { fill: var(--teal-deep); }
+
+.tw-county:hover,
+.tw-county:focus-visible {
+  fill: var(--red);
+  outline: none;
+}
+
+.tw-county.is-active {
+  fill: var(--red-deep);
+}
+
+.tw-county.is-dim {
+  opacity: 0.55;
+}
+
+.tw-inset-box {
+  fill: none;
+  stroke: var(--border);
+  stroke-dasharray: 5 5;
+}
+
+.tw-hit {
+  fill: transparent;
+  cursor: pointer;
+}
+
+.tw-hit:hover,
+.tw-hit:focus-visible {
+  fill: rgba(224, 144, 120, 0.16);
+  outline: none;
+}
+
+.tw-label {
+  font-size: 12px;
+  font-weight: 700;
+  fill: var(--brown);
+  pointer-events: none;
+}
+
+.tw-label-light {
+  fill: #ffffff;
+}
+
+.tw-label-count {
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.tw-tip {
+  position: absolute;
+  z-index: 3;
+  max-width: 240px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  padding: 10px 12px;
+  font-size: 0.88rem;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  pointer-events: none;
+}
+
+.tw-tip span {
+  color: var(--muted);
+}
+
+.tw-map-note {
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.88rem;
+  margin: 0 0 18px;
+}
+
+.city-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  margin: 0 0 14px;
+}
+
+.city-chip {
+  font: inherit;
+  font-size: 0.92rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 8px 14px;
+  color: var(--ink);
+  cursor: pointer;
+  min-height: 40px;
+}
+
+.city-chip.is-on {
+  background: var(--teal);
+  border-color: var(--teal);
+  color: #ffffff;
+  font-weight: 700;
+}
+
+@media (max-width: 640px) {
+  .tw-map-wrap {
+    max-width: 100%;
+  }
+
+  .tw-label {
+    font-size: 14px;
+  }
+
+  .tw-label-count {
+    font-size: 13px;
+  }
+}
