@@ -163,7 +163,7 @@ export const objects = [
   },
   {
     id: 'event', label: '課程活動', icon: 'cal', sort: 40,
-    id_rule: '{code}', title_field: 'title', source: 'sheet:課程活動', sync: { sheet: '課程活動', key: ['id', 'session'], statusField: 'status' },
+    id_rule: '{code}', title_field: 'title', source: 'd1', // 正本 2026-11-23 搬到 D1；試算表那張改名「（舊）」只留歷史
     acl: { list: ['guest'], read: ['guest'], create: ['staff'], update: ['staff'], delete: ['admin'] },
     fields: [
       F('id', '活動代號', 'text', { ...pub, ...list, ...req, from: '活動代號' }),
