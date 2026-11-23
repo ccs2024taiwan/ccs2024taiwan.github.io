@@ -4560,9 +4560,9 @@ async function viewAudit() {
 // 收據的來源：日記帳收入列的「憑證」（或「單號」裡的收據號碼）、書籍訂單的「收據編號」、作廢收據。
 // 收據本分三種號段，改這裡就好：
 const RECEIPT_BOOKS = [
-  { key: 'dues', label: '入會費＋常年會費', ranges: [[1, 50], [101, 250]] },
+  { key: 'dues', label: '入會費＋常年會費', ranges: [[1, 50], [101, 500]] },
   { key: 'event', label: '活動／課程報名費', ranges: [[51, 100]] },
-  { key: 'book', label: '出版品／書籍', ranges: [[501, 750]] },
+  { key: 'book', label: '出版品／書籍', ranges: [[501, Infinity]] }, // 000501 起全部算書籍
 ];
 const padSerial = (v) => { const t = String(v == null ? '' : v).trim(); return /^\d{1,6}$/.test(t) ? ('000000' + t).slice(-6) : ''; };
 // 從單號／憑證欄挖出收據序號：「000123」「123」「收據 123」「收據#123」「No.123」都認得；訂單編號、日期這種不算
@@ -4572,7 +4572,7 @@ const serialIn = (v) => {
   return m ? ('000000' + m[1]).slice(-6) : '';
 };
 const bookOf = (serial) => { const n = Number(serial); return RECEIPT_BOOKS.find((b) => b.ranges.some((r) => n >= r[0] && n <= r[1])) || null; };
-const rangeText = (b) => b.ranges.map((r) => ('000000' + r[0]).slice(-6) + '～' + ('000000' + r[1]).slice(-6)).join('、');
+const rangeText = (b) => b.ranges.map((r) => ('000000' + r[0]).slice(-6) + (isFinite(r[1]) ? '～' + ('000000' + r[1]).slice(-6) : ' 起')).join('、');
 
 // 把三種來源併成「一個序號一筆」
 function receiptIndex(got) {
