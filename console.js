@@ -1268,7 +1268,48 @@ async function viewSync() {
   main.append(head);
   const sheet = el('div', 'sheet');
   sheet.style.borderRadius = 'var(--r)';
-  sheet.append(hint('每天早上自動同步一次。要立刻更新，到試算表按「同步：立刻同步到官網資料庫」。'));
+  sheet.append(hint('大部分資料的正本已經在這個資料庫了，不需要同步；剩下還放在試算表的（活動建檔）與算出來的公開名單，每天早上自動更新一次。改過設定庫的定義之後，按「更新設定庫」。'));
+
+  // 試算表選單上的兩件事，搬到這裡
+  const tools = el('div');
+  tools.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;margin:4px 0 16px';
+  const out = el('p', 'hint');
+  out.hidden = true;
+  const toolBtn = (label, tool, confirmText) => {
+    const b = el('button', 'btn' + (tool === 'reseed' ? ' pri' : ''));
+    b.type = 'button';
+    b.append(icon('check'), el('span', '', label));
+    b.addEventListener('click', async () => {
+      if (confirmText && !window.confirm(confirmText)) return;
+      const old = b.textContent;
+      b.disabled = true;
+      b.replaceChildren(el('span', '', '執行中…'));
+      out.hidden = false;
+      out.className = 'hint';
+      out.textContent = label + '：執行中，請稍候…';
+      const r = await appsScript({ action: 'adminTool', token: sessionStorageToken(), tool: tool });
+      b.disabled = false;
+      b.replaceChildren(icon('check'), el('span', '', old));
+      if (!r || !r.ok) {
+        out.className = 'err';
+        out.textContent = label + '：沒有成功 — ' + ((r && (r.message || r.error)) || '未知原因');
+        return;
+      }
+      out.className = 'hint';
+      out.textContent = r.text || '完成';
+      dropRowsCache();
+      if (tool === 'reseed') {
+        const meta = await db('meta');
+        if (meta.ok) { META = meta; buildNav(); }
+      }
+      viewSync();
+    });
+    return b;
+  };
+  tools.append(toolBtn('更新設定庫', 'reseed'));
+  tools.append(toolBtn('立刻同步', 'sync', '把還放在試算表的資料推上來（活動建檔、公開名單這些）。要繼續嗎？'));
+  sheet.append(tools, out);
+
   const fresh = await db('stats');
   STATS = fresh;
   if (!fresh.ok) { sheet.append(el('p', 'err', '讀不到：' + (fresh.message || fresh.error))); main.append(sheet); return; }
