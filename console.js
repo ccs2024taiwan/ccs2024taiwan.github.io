@@ -224,6 +224,7 @@ function go(key) {
   if (key === 'stock') return viewStock();
   if (key === 'pay_in') return viewLedgerEntry('in');
   if (key === 'pay_out') return viewLedgerEntry('out');
+  if (key === 'dues_remind') return viewDuesRemind();
   if (key === 'permits') return viewPermits();
   if (key === 'audit') return viewAudit();
   if (key === 'audit_old') return viewSoon('留痕', '誰在什麼時候改了什麼，連改前改後都留著，刪掉的東西可以還原。要等管理台開放「寫入」之後才會有內容，和寫入功能同一批。');
@@ -3392,6 +3393,147 @@ async function viewLedgerEntry(kind) {
     const fresh = await loadFinance(['journal'], true);
     paintRecent(fresh.journal);
   });
+}
+
+
+// ── 會費催繳 ────────────────────────────────────────────
+// 還沒繳的有效會員（永久會員、已繳的、已回報待對帳的都不算）
+async function viewDuesRemind() {
+  $('crumb').textContent = '財務 › 會費催繳';
+  const main = $('main');
+  main.replaceChildren();
+  const head = el('div', 'head');
+  const box = el('div');
+  const info = el('p', '', '讀取中…');
+  box.append(el('h1', 'page', '會費催繳'), info);
+  head.append(box, el('span', 'sp'));
+  main.append(head);
+  const sheet = el('div', 'sheet');
+  sheet.style.borderRadius = 'var(--r)';
+  main.append(sheet);
+  sheet.append(hint('名單是即時算的：會籍到期前 ' + 60 + ' 天內或已過期、而且今年度還沒入帳的有效會員。永久會員與已回報待對帳的不會出現。'));
+
+  const r = await appsScript({ action: 'adminTool', token: sessionStorageToken(), tool: 'dues_unpaid' });
+  if (!r || !r.ok) { sheet.append(el('p', 'err', '讀不到名單：' + ((r && (r.message || r.error)) || '未知原因'))); return; }
+  const rows = r.rows || [];
+  if (!rows.length) { info.textContent = '目前沒有需要催繳的會員'; sheet.append(el('p', 'hint', '大家都繳了，或還沒到開放繳費的時間。')); return; }
+  const withEmail = rows.filter((x) => x.email);
+  info.textContent = rows.length + ' 位還沒繳　有 Email 的 ' + withEmail.length + ' 位　合計 ' + nt(rows.reduce((t, x) => t + (Number(x.amount) || 0), 0)) + ' 元';
+
+  // 勾選
+  const picked = {};
+  const bar = el('div');
+  bar.style.cssText = 'display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:4px 0 14px';
+  sheet.append(bar);
+  const out = el('p', 'hint');
+  out.hidden = true;
+
+  const paintBar = () => {
+    const ids = Object.keys(picked);
+    bar.replaceChildren();
+    const all = el('button', 'btn quiet');
+    all.type = 'button';
+    const every = rows.length > 0 && rows.every((x) => picked[x.memberId]);
+    all.append(el('span', '', every ? '取消全選' : '全選（' + rows.length + '）'));
+    all.addEventListener('click', () => {
+      if (every) rows.forEach((x) => delete picked[x.memberId]);
+      else rows.forEach((x) => (picked[x.memberId] = x));
+      paint();
+    });
+    bar.append(all);
+    const count = el('span', '', ids.length ? '已勾選 ' + ids.length + ' 位' : '勾選後可以寄信或複製 Email');
+    count.style.cssText = 'font-size:12.5px;color:var(--muted)';
+    bar.append(count);
+
+    const mailBtn = (label, last) => {
+      const b = el('button', 'btn' + (ids.length ? ' pri' : ''));
+      b.type = 'button';
+      b.disabled = !ids.length;
+      b.append(icon('doc'), el('span', '', label));
+      b.addEventListener('click', async () => {
+        const list = ids.map((id) => picked[id]).filter((x) => x.email);
+        if (!list.length) return alert('勾選的這幾位都沒有 Email，請用下面的 LINE 訊息。');
+        if (!window.confirm('要寄給 ' + list.length + ' 位嗎？' + (ids.length - list.length ? '（另外 ' + (ids.length - list.length) + ' 位沒有 Email，會略過）' : ''))) return;
+        b.disabled = true;
+        const done = await appsScript({ action: 'adminTool', token: sessionStorageToken(), tool: 'dues_remind', ids: ids, last: last });
+        b.disabled = false;
+        out.hidden = false;
+        out.className = done && done.ok ? 'hint' : 'err';
+        out.textContent = done && done.ok ? done.text : '沒有成功：' + ((done && (done.message || done.error)) || '未知原因');
+      });
+      bar.append(b);
+    };
+    mailBtn('寄催繳 Email', false);
+    mailBtn('寄最後提醒', true);
+
+    const copyBtn = el('button', 'btn quiet');
+    copyBtn.type = 'button';
+    copyBtn.disabled = !ids.length;
+    copyBtn.append(icon('doc'), el('span', '', '複製 Email'));
+    copyBtn.addEventListener('click', () => {
+      const list = ids.map((id) => picked[id]).map((x) => x.email).filter(Boolean);
+      navigator.clipboard.writeText(list.join(', '));
+      out.hidden = false;
+      out.className = 'hint';
+      out.textContent = '已複製 ' + list.length + ' 個 Email，貼到 Gmail 的密件副本就可以寄。';
+    });
+    bar.append(copyBtn);
+    if (ids.length) {
+      const clear = el('button', 'btn quiet');
+      clear.type = 'button';
+      clear.append(el('span', '', '清除勾選'));
+      clear.addEventListener('click', () => { Object.keys(picked).forEach((k) => delete picked[k]); paint(); });
+      bar.append(clear);
+    }
+  };
+
+  const listBox = el('div');
+  sheet.append(listBox, out);
+  const paint = () => {
+    paintBar();
+    listBox.replaceChildren();
+    const table = finTable([
+      { label: '', get: () => '' },
+      { label: '會員編號', get: (x) => x.memberId },
+      { label: '姓名', get: (x) => x.name },
+      { label: '類別', get: (x) => x.type },
+      { label: '會籍到期', get: (x) => x.until || '' },
+      { label: '應繳年度', get: (x) => String(x.year) },
+      { label: '金額', right: 1, get: (x) => nt(x.amount) + ' 元' },
+      { label: 'Email', get: (x) => x.email || '（沒有）' },
+      { label: 'LINE 名稱', get: (x) => x.lineName || '' },
+      { label: '訊息', get: () => '複製' },
+    ], rows, 'dues.remind');
+    Array.from(table.querySelectorAll('tbody tr')).forEach((tr, i) => {
+      const x = rows[i];
+      if (!x) return;
+      const cells = tr.querySelectorAll('td');
+      const first = cells[0];
+      if (first) {
+        first.style.width = '34px';
+        const boxEl = el('input');
+        boxEl.type = 'checkbox';
+        boxEl.checked = Boolean(picked[x.memberId]);
+        boxEl.style.cssText = 'width:15px;height:15px;accent-color:var(--accent);cursor:pointer';
+        boxEl.addEventListener('change', () => { if (boxEl.checked) picked[x.memberId] = x; else delete picked[x.memberId]; paintBar(); });
+        first.append(boxEl);
+      }
+      const copyCell = cells[cells.length - 1];
+      if (copyCell) {
+        copyCell.style.cursor = 'pointer';
+        copyCell.style.color = 'var(--accent)';
+        copyCell.title = '複製這一位的催繳訊息（可貼到 LINE）';
+        copyCell.addEventListener('click', () => {
+          navigator.clipboard.writeText(x.message);
+          out.hidden = false;
+          out.className = 'hint';
+          out.textContent = '已複製 ' + x.name + ' 的催繳訊息，貼到 LINE 就可以。';
+        });
+      }
+    });
+    listBox.append(table);
+  };
+  paint();
 }
 
 async function viewPermits() {
