@@ -656,10 +656,11 @@ export const menus = [
   // 財務管理：十個子項目收在裡面
   { id: 'g_money', area: 'admin', label: '財務', icon: 'book', kind: 'group', sort: 40, roles: ['staff', 'admin', 'board'] },
   { id: 'fin_claim', area: 'admin', parent_id: 'g_money', label: '志工請款', icon: 'receipt', kind: 'object', target: 'claim', sort: 41, roles: ['staff', 'admin', 'board'] },
+  { id: 'fin_claim_review', area: 'admin', parent_id: 'g_money', label: '請款審核與撥款', icon: 'check', kind: 'page', target: 'claim_review', sort: 42, roles: ['staff', 'admin'] },
   { id: 'fin_expense', area: 'admin', parent_id: 'g_money', label: '支出登錄', icon: 'receipt', kind: 'page', target: 'pay_out', sort: 42, roles: ['staff', 'admin'] },
   { id: 'fin_forms', area: 'admin', parent_id: 'g_money', label: '表單管理', icon: 'doc', kind: 'page', target: 'soon:表單管理:支出證明單、講師費領據、印領清冊、補助金領據。之後會由系統帶入資料後直接產生，不用手填。', sort: 43 },
   { id: 'fin_income', area: 'admin', parent_id: 'g_money', label: '收入登錄', icon: 'coin', kind: 'page', target: 'pay_in', sort: 44, roles: ['staff', 'admin'] },
-  { id: 'fin_claim_items', area: 'admin', parent_id: 'g_money', label: '請款品項（決算用）', icon: 'rows', kind: 'object', target: 'claim_item', sort: 42, roles: ['staff', 'admin', 'board'] },
+  { id: 'fin_claim_items', area: 'admin', parent_id: 'g_money', label: '請款品項（決算用）', icon: 'rows', kind: 'object', target: 'claim_item', sort: 43, roles: ['staff', 'admin', 'board'] },
   { id: 'fin_dues_remind', area: 'admin', parent_id: 'g_money', label: '會費催繳', icon: 'coin', kind: 'page', target: 'dues_remind', sort: 45, roles: ['staff', 'admin'] },
   { id: 'fin_dues', area: 'admin', parent_id: 'g_money', label: '會費繳納', icon: 'coin', kind: 'object', target: 'dues', sort: 44, roles: ['staff', 'admin'] },
   { id: 'fin_journal', area: 'admin', parent_id: 'g_money', label: '日記帳', icon: 'book', kind: 'object', target: 'journal', sort: 45, roles: ['staff', 'admin', 'board'] },

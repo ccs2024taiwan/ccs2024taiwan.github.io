@@ -226,6 +226,7 @@ function go(key) {
   if (key === 'pay_out') return viewLedgerEntry('out');
   if (key === 'dues_remind') return viewDuesRemind();
   if (key === 'event_sheet') return viewEventSheet();
+  if (key === 'claim_review') return viewClaimReview();
   if (key === 'permits') return viewPermits();
   if (key === 'audit') return viewAudit();
   if (key === 'audit_old') return viewSoon('留痕', '誰在什麼時候改了什麼，連改前改後都留著，刪掉的東西可以還原。要等管理台開放「寫入」之後才會有內容，和寫入功能同一批。');
@@ -3664,6 +3665,296 @@ async function viewEventSheet() {
     });
   };
   pick.addEventListener('change', () => { eventId = pick.value; out.hidden = true; paint(); });
+  paint();
+}
+
+// ── 請款審核與撥款 ──────────────────────────────────────
+// 資料直接問 Apps Script（請款紀錄的正本在資料庫，但建議科目、合併撥款的規則都在那邊）
+const CLAIM_TABS = ['待審核', '已審核', '已付款', '不通過', '全部'];
+
+async function viewClaimReview() {
+  $('crumb').textContent = '財務 › 請款審核與撥款';
+  const main = $('main');
+  main.replaceChildren();
+  const head = el('div', 'head');
+  const box = el('div');
+  const info = el('p', '', '讀取中…');
+  box.append(el('h1', 'page', '請款審核與撥款'), info);
+  head.append(box, el('span', 'sp'));
+  main.append(head);
+  const sheet = el('div', 'sheet');
+  sheet.style.borderRadius = 'var(--r)';
+  main.append(sheet);
+  sheet.append(hint('一張單一次轉帳。審核時逐項挑科目（挑「退回這一項」就不撥款）；撥款時日記帳會照科目分列、掛同一個付款批號，對帳時整批去對。'));
+
+  const r = await appsScript({ action: 'adminTool', token: sessionStorageToken(), tool: 'claim_list' });
+  if (!r || !r.ok) { sheet.append(el('p', 'err', '讀不到請款單：' + ((r && (r.message || r.error)) || '未知原因'))); return; }
+  const claims = r.claims || [];
+  const accounts = r.accounts || [];
+  if (!claims.length) { info.textContent = '還沒有請款單'; return; }
+
+  let tab = claims.some((c) => c.status === '待審核') ? '待審核' : '已審核';
+  const picked = {};
+  const out = el('p', 'hint');
+  out.hidden = true;
+  const tabBar = el('div');
+  tabBar.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 12px';
+  const payBar = el('div');
+  payBar.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 14px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--sub)';
+  const body = el('div');
+  sheet.append(tabBar, payBar, out, body);
+
+  const count = (name) => (name === '全部' ? claims.length : claims.filter((c) => c.status === name).length);
+  const money = (n) => nt(Number(n) || 0) + ' 元';
+  const nameOf = {};
+  accounts.forEach((a) => (nameOf[a.code] = a.name));
+
+  const say = (ok, text) => {
+    out.hidden = false;
+    out.className = ok ? 'hint' : 'err';
+    out.textContent = text;
+    out.scrollIntoView({ block: 'nearest' });
+  };
+
+  // 跟 Apps Script 要一次事情做完，然後整頁重讀（金額、狀態都會變）
+  const run = async (payload, btn) => {
+    if (btn) btn.disabled = true;
+    const res = await appsScript(Object.assign({ action: 'adminTool', token: sessionStorageToken() }, payload));
+    if (btn) btn.disabled = false;
+    if (!res || !res.ok) { say(false, '沒有成功：' + ((res && (res.message || res.error)) || '未知原因')); return null; }
+    dropRowsCache();
+    return res;
+  };
+
+  // 付款方式／付款日：合併撥款與單張撥款共用上面這一排
+  const methodPick = el('select');
+  methodPick.style.cssText = 'font:inherit;font-size:13px;padding:4px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)';
+  [['銀行', '銀行轉帳'], ['現金', '現金（我先用 LINE Pay 或現金代付）'], ['其他', '其他（例如由預支款抵付）']].forEach((p) => {
+    const o = el('option', '', p[1]);
+    o.value = p[0];
+    methodPick.append(o);
+  });
+  const noteInput = el('input');
+  noteInput.type = 'text';
+  noteInput.placeholder = '「其他」要說明怎麼付的';
+  noteInput.style.cssText = 'font:inherit;font-size:13px;padding:4px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);min-width:200px';
+  noteInput.hidden = true;
+  methodPick.addEventListener('change', () => { noteInput.hidden = methodPick.value !== '其他'; });
+  const datePick = el('input');
+  datePick.type = 'date';
+  datePick.value = new Date().toISOString().slice(0, 10);
+  datePick.style.cssText = 'font:inherit;font-size:13px;padding:3px 8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)';
+  const payBtn = el('button', 'btn pri');
+  payBtn.type = 'button';
+  payBtn.append(icon('coin'), el('span', '', '確認撥款'));
+
+  const payNow = async (ids) => {
+    const list = ids.map((id) => claims.filter((c) => c.id === id)[0]).filter(Boolean);
+    if (!list.length) return say(false, '請先勾選要撥款的單。');
+    const people = list.map((c) => c.who).filter((v, i, a) => a.indexOf(v) === i);
+    if (people.length > 1) return say(false, '合併撥款一次只能處理同一個人，你勾到了：' + people.join('、'));
+    const sum = list.reduce((t, c) => t + (Number(c.total) || 0), 0);
+    if (methodPick.value === '其他' && !noteInput.value.trim()) return say(false, '付款方式選「其他」要填說明。');
+    if (!window.confirm('要撥款給 ' + people[0] + ' 嗎？' + '\n' + list.map((c) => '・' + c.id + '　' + money(c.total)).join('\n') +
+      '\n合計 ' + money(sum) + '（' + methodPick.value + '、' + datePick.value + '）\n按下去會改請款紀錄、寫日記帳、寄 Email 通知。')) return;
+    const res = await run({ tool: 'claim_pay', ids: list.map((c) => c.id), method: methodPick.value, note: noteInput.value.trim(), date: datePick.value }, payBtn);
+    if (!res) return;
+    say(true, res.text);
+    setTimeout(viewClaimReview, 1200);
+  };
+  payBtn.addEventListener('click', () => payNow(Object.keys(picked)));
+
+  const paintPayBar = () => {
+    const ids = Object.keys(picked);
+    payBar.replaceChildren();
+    const label = el('span', '', ids.length ? '要撥款的 ' + ids.length + ' 張：' : '勾選「已審核」的單就可以撥款（同一個人可以合併成一次轉帳）：');
+    label.style.cssText = 'font-size:12.5px;color:var(--muted)';
+    payBar.append(label, methodPick, noteInput, el('span', '', '付款日'), datePick, payBtn);
+    payBtn.disabled = !ids.length;
+    if (ids.length) {
+      const clear = el('button', 'btn quiet');
+      clear.type = 'button';
+      clear.append(el('span', '', '清除勾選'));
+      clear.addEventListener('click', () => { Object.keys(picked).forEach((k) => delete picked[k]); paint(); });
+      payBar.append(clear);
+    }
+  };
+
+  const card = (c) => {
+    const wrap = el('div');
+    wrap.style.cssText = 'border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:0 0 12px';
+    const top = el('div');
+    top.style.cssText = 'display:flex;flex-wrap:wrap;gap:10px;align-items:center';
+    const canPay = c.status === '已審核' || c.status === '待審核';
+    if (canPay) {
+      const boxEl = el('input');
+      boxEl.type = 'checkbox';
+      boxEl.checked = Boolean(picked[c.id]);
+      boxEl.title = '勾起來一起撥款';
+      boxEl.style.cssText = 'width:15px;height:15px;accent-color:var(--accent);cursor:pointer';
+      boxEl.addEventListener('change', () => { if (boxEl.checked) picked[c.id] = 1; else delete picked[c.id]; paintPayBar(); });
+      top.append(boxEl);
+    }
+    const title = el('strong', '', c.id);
+    title.style.cssText = 'font-size:14px';
+    const badge = el('span', '', c.status);
+    badge.style.cssText = 'font-size:11.5px;padding:2px 8px;border-radius:999px;border:1px solid var(--line);color:var(--muted)';
+    const who = el('span', '', c.who + (c.kind === '秘書處' ? '（秘書處）' : ''));
+    who.style.cssText = 'font-size:13px';
+    const meta = el('span', '', [c.submitted ? '送出 ' + c.submitted : '', money(c.total), c.items.length + ' 項',
+      c.requested ? '請款人填：' + c.requested : '', c.paidOn ? '付款日 ' + c.paidOn : '', c.batch ? '批號 ' + c.batch : ''].filter(Boolean).join('　'));
+    meta.style.cssText = 'font-size:12.5px;color:var(--muted)';
+    top.append(title, badge, who, el('span', 'sp'), meta);
+    wrap.append(top);
+    if (c.note) wrap.append(hint('請款人說明：' + c.note));
+
+    // 品項
+    const picks = {};
+    const table = el('table');
+    table.style.cssText = 'width:100%;margin:10px 0 4px';
+    const thead = el('thead');
+    const hr = el('tr');
+    ['序', '消費日', '品名／事由', '任務', '單據', '金額', '會計科目', '狀態'].forEach((h) => hr.append(el('th', '', h)));
+    thead.append(hr);
+    const tb = el('tbody');
+    c.items.forEach((it, i) => {
+      const tr = el('tr');
+      tr.append(el('td', '', String(i + 1)), el('td', '', it.spent || ''), el('td', '', it.name), el('td', '', it.task || ''), el('td', '', it.receiptType || ''));
+      const amount = el('td', '', money(it.amount));
+      amount.style.cssText = 'text-align:right;font-variant-numeric:tabular-nums';
+      tr.append(amount);
+      const codeCell = el('td');
+      if (it.status === '待審核') {
+        const pick = el('select');
+        pick.style.cssText = 'font:inherit;font-size:12.5px;padding:3px 6px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);max-width:230px';
+        accounts.forEach((a) => {
+          const o = el('option', '', a.code + '　' + a.name);
+          o.value = a.code;
+          if (a.code === it.suggest) o.selected = true;
+          pick.append(o);
+        });
+        const x = el('option', '', '✗ 退回這一項');
+        x.value = 'X';
+        pick.append(x);
+        picks[it.id] = pick;
+        codeCell.append(pick);
+      } else {
+        codeCell.textContent = it.code ? it.code + (nameOf[it.code] ? '　' + nameOf[it.code] : '') : '';
+      }
+      tr.append(codeCell);
+      tr.append(el('td', '', it.status + (it.note ? '（' + it.note + '）' : '')));
+      tb.append(tr);
+    });
+    table.append(thead, tb);
+    const tw = el('div', 'tw');
+    makeResizable(table, 'claim.items');
+    tw.append(table);
+    wrap.append(tw);
+
+    const bar = el('div');
+    bar.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:8px';
+    wrap.append(bar);
+
+    if (c.status === '待審核') {
+      let reviewer = null;
+      if (c.kind === '秘書處') {
+        reviewer = el('input');
+        reviewer.type = 'text';
+        reviewer.placeholder = '審核人姓名（填自己＝自審）';
+        reviewer.style.cssText = 'font:inherit;font-size:12.5px;padding:4px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);min-width:200px';
+        bar.append(reviewer);
+      }
+      const okBtn = el('button', 'btn pri');
+      okBtn.type = 'button';
+      okBtn.append(icon('check'), el('span', '', '審核通過'));
+      okBtn.addEventListener('click', async () => {
+        const decisions = Object.keys(picks).map((id) => ({ id: id, code: picks[id].value }));
+        const drop = decisions.filter((d) => d.code === 'X').length;
+        if (!window.confirm('收據核對無誤了嗎？' + (drop ? '（其中 ' + drop + ' 項會退回）' : '') + '\n按下去會寄審核結果給請款人。')) return;
+        const res = await run({ tool: 'claim_approve', id: c.id, decisions: decisions, reviewer: reviewer ? reviewer.value.trim() : '' }, okBtn);
+        if (!res) return;
+        say(true, res.text);
+        setTimeout(viewClaimReview, 1200);
+      });
+      bar.append(okBtn);
+    }
+
+    if (c.status !== '已付款' && c.status !== '不通過') {
+      const noBtn = el('button', 'btn quiet');
+      noBtn.type = 'button';
+      noBtn.append(icon('out'), el('span', '', '整張不通過'));
+      noBtn.addEventListener('click', async () => {
+        const reason = window.prompt('整張不通過的原因（會寄給請款人）：', '');
+        if (reason === null) return;
+        const res = await run({ tool: 'claim_reject', id: c.id, reason: reason }, noBtn);
+        if (!res) return;
+        say(true, res.text);
+        setTimeout(viewClaimReview, 1200);
+      });
+      bar.append(noBtn);
+    }
+
+    if (canPay) {
+      const oneBtn = el('button', 'btn');
+      oneBtn.type = 'button';
+      oneBtn.append(icon('coin'), el('span', '', '只撥這一張'));
+      oneBtn.addEventListener('click', () => payNow([c.id]));
+      bar.append(oneBtn);
+    }
+
+    const docBtn = el('button', 'btn quiet');
+    docBtn.type = 'button';
+    docBtn.append(icon('doc'), el('span', '', '請款單暨憑證黏存單'));
+    docBtn.addEventListener('click', async () => {
+      const res = await run({ tool: 'claim_voucher', id: c.id }, docBtn);
+      if (!res) return;
+      say(true, res.text + '（檔案開在新視窗）');
+      window.open(res.url, '_blank');
+    });
+    bar.append(docBtn);
+    return wrap;
+  };
+
+  const paint = () => {
+    const shown = tab === '全部' ? claims : claims.filter((c) => c.status === tab);
+    info.textContent = '共 ' + claims.length + ' 張　待審核 ' + count('待審核') + '　已審核 ' + count('已審核') +
+      '（' + money(claims.filter((c) => c.status === '已審核').reduce((t, c) => t + (Number(c.total) || 0), 0)) + ' 待撥款）';
+    tabBar.replaceChildren();
+    CLAIM_TABS.forEach((name) => {
+      const b = el('button', 'btn' + (tab === name ? ' pri' : ' quiet'));
+      b.type = 'button';
+      b.append(el('span', '', name + '（' + count(name) + '）'));
+      b.addEventListener('click', () => { tab = name; paint(); });
+      tabBar.append(b);
+    });
+    paintPayBar();
+    body.replaceChildren();
+    if (!shown.length) body.append(el('p', 'hint', '這一類目前沒有單。'));
+    shown.forEach((c) => body.append(card(c)));
+
+    // 月結憑證單
+    const month = el('div');
+    month.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:18px 0 0;padding-top:14px;border-top:1px solid var(--line)';
+    const label = el('span', '', '會計：月結憑證單');
+    label.style.cssText = 'font-size:13px;font-weight:600';
+    const ym = el('input');
+    ym.type = 'month';
+    const last = new Date();
+    last.setMonth(last.getMonth() - 1);
+    ym.value = last.toISOString().slice(0, 7);
+    ym.style.cssText = 'font:inherit;font-size:13px;padding:3px 8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)';
+    const mBtn = el('button', 'btn quiet');
+    mBtn.type = 'button';
+    mBtn.append(icon('doc'), el('span', '', '產生這個月的憑證單'));
+    mBtn.addEventListener('click', async () => {
+      const res = await run({ tool: 'claim_monthly', ym: ym.value }, mBtn);
+      if (!res) return;
+      say(true, res.text + '　合計 ' + money(res.total) + '（檔案開在新視窗）');
+      window.open(res.url, '_blank');
+    });
+    month.append(label, ym, mBtn, hint('整月一份：該月所有支出一列一項，印出來把單據依序號貼在後頁。'));
+    body.append(month);
+  };
   paint();
 }
 
