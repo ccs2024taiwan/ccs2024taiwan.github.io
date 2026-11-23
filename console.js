@@ -228,6 +228,7 @@ function go(key) {
   if (key === 'event_sheet') return viewEventSheet();
   if (key === 'claim_review') return viewClaimReview();
   if (key === 'recon_report') return viewReconReport();
+  if (key === 'tools') return viewTools();
   if (key === 'permits') return viewPermits();
   if (key === 'audit') return viewAudit();
   if (key === 'audit_old') return viewSoon('留痕', '誰在什麼時候改了什麼，連改前改後都留著，刪掉的東西可以還原。要等管理台開放「寫入」之後才會有內容，和寫入功能同一批。');
@@ -4073,6 +4074,104 @@ async function viewReconReport() {
   });
   pick.addEventListener('change', () => ask(false));
   await ask(false);
+}
+
+// ── 系統工具 ────────────────────────────────────────────
+// 原本要開試算表按的那幾件事：備份、解除登入鎖定、重新整理官網名單
+async function viewTools() {
+  $('crumb').textContent = '系統 › 系統工具';
+  const main = $('main');
+  main.replaceChildren();
+  const head = el('div', 'head');
+  const box = el('div');
+  box.append(el('h1', 'page', '系統工具'), el('p', '', '備份、解鎖、重新整理官網名單'));
+  head.append(box, el('span', 'sp'));
+  main.append(head);
+  const sheet = el('div', 'sheet');
+  sheet.style.borderRadius = 'var(--r)';
+  main.append(sheet);
+
+  const out = el('p', 'hint');
+  out.hidden = true;
+  const say = (ok, text) => {
+    out.hidden = false;
+    out.className = ok ? 'hint' : 'err';
+    out.textContent = text;
+  };
+  const run = async (payload, btn) => {
+    btn.disabled = true;
+    say(true, '處理中…');
+    const r = await appsScript(Object.assign({ action: 'adminTool', token: sessionStorageToken() }, payload));
+    btn.disabled = false;
+    if (!r || !r.ok) { say(false, '沒有成功：' + ((r && (r.message || r.error)) || '未知原因')); return null; }
+    return r;
+  };
+
+  const card = (title, note) => {
+    const wrap = el('div');
+    wrap.style.cssText = 'border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:0 0 12px';
+    const h = el('strong', '', title);
+    h.style.cssText = 'font-size:14px';
+    wrap.append(h);
+    if (note) wrap.append(hint(note));
+    const bar = el('div');
+    bar.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:8px';
+    wrap.append(bar);
+    sheet.append(wrap);
+    return bar;
+  };
+
+  // 備份
+  const backupBar = card('立刻備份官網資料庫',
+    '把資料庫整份倒成 JSON 存到雲端硬碟，只保留最近幾份。這份檔案含個資（身分證號、簽名、銀行資料），資料夾不要分享給任何人。');
+  const backupBtn = el('button', 'btn pri');
+  backupBtn.type = 'button';
+  backupBtn.append(icon('db'), el('span', '', '備份一份'));
+  const backupOut = el('p', 'hint');
+  backupOut.hidden = true;
+  backupBtn.addEventListener('click', async () => {
+    if (!window.confirm('要現在備份整個資料庫嗎？（檔案含個資，只存在我們的雲端硬碟）')) return;
+    const r = await run({ tool: 'backup' }, backupBtn);
+    if (!r) return;
+    say(true, '備份完成：' + r.name + '　共 ' + r.rows + ' 筆');
+    backupOut.hidden = false;
+    backupOut.textContent = Object.keys(r.counts || {}).map((k) => k + ' ' + r.counts[k]).join('　');
+  });
+  backupBar.append(backupBtn, backupOut);
+
+  // 解除登入鎖定
+  const lockBar = card('解除登入鎖定',
+    '會員或志工連續輸錯被鎖住時用（本來 6 小時會自動解開）。輸入會員編號，或志工的綽號／本名。');
+  const who = el('input');
+  who.type = 'text';
+  who.placeholder = '例：B00001 或 小草';
+  who.style.cssText = 'font:inherit;font-size:13px;padding:4px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);min-width:200px';
+  const lockBtn = el('button', 'btn');
+  lockBtn.type = 'button';
+  lockBtn.append(icon('check'), el('span', '', '解除鎖定'));
+  lockBtn.addEventListener('click', async () => {
+    if (!who.value.trim()) return say(false, '請先輸入會員編號或志工名字。');
+    const r = await run({ tool: 'unlock', who: who.value.trim() }, lockBtn);
+    if (!r) return;
+    say(true, r.text);
+  });
+  lockBar.append(who, lockBtn);
+
+  // 重新整理官網名單
+  const freshBar = card('重新整理官網名單',
+    '官網的公開會員名單與榮譽志工是每小時更新一次的快取。剛改完資料想馬上在官網看到，就按這個。');
+  const freshBtn = el('button', 'btn quiet');
+  freshBtn.type = 'button';
+  freshBtn.append(icon('rows'), el('span', '', '清快取'));
+  freshBtn.addEventListener('click', async () => {
+    const r = await run({ tool: 'refresh_public' }, freshBtn);
+    if (!r) return;
+    say(true, r.text);
+  });
+  freshBar.append(freshBtn);
+
+  sheet.append(out);
+  sheet.append(hint('其他的事：設定庫與同步在「系統 → 同步狀態」；一次性的搬家匯入工具還留在試算表的「同步」選單裡，因為那些資料本來就在試算表上（匯完就不用再按）。'));
 }
 
 async function viewPermits() {
