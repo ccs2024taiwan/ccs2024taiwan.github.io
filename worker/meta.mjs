@@ -660,6 +660,19 @@ export const objects = [
       F('note', '備註', 'textarea', { ...stf, from: '備註' }),
     ],
   },
+  {
+    // 收據本：每拿一本新簿子出來就登錄一列（起號、迄號、用途）。管理台「收據紀錄」照這份清單分欄、算剩幾張。
+    id: 'receipt_book', label: '收據本', icon: 'book', sort: 82,
+    title_field: 'start', source: 'd1',
+    acl: { list: ['staff'], read: ['staff'], create: ['staff'], update: ['staff'], delete: ['admin'] },
+    fields: [
+      F('start', '起號', 'text', { ...stf, ...list, ...req, from: '起號', options: { pad: 6 }, help: '這本第一張的號碼，打 101 會補成 000101' }),
+      F('end', '迄號', 'text', { ...stf, ...list, from: '迄號', options: { pad: 6 }, help: '這本最後一張的號碼；留空＝往後都算這個用途' }),
+      F('purpose', '用途', 'select', { ...stf, ...list, ...req, from: '用途', options: { items: ['入會費＋常年會費', '活動／課程報名費', '出版品／書籍', '捐款／贊助', '其他'] } }),
+      F('holder', '保管人', 'text', { ...stf, ...list, from: '保管人', help: '這本簿子現在在誰手上' }),
+      F('note', '備註', 'textarea', { ...stf, from: '備註' }),
+    ],
+  },
 ];
 
 // 關聯。match 是「用哪個欄位的值對上」，section 是在主檔明細裡顯示的段落標題。

@@ -4558,21 +4558,31 @@ async function viewAudit() {
 
 // ── 收據紀錄（財務 → 收據紀錄）────────────────────────────
 // 收據的來源：日記帳收入列的「憑證」（或「單號」裡的收據號碼）、書籍訂單的「收據編號」、作廢收據。
-// 收據本分三種號段，改這裡就好：
-const RECEIPT_BOOKS = [
-  { key: 'dues', label: '入會費＋常年會費', ranges: [[1, 50], [101, 500]] },
-  { key: 'event', label: '活動／課程報名費', ranges: [[51, 100]] },
-  { key: 'book', label: '出版品／書籍', ranges: [[501, Infinity]] }, // 000501 起全部算書籍
+// 收據本（哪個號段是哪個用途）是資料庫的「收據本」（receipt_book），秘書處自己登錄；
+// 一本都還沒登錄時，先用這份預設號段（2026-11-24 的現況）。
+const DEFAULT_BOOKS = [
+  { start: 1, end: 50, purpose: '入會費＋常年會費' },
+  { start: 51, end: 100, purpose: '活動／課程報名費' },
+  { start: 101, end: 500, purpose: '入會費＋常年會費' },
+  { start: 501, end: Infinity, purpose: '出版品／書籍' },
 ];
-const padSerial = (v) => { const t = String(v == null ? '' : v).trim(); return /^\d{1,6}$/.test(t) ? ('000000' + t).slice(-6) : ''; };
+const fmt6 = (n) => ('000000' + n).slice(-6);
+const padSerial = (v) => { const t = String(v == null ? '' : v).trim(); return /^\d{1,6}$/.test(t) ? fmt6(t) : ''; };
 // 從單號／憑證欄挖出收據序號：「000123」「123」「收據 123」「收據#123」「No.123」都認得；訂單編號、日期這種不算
 const serialIn = (v) => {
   const t = String(v == null ? '' : v).trim();
   const m = /^(?:收據|No\.?|#)?\s*#?\s*(\d{1,6})\s*(?:號)?$/i.exec(t);
-  return m ? ('000000' + m[1]).slice(-6) : '';
+  return m ? fmt6(m[1]) : '';
 };
-const bookOf = (serial) => { const n = Number(serial); return RECEIPT_BOOKS.find((b) => b.ranges.some((r) => n >= r[0] && n <= r[1])) || null; };
-const rangeText = (b) => b.ranges.map((r) => ('000000' + r[0]).slice(-6) + (isFinite(r[1]) ? '～' + ('000000' + r[1]).slice(-6) : ' 起')).join('、');
+// 資料庫的收據本 → { id, start, end, purpose, holder }，照起號排；迄號空白＝沒有上限
+const booksFrom = (rows) => (rows || []).map((r) => {
+  const d = r.data || {};
+  const s = Number(padSerial(d.start));
+  if (!s) return null;
+  const e = padSerial(d.end) ? Number(padSerial(d.end)) : Infinity;
+  return { id: r.id, start: s, end: e < s ? s : e, purpose: String(d.purpose || '').trim() || '其他', holder: String(d.holder || '').trim() };
+}).filter(Boolean).sort((a, b) => a.start - b.start);
+const bookRangeText = (b) => fmt6(b.start) + (isFinite(b.end) ? '～' + fmt6(b.end) : ' 起');
 
 // 把三種來源併成「一個序號一筆」
 function receiptIndex(got) {
@@ -4608,20 +4618,25 @@ async function viewReceipts() {
   main.replaceChildren();
   const head = el('div', 'head');
   const box = el('div');
-  box.append(el('h1', 'page', '收據紀錄'), el('p', '', '照收據序號排，三本收據各一欄；作廢的也在裡面。'));
+  box.append(el('h1', 'page', '收據紀錄'), el('p', '', '照收據序號排，每種用途一欄；作廢的也在裡面。'));
   const btnNew = el('button', 'btn pri');
   btnNew.type = 'button';
   btnNew.append(icon('receipt'), el('span', '', '登錄收據'));
   const btnVoid = el('button', 'btn');
   btnVoid.type = 'button';
   btnVoid.append(icon('rows'), el('span', '', '登錄作廢收據'));
-  head.append(box, el('span', 'sp'), btnNew, btnVoid);
+  const btnBooks = el('button', 'btn');
+  btnBooks.type = 'button';
+  btnBooks.append(icon('book'), el('span', '', '收據本'));
+  btnBooks.title = '拿新的一本出來用時，在這裡登錄起號、迄號、用途';
+  btnBooks.addEventListener('click', () => go('o:receipt_book'));
+  head.append(box, el('span', 'sp'), btnNew, btnVoid, btnBooks);
   main.append(head);
 
   const sheet = el('div', 'sheet rcp');
   sheet.style.borderRadius = 'var(--r)';
   main.append(sheet);
-  sheet.append(hint('平常的收據號碼在確認會費、書籍訂單、課程報名收款時就會記進日記帳與訂單，這裡只是照號碼排出來看。沒有經過那些流程的收據（例如捐款）按「登錄收據」補。'));
+  sheet.append(hint('平常的收據號碼在確認會費、書籍訂單、課程報名收款時就會記進日記帳與訂單，這裡只是照號碼排出來看。沒有經過那些流程的收據（例如捐款）按「登錄收據」補。拿新的一本簿子出來，先按「收據本」登錄它的號段與用途。'));
 
   // 查號碼
   const find = el('div', 'rfind');
@@ -4641,15 +4656,30 @@ async function viewReceipts() {
   body.append(el('p', 'hint', '讀取中…'));
 
   const voidObj = (META.objects || []).find((o) => o.id === 'receipt_void');
-  const got = await loadFinance(['journal', 'order', 'receipt_void']);
+  const bookObj = (META.objects || []).find((o) => o.id === 'receipt_book');
+  const WANT = ['journal', 'order', 'receipt_void', 'receipt_book'];
+  const got = await loadFinance(WANT);
   if (!got.journal) { body.replaceChildren(el('p', 'err', '讀不到日記帳。')); return; }
   if (!got.receipt_void && !voidObj) sheet.append(el('p', 'err', '設定庫裡還沒有「作廢收據」：請到系統工具按一次「更新設定庫」，作廢的才會顯示。'));
   let items = receiptIndex(got);
+  let books = booksFrom(got.receipt_book);
+  let usingDefault = !books.length;
+  if (usingDefault) books = DEFAULT_BOOKS.map((b) => Object.assign({}, b));
 
   const redraw = async (fresh) => {
-    if (fresh) { const again = await loadFinance(['journal', 'order', 'receipt_void'], true); Object.assign(got, again); items = receiptIndex(got); }
+    if (fresh) {
+      const again = await loadFinance(WANT, true);
+      Object.assign(got, again);
+      items = receiptIndex(got);
+      books = booksFrom(got.receipt_book);
+      usingDefault = !books.length;
+      if (usingDefault) books = DEFAULT_BOOKS.map((b) => Object.assign({}, b));
+    }
     paint();
   };
+
+  const bookOf = (serial) => { const n = Number(serial); return books.find((b) => n >= b.start && n <= b.end) || null; };
+  const purposes = () => { const seen = []; books.forEach((b) => { if (seen.indexOf(b.purpose) === -1) seen.push(b.purpose); }); return seen; };
 
   const rowOf = (it) => {
     const tr = el('tr', it.void ? 'void' : '');
@@ -4678,30 +4708,40 @@ async function viewReceipts() {
     return tr;
   };
 
-  // 每本的缺號：同一號段裡，從最小用到的號碼到最大用到的號碼之間，沒開也沒作廢的
-  // （號段開頭還沒用到的不算缺，才不會把系統上線前開出去的舊收據全列成缺號）
-  const gapsOf = (book) => {
-    const out = [];
-    book.ranges.forEach((r) => {
-      const used = Object.keys(items).map(Number).filter((n) => n >= r[0] && n <= r[1]);
-      if (!used.length) return;
-      const low = Math.min.apply(null, used);
-      const top = Math.max.apply(null, used);
-      for (let n = low; n <= top; n++) if (!items[('000000' + n).slice(-6)]) out.push(('000000' + n).slice(-6));
-    });
-    return out;
+  // 一本用到哪：最大已用號碼、剩幾張、缺號（最小到最大已用號碼之間，沒開也沒作廢的）
+  const bookStat = (b) => {
+    const used = Object.keys(items).map(Number).filter((n) => n >= b.start && n <= b.end);
+    const stat = { used: used.length, top: used.length ? Math.max.apply(null, used) : 0, gaps: [] };
+    stat.left = isFinite(b.end) ? (stat.top ? b.end - stat.top : b.end - b.start + 1) : null;
+    if (used.length) { const low = Math.min.apply(null, used); for (let n = low; n <= stat.top; n++) if (!items[fmt6(n)]) stat.gaps.push(fmt6(n)); }
+    return stat;
   };
 
-  const column = (book, list) => {
+  const column = (purpose, list) => {
+    const mine = books.filter((b) => b.purpose === purpose);
     const col = el('div', 'rcol');
     const h = el('div', 'rh');
     const issued = list.filter((x) => !x.void).length;
     const voided = list.filter((x) => x.void).length;
-    h.append(el('b', '', book.label), el('small', 'mono', rangeText(book)));
+    h.append(el('b', '', purpose));
+    const gaps = [];
+    mine.forEach((b) => {
+      const st = bookStat(b);
+      gaps.push.apply(gaps, st.gaps);
+      const line = el('small', 'rbook');
+      const range = el('span', 'mono', bookRangeText(b));
+      line.append(range);
+      let text;
+      if (!st.used) text = isFinite(b.end) ? '全新，' + (b.end - b.start + 1) + ' 張' : '還沒用';
+      else if (st.left === 0) text = '開到 ' + fmt6(st.top) + '，用完了';
+      else text = '開到 ' + fmt6(st.top) + (st.left != null ? '，剩 ' + st.left + ' 張' : '');
+      line.append(el('span', '', '　' + text + (b.holder ? '　' + b.holder : '')));
+      if (b.id) { line.style.cursor = 'pointer'; line.title = '點一下看或改這一本'; line.addEventListener('click', () => openById('receipt_book', b.id)); }
+      h.append(line);
+    });
     const stat = el('div', 'rstat');
     stat.append(el('span', 'tag plain', '已開 ' + issued + ' 張'));
     if (voided) stat.append(el('span', 'tag alert', '作廢 ' + voided));
-    const gaps = gapsOf(book);
     if (gaps.length) {
       const g = el('span', 'tag warn', '缺號 ' + gaps.length);
       g.title = gaps.join('、');
@@ -4716,7 +4756,7 @@ async function viewReceipts() {
       gl.title = '這些號碼既沒有開出也沒有登錄作廢。真的作廢了就按「登錄作廢收據」。';
       col.append(gl);
     }
-    if (!list.length) { col.append(el('p', 'empty', '還沒有這一本的收據')); return col; }
+    if (!list.length) { col.append(el('p', 'empty', '還沒有這種用途的收據')); return col; }
     const tw = el('div', 'tw');
     const t = el('table');
     t.append(headerRow(['序號', '日期', '付款人', '金額', '內容']));
@@ -4730,16 +4770,39 @@ async function viewReceipts() {
 
   const paint = () => {
     body.replaceChildren();
+    if (usingDefault) {
+      const p = el('p', 'hint');
+      p.append(icon('info'), el('span', '', '還沒登錄任何收據本，目前用預設號段分欄。'));
+      if (bookObj) {
+        const b = el('button', 'btn quiet');
+        b.type = 'button';
+        b.textContent = '把預設號段存成收據本';
+        b.addEventListener('click', async () => {
+          b.disabled = true;
+          for (const d of DEFAULT_BOOKS) {
+            const r = await db('save', { object: 'receipt_book', id: '', data: { start: fmt6(d.start), end: isFinite(d.end) ? fmt6(d.end) : '', purpose: d.purpose } });
+            if (!r.ok) { alert('沒有存成功：' + (r.message || r.error)); b.disabled = false; return; }
+          }
+          dropRowsCache('receipt_book');
+          await redraw(true);
+        });
+        p.append(b);
+      } else {
+        p.append(el('span', '', '（要先到系統工具按「更新設定庫」，才有「收據本」可以登錄。）'));
+      }
+      body.append(p);
+    }
     const all = Object.keys(items).map((s) => items[s]);
-    if (!all.length) { body.append(el('p', 'empty', '還沒有任何收據紀錄。確認收款時填的收據號碼、或按「登錄收據」補的，都會出現在這裡。')); return; }
     const cols = el('div', 'rcols');
-    RECEIPT_BOOKS.forEach((b) => cols.append(column(b, all.filter((it) => bookOf(it.serial) === b))));
+    const ps = purposes();
+    cols.style.gridTemplateColumns = 'repeat(' + Math.min(3, Math.max(1, ps.length)) + ',minmax(0,1fr))';
+    ps.forEach((p) => cols.append(column(p, all.filter((it) => (bookOf(it.serial) || {}).purpose === p))));
     body.append(cols);
     const other = all.filter((it) => !bookOf(it.serial));
     if (other.length) {
       const o = el('div', 'rcol wide');
       const h = el('div', 'rh');
-      h.append(el('b', '', '不在三本號段裡的'), el('small', '', other.length + ' 張，可能是號碼打錯，點進去改'));
+      h.append(el('b', '', '不在任何收據本號段裡的'), el('small', '', other.length + ' 張：可能是號碼打錯，點進去改；或是那一本還沒登錄，按「收據本」補'));
       o.append(h);
       const tw = el('div', 'tw');
       const t = el('table');
@@ -4763,7 +4826,7 @@ async function viewReceipts() {
     if (!s) { qr.append(el('span', 'err', '請輸入 1～6 位數字的收據編號。')); return; }
     const it = items[s];
     const book = bookOf(s);
-    const where = book ? '（' + book.label + '）' : '（不在三本號段裡）';
+    const where = book ? '（' + book.purpose + '）' : '（不在任何收據本號段裡）';
     if (!it) {
       qr.append(el('span', 'tag warn', '沒有紀錄'), el('span', '', ' ' + s + ' ' + where + '：沒有開出、也沒有登錄作廢。'));
       const a = el('button', 'btn quiet');
@@ -4814,7 +4877,7 @@ async function viewReceipts() {
       const b = bookOf(s);
       const it = items[s];
       sNote.style.color = it ? 'var(--alert)' : '';
-      sNote.textContent = s + (b ? '　' + b.label : '　不在三本號段裡') + (it ? (it.void ? '　這個號碼已登錄作廢' : '　這個號碼已經開過了') : '');
+      sNote.textContent = s + (b ? '　' + b.purpose : '　不在任何收據本號段裡') + (it ? (it.void ? '　這個號碼已登錄作廢' : '　這個號碼已經開過了') : '');
     };
     serial.addEventListener('input', checkSerial);
     const sw = fld('收據序號', serial);
