@@ -1828,7 +1828,12 @@ function openForm(obj, row, allRows) {
     Object.keys(inputs).forEach((key) => {
       const it = inputs[key];
       if (it.frozen) return;
-      payload[key] = it.input.value;
+      let value = it.input.value;
+      // 設定庫說這一欄要補零到幾位（例如收據序號 pad: 6）：打 143 就存成 000143
+      const f = obj.fields.find((x) => x.key === key);
+      const pad = f && f.options && Number(f.options.pad);
+      if (pad && /^\d+$/.test(String(value).trim()) && String(value).trim().length < pad) value = ('0'.repeat(pad) + String(value).trim()).slice(-pad);
+      payload[key] = value;
     });
     save.disabled = true;
     msg.hidden = true;

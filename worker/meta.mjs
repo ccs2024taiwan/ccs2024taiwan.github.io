@@ -642,6 +642,20 @@ export const objects = [
       F('replies', '留言', 'json', { ...pub, from: 'replies', help: '依最新暱稱重算；下架的留言不會推上來' }),
     ],
   },
+  {
+    // 作廢收據：正本在這裡（2026-11-23 起）。帳務試算表的「收據登記簿」重建時會把這份清單帶進 P～T 欄，跳號檢查才會把作廢的號碼排除。
+    id: 'receipt_void', label: '作廢收據', icon: 'receipt', sort: 81,
+    title_field: 'serial', source: 'd1',
+    acl: { list: ['staff'], read: ['staff'], create: ['staff'], update: ['staff'], delete: ['admin'] },
+    fields: [
+      F('serial', '收據序號', 'text', { ...stf, ...list, ...req, from: '收據序號', options: { pad: 6 }, help: '打 143 就好，存檔會自動補成 000143。' }),
+      F('voided_on', '作廢日期', 'date', { ...stf, ...list, ...req, from: '作廢日期' }),
+      F('reason', '原因', 'text', { ...stf, ...list, ...req, from: '原因', help: '例：金額寫錯、重複開立、付款人取消' }),
+      F('reissued', '重開序號', 'text', { ...stf, ...list, from: '重開序號', options: { pad: 6 }, help: '有補開新收據才填' }),
+      F('stub_back', '收執聯是否收回', 'select', { ...stf, ...list, from: '收執聯是否收回', options: { items: ['已收回', '未收回', '未交付'] } }),
+      F('note', '備註', 'textarea', { ...stf, from: '備註' }),
+    ],
+  },
 ];
 
 // 關聯。match 是「用哪個欄位的值對上」，section 是在主檔明細裡顯示的段落標題。
@@ -718,6 +732,7 @@ export const menus = [
   { id: 'fin_statement', area: 'admin', parent_id: 'g_money', label: '收支表', icon: 'book', kind: 'page', target: 'statement', sort: 46, roles: ['staff', 'admin', 'board'] },
   { id: 'fin_recon', area: 'admin', parent_id: 'g_money', label: '對帳', icon: 'check', kind: 'page', target: 'recon', sort: 47, roles: ['staff', 'admin', 'board'] },
   { id: 'fin_recon_report', area: 'admin', parent_id: 'g_money', label: '對帳報告', icon: 'doc', kind: 'page', target: 'recon_report', sort: 48, roles: ['staff', 'admin', 'board'] },
+  { id: 'fin_receipt_void', area: 'admin', parent_id: 'g_money', label: '作廢收據', icon: 'receipt', kind: 'object', target: 'receipt_void', sort: 49, roles: ['staff', 'admin'] },
   { id: 'fin_bank_import', area: 'admin', parent_id: 'g_money', label: '匯入對帳單', icon: 'doc', kind: 'page', target: 'bankimport', sort: 51, roles: ['staff', 'admin'] },
   { id: 'fin_bank', area: 'admin', parent_id: 'g_money', label: '銀行明細', icon: 'book', kind: 'object', target: 'bank', sort: 52, roles: ['staff', 'admin', 'board'] },
   { id: 'fin_pl', area: 'admin', parent_id: 'g_money', label: '年度結餘表', icon: 'book', kind: 'page', target: 'yearly', sort: 48, roles: ['staff', 'admin', 'board'] },
