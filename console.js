@@ -230,6 +230,7 @@ function go(key) {
   if (key === 'recon_report') return viewReconReport();
   if (key === 'receipts') return viewReceipts();
   if (key === 'tools') return viewTools();
+  if (key === 'forms') return viewForms();
   if (key === 'permits') return viewPermits();
   if (key === 'audit') return viewAudit();
   if (key === 'audit_old') return viewSoon('留痕', '誰在什麼時候改了什麼，連改前改後都留著，刪掉的東西可以還原。要等管理台開放「寫入」之後才會有內容，和寫入功能同一批。');
@@ -4419,6 +4420,205 @@ async function viewTools() {
 
   sheet.append(out);
   sheet.append(hint('其他的事：設定庫與同步在「系統 → 同步狀態」；一次性的搬家匯入工具還留在試算表的「同步」選單裡，因為那些資料本來就在試算表上（匯完就不用再按）。'));
+}
+
+// ── 表單管理 ────────────────────────────────────────────
+// 四種制式表單（支出證明單、講師費領據、印領清冊、補助金領據）由系統帶資料後直接產生 PDF。
+// 身分證字號與戶籍地址一律留白：領據要本人親簽，系統不預存這些個資。
+async function viewForms() {
+  $('crumb').textContent = '財務 › 表單管理';
+  const main = $('main');
+  main.replaceChildren();
+  const head = el('div', 'head');
+  const box = el('div');
+  const info = el('p', '', '讀取中…');
+  box.append(el('h1', 'page', '表單管理'), info);
+  head.append(box, el('span', 'sp'));
+  main.append(head);
+  const sheet = el('div', 'sheet');
+  sheet.style.borderRadius = 'var(--r)';
+  main.append(sheet);
+  sheet.append(hint('照「總務組 → 空白表單」的格式產生 Google 文件與 PDF，印出來簽章就能用。身分證字號與戶籍地址一律留白，請本人填寫並親簽（系統不存這些資料）。'));
+
+  const out = el('p', 'hint');
+  out.hidden = true;
+  sheet.append(out);
+  const say = (ok, text) => {
+    out.hidden = false;
+    out.className = ok ? 'hint' : 'err';
+    out.textContent = text;
+  };
+
+  const src = await appsScript({ action: 'adminTool', token: sessionStorageToken(), tool: 'form_sources' });
+  if (!src || !src.ok) { sheet.append(el('p', 'err', '讀不到可以帶入的資料：' + ((src && (src.message || src.error)) || '未知原因'))); return; }
+  info.textContent = '可以帶入：請款品項 ' + (src.claims || []).length + ' 筆、課程講師 ' + (src.events || []).length + ' 筆';
+
+  const make = async (kind, data, btn) => {
+    btn.disabled = true;
+    say(true, '產生中…');
+    const r = await appsScript({ action: 'adminTool', token: sessionStorageToken(), tool: 'form_make', kind: kind, data: data });
+    btn.disabled = false;
+    if (!r || !r.ok) { say(false, '沒有成功：' + ((r && (r.message || r.error)) || '未知原因')); return; }
+    say(true, r.text + '（檔案開在新視窗）');
+    window.open(r.url, '_blank');
+  };
+
+  // 一張卡片＝一種表單
+  const card = (title, note) => {
+    const wrap = el('div');
+    wrap.style.cssText = 'border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:0 0 14px';
+    const h = el('strong', '', title);
+    h.style.cssText = 'font-size:14.5px';
+    wrap.append(h);
+    if (note) wrap.append(hint(note));
+    const grid = el('div');
+    grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin:10px 0';
+    const bar = el('div');
+    bar.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;align-items:center';
+    wrap.append(grid, bar);
+    sheet.append(wrap);
+    return { grid, bar };
+  };
+
+  const field = (grid, label, type, placeholder) => {
+    const wrap = el('label');
+    wrap.style.cssText = 'display:flex;flex-direction:column;gap:4px;font-size:12.5px;color:var(--muted)';
+    wrap.append(el('span', '', label));
+    const input = el('input');
+    input.type = type || 'text';
+    if (placeholder) input.placeholder = placeholder;
+    input.style.cssText = 'font:inherit;font-size:13px;padding:5px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)';
+    wrap.append(input);
+    grid.append(wrap);
+    return input;
+  };
+
+  const picker = (grid, label, items, onPick) => {
+    const wrap = el('label');
+    wrap.style.cssText = 'display:flex;flex-direction:column;gap:4px;font-size:12.5px;color:var(--muted)';
+    wrap.append(el('span', '', label));
+    const pick = el('select');
+    pick.style.cssText = 'font:inherit;font-size:13px;padding:5px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)';
+    const none = el('option', '', '（自己填）');
+    none.value = '';
+    pick.append(none);
+    items.forEach((x) => {
+      const o = el('option', '', x.label);
+      o.value = x.id;
+      pick.append(o);
+    });
+    pick.addEventListener('change', () => onPick(items.filter((x) => x.id === pick.value)[0] || null));
+    wrap.append(pick);
+    grid.append(wrap);
+    return pick;
+  };
+
+  const today = new Date().toISOString().slice(0, 10);
+
+  // 1. 支出證明單
+  {
+    const c = card('支出證明單', '沒有發票或收據時用。可以從請款品項帶入（只會列出單據種類是「無」或「支出證明單」的品項）。附註三條照原文印在表單下方。');
+    const name = field(c.grid, '受領人（姓名或名稱）');
+    const item = field(c.grid, '貨物名稱、規格或支出事由');
+    const qty = field(c.grid, '單位數量', 'text', '例：1 式');
+    const price = field(c.grid, '單價', 'number');
+    const amount = field(c.grid, '實付金額', 'number');
+    const reason = field(c.grid, '不能取得單據的原因', 'text', '例：攤販無法開立收據');
+    const idno = field(c.grid, '身分證或統一編號（本會人員可免填）');
+    const address = field(c.grid, '地址（本會人員可免填）');
+    const handler = field(c.grid, '經手人');
+    const date = field(c.grid, '日期', 'date');
+    date.value = today;
+    picker(c.grid, '從請款品項帶入', (src.claims || []).map((x) => ({
+      id: x.id, label: (x.spent || '') + ' ' + x.who + '｜' + x.name + '　' + nt(x.amount) + ' 元', raw: x,
+    })), (hit) => {
+      if (!hit) return;
+      const x = hit.raw;
+      name.value = x.who || '';
+      item.value = x.name + (x.task ? '（' + x.task + '）' : '');
+      amount.value = String(x.amount || '');
+      if (x.spent) date.value = x.spent;
+      handler.value = handler.value || x.who || '';
+    });
+    const btn = el('button', 'btn pri');
+    btn.type = 'button';
+    btn.append(icon('doc'), el('span', '', '產生支出證明單'));
+    btn.addEventListener('click', () => make('支出證明單', {
+      name: name.value, item: item.value, qty: qty.value, price: price.value, amount: amount.value,
+      reason: reason.value, idno: idno.value, address: address.value, handler: handler.value, date: date.value,
+    }, btn));
+    c.bar.append(btn);
+  }
+
+  // 2. 講師費領據
+  {
+    const c = card('講師費領據', '金額會自動轉成國字大寫。課程、環節、日期可以從課程活動帶入；身分證字號與戶籍地址留白由講師自己填。');
+    const speaker = field(c.grid, '講師姓名');
+    const event = field(c.grid, '活動名稱');
+    const session = field(c.grid, '課程（環節）名稱');
+    const time = field(c.grid, '時程', 'text', '例：09:00-12:00');
+    const amount = field(c.grid, '講師費金額', 'number');
+    const date = field(c.grid, '日期', 'date');
+    date.value = today;
+    picker(c.grid, '從課程活動帶入', (src.events || []).map((x) => ({
+      id: x.id, label: (x.date || '') + ' ' + x.event + '｜' + (x.session || '') + '　講師 ' + x.speaker, raw: x,
+    })), (hit) => {
+      if (!hit) return;
+      const x = hit.raw;
+      speaker.value = x.speaker || '';
+      event.value = x.event || '';
+      session.value = x.session || '';
+      time.value = x.time || '';
+      if (x.date) date.value = x.date;
+    });
+    const btn = el('button', 'btn pri');
+    btn.type = 'button';
+    btn.append(icon('doc'), el('span', '', '產生講師費領據'));
+    btn.addEventListener('click', () => make('講師費領據', {
+      speaker: speaker.value, event: event.value, session: session.value, time: time.value,
+      amount: amount.value, date: date.value,
+    }, btn));
+    c.bar.append(btn);
+  }
+
+  // 3. 印領清冊
+  {
+    const years = src.payrollYears || [];
+    const c = card('印領清冊（年度薪資）', years.length
+      ? '金額直接從日記帳的「員工薪給」（科目 5210-001）算出來：一個人一張表，十二個月各一欄，底下留蓋章欄。'
+      : '日記帳裡還沒有「員工薪給」（科目 5210-001）的支出，所以還沒有可以產生的年度。');
+    const pick = el('select');
+    pick.style.cssText = 'font:inherit;font-size:13px;padding:5px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)';
+    years.forEach((y) => {
+      const o = el('option', '', '民國 ' + rocOf(Number(y)) + ' 年（' + y + '）');
+      o.value = y;
+      pick.append(o);
+    });
+    const btn = el('button', 'btn pri');
+    btn.type = 'button';
+    btn.disabled = !years.length;
+    btn.append(icon('doc'), el('span', '', '產生印領清冊'));
+    btn.addEventListener('click', () => make('印領清冊', { year: pick.value }, btn));
+    c.bar.append(el('span', '', '年度'), pick, btn);
+  }
+
+  // 4. 補助金領據
+  {
+    const c = card('補助金領據', '收到政府或民間補助時開給補助機關。會帶上本會的統一編號、立案字號與地址，印出來蓋大小章與理事長章。');
+    const agency = field(c.grid, '補助機關（單位全銜）');
+    const project = field(c.grid, '補助計畫或活動名稱');
+    const no = field(c.grid, '核定文號（選填）');
+    const amount = field(c.grid, '補助金額', 'number');
+    const date = field(c.grid, '日期', 'date');
+    date.value = today;
+    const btn = el('button', 'btn pri');
+    btn.type = 'button';
+    btn.append(icon('doc'), el('span', '', '產生補助金領據'));
+    btn.addEventListener('click', () => make('補助金領據', {
+      agency: agency.value, project: project.value, no: no.value, amount: amount.value, date: date.value,
+    }, btn));
+    c.bar.append(btn);
+  }
 }
 
 async function viewPermits() {
