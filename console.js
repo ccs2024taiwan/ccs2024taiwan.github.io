@@ -261,6 +261,12 @@ function viewDash() {
   });
   main.append(tiles);
 
+  // 任務時程（甘特圖）：任務的起訖畫成橫條，工作進度的截止日是橫條上的點
+  const gantt = el('div', 'sheet gantt');
+  gantt.style.borderRadius = 'var(--r)';
+  main.append(gantt);
+  paintGantt(gantt);
+
   const panel = el('div', 'sheet');
   panel.style.borderRadius = 'var(--r)';
   panel.append(hint('這些數字來自官網資料庫（D1）。資料由試算表每天自動同步，也可以在試算表按「同步：立刻同步到官網資料庫」手動更新。'));
@@ -301,6 +307,143 @@ const hint = (text) => {
   p.append(icon('info'), el('span', '', text));
   return p;
 };
+// ── 任務時程（甘特圖）────────────────────────────────────
+// 資料就是 D1 的「任務」與底下的「工作進度」，不另外建表。
+// 範圍兩種：未來三個月（本月起三個整月）、整年（今年 1～12 月）；選過的記在這台電腦。
+const GANTT_KEY = 'gantt:range';
+const dayOf = (v) => { const d = forDateInput(v == null ? '' : v, 'date'); return d ? new Date(d + 'T00:00:00') : null; };
+const sameDay = (d) => d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
+const md = (d) => (d.getMonth() + 1) + '/' + d.getDate();
+function ganttWindow(mode) {
+  const now = new Date();
+  if (mode === 'year') return { from: new Date(now.getFullYear(), 0, 1), to: new Date(now.getFullYear() + 1, 0, 1), label: rocOf(now.getFullYear()) + ' 年' };
+  const from = new Date(now.getFullYear(), now.getMonth(), 1);
+  const to = new Date(now.getFullYear(), now.getMonth() + 3, 1);
+  return { from: from, to: to, label: (from.getMonth() + 1) + ' 月～' + (new Date(to - 1).getMonth() + 1) + ' 月' };
+}
+async function paintGantt(box) {
+  let mode = 'quarter';
+  try { mode = localStorage.getItem(GANTT_KEY) === 'year' ? 'year' : 'quarter'; } catch (err) { /* 讀不到就用預設 */ }
+  const head = el('div', 'gh');
+  const title = el('h2', '', '');
+  title.append(icon('cal'), el('span', '', '任務時程'));
+  const seg = el('div', 'seg');
+  const bq = el('button', mode === 'quarter' ? 'on' : '', '未來三個月');
+  const by = el('button', mode === 'year' ? 'on' : '', '整年');
+  seg.append(bq, by);
+  const legend = el('div', 'lg');
+  [['bar live', '進行中'], ['bar', '籌備／招募'], ['bar done', '完成'], ['dot', '工作截止'], ['dot done', '工作完成'], ['dot late', '逾期']].forEach(([cls, text]) => {
+    const item = el('span');
+    item.append(el('i', cls), el('span', '', text));
+    legend.append(item);
+  });
+  head.append(title, seg, legend);
+  const body = el('div');
+  box.append(head, body);
+  body.append(el('p', 'hint', '讀取任務中…'));
+
+  const got = await loadFinance(['task', 'work']);
+  if (!got.task) { box.hidden = true; return; } // 沒權限看任務就整塊不顯示
+  const tasks = got.task;
+  const works = got.work || [];
+  // 工作進度怎麼對到任務，照設定庫的關聯；沒設就用「任務名稱」對「任務名稱」
+  const rel = (META.relations || []).find((r) => r.from === 'task' && r.to === 'work' && r.match) || { match: { from: 'name', to: 'task' } };
+
+  const draw = () => {
+    body.replaceChildren();
+    bq.className = mode === 'quarter' ? 'on' : '';
+    by.className = mode === 'year' ? 'on' : '';
+    const win = ganttWindow(mode);
+    const span = win.to - win.from;
+    const pct = (d) => Math.max(0, Math.min(100, ((d - win.from) / span) * 100));
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+
+    let undated = 0;
+    const rows = [];
+    tasks.forEach((r) => {
+      const d = r.data || {};
+      if (/取消/.test(String(d.status || ''))) return;
+      const s0 = dayOf(d.start); const e0 = dayOf(d.end);
+      if (!s0 && !e0) { undated += 1; return; }
+      const s = s0 || e0; const e = e0 || s0;
+      const start = s <= e ? s : e; const end = s <= e ? e : s;
+      const endX = new Date(end.getTime() + 86400000); // 結束日當天要畫滿
+      if (endX <= win.from || start >= win.to) return;
+      const key = String(d[rel.match.from] == null ? '' : d[rel.match.from]);
+      const items = key ? works.filter((w) => String((w.data || {})[rel.match.to] == null ? '' : (w.data || {})[rel.match.to]) === key) : [];
+      rows.push({ row: r, data: d, start: start, end: end, endX: endX, items: items });
+    });
+    rows.sort((a, b) => a.start - b.start || a.end - b.end);
+
+    if (!rows.length) {
+      body.append(el('p', 'empty', win.label + '沒有排了日期的任務' + (undated ? '；另有 ' + undated + ' 項任務還沒填開始或結束日期' : '')));
+      return;
+    }
+
+    // 月份刻度（整年看月；三個月看月＋每週一條淡線）
+    const months = [];
+    for (let m = new Date(win.from); m < win.to; m = new Date(m.getFullYear(), m.getMonth() + 1, 1)) months.push(new Date(m));
+    const weeks = [];
+    if (mode === 'quarter') {
+      const w0 = new Date(win.from); w0.setDate(w0.getDate() + ((8 - w0.getDay()) % 7)); // 第一個星期一
+      for (let w = w0; w < win.to; w = new Date(w.getTime() + 7 * 86400000)) weeks.push(new Date(w));
+    }
+    const lines = (host) => {
+      months.forEach((m, i) => { if (i) { const v = el('i', 'vl m'); v.style.left = pct(m) + '%'; host.append(v); } });
+      weeks.forEach((w) => { const v = el('i', 'vl'); v.style.left = pct(w) + '%'; host.append(v); });
+      if (today >= win.from && today < win.to) { const n = el('i', 'now'); n.style.left = pct(today) + '%'; host.append(n); }
+    };
+
+    const grid = el('div', 'grid');
+    grid.append(el('div', 'mh lab', win.label));
+    const mh = el('div', 'mh');
+    months.forEach((m) => {
+      const s = el('span', '', mode === 'year' ? (m.getMonth() + 1) + ' 月' : (m.getMonth() + 1) + ' 月');
+      s.style.left = pct(m) + '%';
+      mh.append(s);
+    });
+    lines(mh);
+    grid.append(mh);
+
+    rows.forEach((t) => {
+      const lab = el('div', 'lab');
+      lab.title = (t.data.name || t.row.title || '') + '\n' + sameDay(t.start) + ' ～ ' + sameDay(t.end) + (t.data.lead ? '\n召集人：' + t.data.lead : '');
+      lab.append(el('span', '', t.data.name || t.row.title || t.row.id));
+      const small = el('small', '', md(t.start) + (t.end > t.start ? '－' + md(t.end) : '') + (t.data.status ? '・' + t.data.status : ''));
+      lab.append(small);
+      lab.addEventListener('click', () => openById('task', t.row.id));
+      const tl = el('div', 'tl');
+      lines(tl);
+      const bar = el('b', 'bar' + (/進行/.test(String(t.data.status || '')) ? ' live' : /完成/.test(String(t.data.status || '')) ? ' done' : ''));
+      const l = pct(t.start); const r = pct(t.endX);
+      bar.style.left = l + '%';
+      bar.style.width = Math.max(0.6, r - l) + '%';
+      bar.title = lab.title;
+      bar.addEventListener('click', () => openById('task', t.row.id));
+      tl.append(bar);
+      t.items.forEach((w) => {
+        const d = w.data || {};
+        if (/取消/.test(String(d.status || ''))) return;
+        const due = dayOf(d.due);
+        if (!due || due < win.from || due >= win.to) return;
+        const done = /完成/.test(String(d.status || ''));
+        const dot = el('i', 'dot' + (done ? ' done' : due < today ? ' late' : ''));
+        dot.style.left = pct(new Date(due.getTime() + 43200000)) + '%'; // 點放在那一天的正中間
+        dot.title = (d.item || w.title || '') + '\n' + sameDay(due) + (d.owner ? '・' + d.owner : '') + (d.status ? '・' + d.status : '');
+        dot.addEventListener('click', (ev) => { ev.stopPropagation(); openById('work', w.id); });
+        tl.append(dot);
+      });
+      grid.append(lab, tl);
+    });
+    body.append(grid);
+    if (undated) body.append(hint('另有 ' + undated + ' 項任務還沒填開始或結束日期，所以不在圖上。'));
+  };
+  const pick = (m) => { mode = m; try { localStorage.setItem(GANTT_KEY, m); } catch (err) { /* 存不了就算了 */ } draw(); };
+  bq.addEventListener('click', () => pick('quarter'));
+  by.addEventListener('click', () => pick('year'));
+  draw();
+}
+
 const headerRow = (labels) => {
   const thead = el('thead');
   const tr = el('tr');
