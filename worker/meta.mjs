@@ -666,6 +666,7 @@ export const menus = [
   { id: 'fin_journal', area: 'admin', parent_id: 'g_money', label: '日記帳', icon: 'book', kind: 'object', target: 'journal', sort: 45, roles: ['staff', 'admin', 'board'] },
   { id: 'fin_statement', area: 'admin', parent_id: 'g_money', label: '收支表', icon: 'book', kind: 'page', target: 'statement', sort: 46, roles: ['staff', 'admin', 'board'] },
   { id: 'fin_recon', area: 'admin', parent_id: 'g_money', label: '對帳', icon: 'check', kind: 'page', target: 'recon', sort: 47, roles: ['staff', 'admin', 'board'] },
+  { id: 'fin_recon_report', area: 'admin', parent_id: 'g_money', label: '對帳報告', icon: 'doc', kind: 'page', target: 'recon_report', sort: 48, roles: ['staff', 'admin', 'board'] },
   { id: 'fin_bank_import', area: 'admin', parent_id: 'g_money', label: '匯入對帳單', icon: 'doc', kind: 'page', target: 'bankimport', sort: 51, roles: ['staff', 'admin'] },
   { id: 'fin_bank', area: 'admin', parent_id: 'g_money', label: '銀行明細', icon: 'book', kind: 'object', target: 'bank', sort: 52, roles: ['staff', 'admin', 'board'] },
   { id: 'fin_pl', area: 'admin', parent_id: 'g_money', label: '年度結餘表', icon: 'book', kind: 'page', target: 'yearly', sort: 48, roles: ['staff', 'admin', 'board'] },

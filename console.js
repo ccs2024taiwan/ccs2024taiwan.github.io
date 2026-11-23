@@ -227,6 +227,7 @@ function go(key) {
   if (key === 'dues_remind') return viewDuesRemind();
   if (key === 'event_sheet') return viewEventSheet();
   if (key === 'claim_review') return viewClaimReview();
+  if (key === 'recon_report') return viewReconReport();
   if (key === 'permits') return viewPermits();
   if (key === 'audit') return viewAudit();
   if (key === 'audit_old') return viewSoon('留痕', '誰在什麼時候改了什麼，連改前改後都留著，刪掉的東西可以還原。要等管理台開放「寫入」之後才會有內容，和寫入功能同一批。');
@@ -1835,8 +1836,31 @@ async function viewStatement() {
   printBtn.type = 'button';
   printBtn.append(icon('doc'), el('span', '', '列印這一頁'));
   printBtn.addEventListener('click', () => window.print());
-  bar.append(pickLabel, pick, printBtn);
+  const docBtn = el('button', 'btn quiet');
+  docBtn.type = 'button';
+  docBtn.append(icon('doc'), el('span', '', '產生 Google 文件'));
+  docBtn.title = '照這一頁的數字產生年度收支表的 Google 文件（會議手冊用）';
+  bar.append(pickLabel, pick, printBtn, docBtn);
   sheet.append(bar);
+
+  const note = el('p', 'hint');
+  note.hidden = true;
+  sheet.append(note);
+  docBtn.addEventListener('click', async () => {
+    docBtn.disabled = true;
+    note.hidden = false;
+    note.className = 'hint';
+    note.textContent = '產生中…';
+    const r = await appsScript({ action: 'adminTool', token: sessionStorageToken(), tool: 'statement_doc', year: pick.value });
+    docBtn.disabled = false;
+    if (!r || !r.ok) {
+      note.className = 'err';
+      note.textContent = '沒有成功：' + ((r && (r.message || r.error)) || '未知原因');
+      return;
+    }
+    note.textContent = r.text + '（檔案開在新視窗，可以直接「檔案 → 下載 → PDF」或複製到會議手冊）';
+    window.open(r.url, '_blank');
+  });
 
   const out = el('div');
   sheet.append(out);
@@ -3956,6 +3980,99 @@ async function viewClaimReview() {
     body.append(month);
   };
   paint();
+}
+
+// ── 對帳報告 ────────────────────────────────────────────
+// 文字報告由 Apps Script 算（跟每月 5 日自動寄出的那一封同一套），可以在這裡直接寄出
+async function viewReconReport() {
+  $('crumb').textContent = '財務 › 對帳報告';
+  const main = $('main');
+  main.replaceChildren();
+  const head = el('div', 'head');
+  const box = el('div');
+  const info = el('p', '', '讀取中…');
+  box.append(el('h1', 'page', '對帳報告'), info);
+  head.append(box, el('span', 'sp'));
+  main.append(head);
+  const sheet = el('div', 'sheet');
+  sheet.style.borderRadius = 'var(--r)';
+  main.append(sheet);
+  sheet.append(hint('年度報告會把有差額或有對不到的月份全部列出來；都對平就只有一行。每月 5 日系統也會自己寄一封上個月的報告給〈提醒收件人〉。'));
+
+  const bar = el('div');
+  bar.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 14px';
+  const pickLabel = el('span', '', '範圍：');
+  pickLabel.style.cssText = 'font-size:12.5px;color:var(--muted)';
+  const pick = el('select');
+  pick.style.cssText = 'font:inherit;font-size:13px;padding:4px 10px;border:1px solid var(--line);border-radius:8px;background:var(--sub);color:var(--ink)';
+  const yearOpt = el('option', '', '本年度（到這個月為止）');
+  yearOpt.value = '';
+  pick.append(yearOpt);
+  const now = new Date();
+  for (let i = 0; i < 18; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const ym = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+    const o = el('option', '', ym);
+    o.value = ym;
+    pick.append(o);
+  }
+  const goBtn = el('button', 'btn pri');
+  goBtn.type = 'button';
+  goBtn.append(icon('check'), el('span', '', '算一次'));
+  const mailBtn = el('button', 'btn');
+  mailBtn.type = 'button';
+  mailBtn.append(icon('doc'), el('span', '', '寄給提醒收件人'));
+  const copyBtn = el('button', 'btn quiet');
+  copyBtn.type = 'button';
+  copyBtn.append(icon('doc'), el('span', '', '複製報告'));
+  const printBtn = el('button', 'btn quiet');
+  printBtn.type = 'button';
+  printBtn.append(icon('doc'), el('span', '', '列印'));
+  printBtn.addEventListener('click', () => window.print());
+  bar.append(pickLabel, pick, goBtn, mailBtn, copyBtn, printBtn);
+  sheet.append(bar);
+  const out = el('p', 'hint');
+  out.hidden = true;
+  const pre = el('pre');
+  pre.style.cssText = 'white-space:pre-wrap;word-break:break-word;font:inherit;font-size:13px;line-height:1.7;margin:0;padding:14px;border:1px solid var(--line);border-radius:10px;background:var(--sub)';
+  sheet.append(out, pre);
+  let text = '';
+
+  const ask = async (mail) => {
+    goBtn.disabled = true;
+    mailBtn.disabled = true;
+    pre.textContent = '算帳中…（一個月一個月對，可能要十幾秒）';
+    const r = await appsScript({ action: 'adminTool', token: sessionStorageToken(), tool: 'recon_report', ym: pick.value, mail: mail });
+    goBtn.disabled = false;
+    mailBtn.disabled = false;
+    if (!r || !r.ok) {
+      pre.textContent = '';
+      out.hidden = false;
+      out.className = 'err';
+      out.textContent = '算不出來：' + ((r && (r.message || r.error)) || '未知原因');
+      return;
+    }
+    text = r.text || '';
+    pre.textContent = text;
+    info.textContent = (pick.value || '本年度') + '　' + (r.clean ? '✔ 對平了' : '✘ 有差額或有對不到的筆數');
+    out.hidden = false;
+    out.className = r.clean ? 'hint' : 'err';
+    out.textContent = (r.message || (r.to ? '收件人：' + r.to : '〈設定〉還沒填「提醒收件人」，寄不出去，只能看畫面。'));
+  };
+  goBtn.addEventListener('click', () => ask(false));
+  mailBtn.addEventListener('click', async () => {
+    if (!window.confirm('要把這份報告寄出去嗎？（寄給〈設定〉裡的「提醒收件人」）')) return;
+    await ask(true);
+  });
+  copyBtn.addEventListener('click', () => {
+    if (!text) return;
+    navigator.clipboard.writeText(text);
+    out.hidden = false;
+    out.className = 'hint';
+    out.textContent = '報告已複製，可以貼到 LINE 或會議記錄。';
+  });
+  pick.addEventListener('change', () => ask(false));
+  await ask(false);
 }
 
 async function viewPermits() {
