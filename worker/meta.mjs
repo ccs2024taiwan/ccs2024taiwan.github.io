@@ -26,7 +26,7 @@ export const objects = [
         // 系統會照實際資料各開一頁（例如「已停權」「不通過」「無回應/失效」）。
         // groups＝好幾個狀態併成同一個分頁。
         main: ['新入會', '續會', '榮譽'],
-        groups: { '已停權': ['已停權', '停權', '退出'] } } }),
+        groups: { '退出／停權': ['退出', '已停權', '停權'] } } }),
       F('phone', '手機', 'phone', { ...sec, from: 'phone', options: { contact: 1 }, help: '登入時比對末三碼。只有管理台看得到完整號碼，官網的公開名單與會員專區一律不回傳' }),
       F('email', 'Email', 'email', { ...stf, from: 'email', options: { contact: 1 } }),
       F('line_name', 'LINE 顯示名稱', 'text', { ...stf, from: 'line_name' }),

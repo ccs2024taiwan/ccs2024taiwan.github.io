@@ -4308,6 +4308,49 @@ async function viewTools() {
   });
   lockBar.append(who, lockBtn);
 
+  // 停權 → 退出
+  const quitBar = card('把停權會員改成「退出」',
+    '每年 2 月 1 日系統會把到期沒繳會費的會員標成「停權」。一直沒補繳的就視同退出：按下去會把狀態改成「退出」，他們不再列入官網的地區統計、不會收到催繳、也不能登入，但資料與繳費紀錄都留著（會計要追溯）。');
+  const quitCheck = el('button', 'btn');
+  quitCheck.type = 'button';
+  quitCheck.append(icon('find'), el('span', '', '先看看'));
+  const quitApply = el('button', 'btn pri');
+  quitApply.type = 'button';
+  quitApply.disabled = true;
+  quitApply.append(icon('out'), el('span', '', '改成退出'));
+  const quitOut = el('div');
+  quitOut.style.cssText = 'width:100%';
+  const showQuit = (r) => {
+    quitOut.replaceChildren();
+    quitOut.append(el('p', 'hint', r.text));
+    if ((r.rows || []).length) {
+      quitOut.append(finTable([
+        { label: '會員編號', get: (x) => x.memberId },
+        { label: '姓名／名稱', get: (x) => x.name },
+        { label: '類別', get: (x) => x.type },
+        { label: '目前狀態', get: (x) => x.status },
+        { label: '社區', get: (x) => x.community },
+        { label: '會籍到期', get: (x) => x.until || '' },
+      ], r.rows, 'member.quit'));
+    }
+  };
+  quitCheck.addEventListener('click', async () => {
+    const r = await run({ tool: 'member_quit', apply: false }, quitCheck);
+    if (!r) return;
+    showQuit(r);
+    quitApply.disabled = !r.count;
+    say(true, r.text + (r.count ? '（還沒寫入）' : ''));
+  });
+  quitApply.addEventListener('click', async () => {
+    if (!window.confirm('確定要把這些停權會員改成「退出」嗎？（資料會留著，之後若補繳可以再改回「續會」）')) return;
+    const r = await run({ tool: 'member_quit', apply: true }, quitApply);
+    if (!r) return;
+    showQuit(r);
+    quitApply.disabled = true;
+    say(true, r.text);
+  });
+  quitBar.append(quitCheck, quitApply, quitOut);
+
   // 補齊會員的所在地區
   const cityBar = card('補齊會員的所在地區',
     '官網的會員分布頁照縣市分組。地區空白或寫法不統一（例如只寫「北屯區」）的會被歸到「其他地區」。按「先看看」會照「原本的所在地 → 地址 → 會員編號的縣市代碼 → 社區名稱」推斷，確認沒問題再按「寫進會員資料」。');
