@@ -92,14 +92,17 @@ export const objects = [
   {
     // 官網「會員名單」頁用的公開名單。內容由 Apps Script 的 publicMembers() 算好推上來
     // （含公告對照的改名、匿名、榮譽會員與入會順序），這裡只負責存與讀。
-    id: 'public_member', label: '公開會員名單', icon: 'user', sort: 11,
-    title_field: 'name', sync: { compute: 'publicMembers' },
+    // 官網「會員分布」頁用的公開資料。2026-11-23 個資考量：不再放個人會員的姓名與會員編號，
+    // 只放地區（縣市）與社區名稱；團體會員與榮譽會員放名稱（組織資訊）。
+    id: 'public_member', label: '公開會員分布', icon: 'user', sort: 11,
+    title_field: 'community', sync: { compute: 'publicMembers' },
     acl: { list: ['guest'], read: ['guest'], create: ['staff'], update: ['staff'], delete: ['admin'] },
     fields: [
       F('type', '類別', 'text', { ...pub, ...list, from: 'type' }),
-      F('member_id', '會員編號', 'text', { ...pub, ...list, from: 'id' }),
-      F('name', '姓名', 'text', { ...pub, ...list, from: 'name' }),
+      F('city', '地區', 'text', { ...pub, ...list, from: 'city' }),
       F('community', '社區', 'text', { ...pub, ...list, from: 'community' }),
+      F('name', '名稱', 'text', { ...pub, ...list, from: 'name', help: '只有團體會員與榮譽會員才有；個人會員一律空白' }),
+      F('note', '說明', 'text', { ...pub, ...list, from: 'note', help: '榮譽會員的頭銜' }),
     ],
   },
   {

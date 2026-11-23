@@ -606,7 +606,7 @@ const renderForumName = (forum) => {
   const input = document.getElementById('forumNameInput');
   const note = document.getElementById('forumNameNote');
   input.value = forum && forum.custom ? forum.custom : '';
-  note.textContent = forum ? `目前留言顯示為「${forum.name}${forum.community ? '・' + forum.community : ''}」。` : '留言會顯示成「暱稱・你的社區」。';
+  note.textContent = forum ? `目前留言顯示為「${forum.name}${forum.community ? '・' + forum.community : ''}」。` : '留言會顯示成「暱稱・你的社區」；沒設暱稱就只顯示社區名稱，不會顯示姓名。';
   note.classList.remove('is-error');
   if (form.dataset.bound) return;
   form.dataset.bound = '1';
@@ -682,55 +682,162 @@ if (vendorSearch && vendorResults) {
   });
 }
 
-// ── 會員名單：接上後端後顯示最新名單，否則顯示頁面上的靜態名單 ──
-const memberTableBody = document.getElementById('memberTableBody');
-const tabButtons = document.querySelectorAll('[data-tab]');
+// ── 會員分布：哪些地區、哪些社區加入了我們（官網不公開姓名與會員編號）──
+const memberCities = document.getElementById('memberCities');
 
-if (memberTableBody) {
-  const emptyRow = document.createElement('tr');
-  emptyRow.innerHTML = '<td class="empty" colspan="4">目前沒有這個類型的會員。</td>';
+if (memberCities) {
+  const statusLine = document.getElementById('memberStatus');
+  const groupBox = document.getElementById('memberGroupBox');
+  const honorBox = document.getElementById('memberHonorBox');
 
-  const applyFilter = () => {
-    const selected = document.querySelector('[data-tab].active')?.dataset.tab || 'all';
-    let visible = 0;
-    memberTableBody.querySelectorAll('tr[data-type]').forEach((row) => {
-      row.hidden = selected !== 'all' && row.dataset.type !== selected;
-      if (!row.hidden) visible++;
-    });
-    if (visible) emptyRow.remove();
-    else memberTableBody.append(emptyRow);
+  const setText = (id, text) => {
+    const node = document.getElementById(id);
+    if (node) node.textContent = text;
   };
 
-  tabButtons.forEach((button) => {
-    button.addEventListener('click', () => {
-      tabButtons.forEach((item) => item.classList.toggle('active', item === button));
-      applyFilter();
-    });
-  });
+  const render = (rows) => {
+    if (!rows?.length) return false;
+    const people = rows.filter((r) => r.type !== '榮譽會員');
+    const groups = rows.filter((r) => r.type === '團體會員');
+    const honors = rows.filter((r) => r.type === '榮譽會員');
 
-  const fillMembers = (members) => {
-    if (!members?.length) return false;
-    memberTableBody.replaceChildren(
-      ...members.map((member) => {
-        const row = document.createElement('tr');
-        row.dataset.type = member.type;
-        [member.type, member.id, member.name, member.community || '—'].forEach((text, i) => {
-          const cell = document.createElement('td');
-          cell.textContent = text;
-          if (i === 2 && text === '匿名') cell.className = 'anonymous';
-          row.append(cell);
+    // 地區 → 社區（同一個社區只列一次），沒寫地區的收在最後
+    const byCity = new Map();
+    people.forEach((r) => {
+      const city = (r.city || '').trim() || '其他地區';
+      if (!byCity.has(city)) byCity.set(city, { city, count: 0, communities: new Map() });
+      const box = byCity.get(city);
+      box.count++;
+      const community = (r.community || '').trim();
+      if (community) box.communities.set(community, (box.communities.get(community) || 0) + 1);
+    });
+    const cities = Array.from(byCity.values()).sort((a, b) => b.count - a.count || a.city.localeCompare(b.city, 'zh-Hant'));
+    const communityTotal = cities.reduce((total, box) => total + box.communities.size, 0);
+
+    setText('statMembers', String(rows.length));
+    setText('statCities', String(cities.filter((box) => box.city !== '其他地區').length));
+    setText('statCommunities', String(communityTotal));
+    if (statusLine) statusLine.textContent = '依地區排列，同一個社區只列一次。選擇不公開社區名稱的會員，只列入該地區的人數。';
+
+    memberCities.replaceChildren(
+      ...cities.map((box) => {
+        const card = document.createElement('div');
+        card.className = 'city-card';
+        const title = document.createElement('h3');
+        title.textContent = box.city;
+        const count = document.createElement('span');
+        count.className = 'city-count';
+        count.textContent = box.count + ' 位會員・' + box.communities.size + ' 個社區';
+        const list = document.createElement('div');
+        list.className = 'community-list';
+        Array.from(box.communities.keys()).sort((a, b) => a.localeCompare(b, 'zh-Hant')).forEach((name) => {
+          const tag = document.createElement('span');
+          tag.className = 'community-tag';
+          tag.textContent = name;
+          list.append(tag);
         });
-        return row;
+        card.append(title, count, list);
+        if (!box.communities.size) {
+          const note = document.createElement('p');
+          note.className = 'city-note';
+          note.textContent = '這個地區的會員都選擇不公開社區名稱。';
+          card.append(note);
+        }
+        return card;
       })
     );
-    applyFilter();
+
+    const groupList = document.getElementById('memberGroups');
+    if (groupList && groups.length) {
+      groupBox.hidden = false;
+      groupList.replaceChildren(
+        ...groups.filter((r) => (r.name || '').trim()).map((r) => {
+          const tag = document.createElement('span');
+          tag.className = 'community-tag';
+          tag.textContent = r.name.trim() + (r.city ? '（' + r.city + '）' : '');
+          return tag;
+        })
+      );
+    }
+
+    const honorList = document.getElementById('memberHonors');
+    if (honorList && honors.length) {
+      honorBox.hidden = false;
+      honorList.replaceChildren(
+        ...honors.map((r) => {
+          const item = document.createElement('li');
+          const name = document.createElement('strong');
+          name.textContent = (r.name || '').trim();
+          item.append(name);
+          if ((r.note || '').trim()) {
+            const note = document.createElement('span');
+            note.textContent = r.note.trim();
+            item.append(note);
+          }
+          return item;
+        })
+      );
+    }
     return true;
   };
 
-  // 先問官網資料庫（0.1 秒），沒有才退回 Apps Script（3 秒以上）
+  // 先問官網資料庫（0.1 秒），沒有才退回 Apps Script
   dbList('public_member').then((rows) => {
-    if (rows && fillMembers(rows.map((r) => ({ type: r.type, id: r.member_id, name: r.name, community: r.community })))) return;
-    return api({ action: 'members' }).then((result) => { if (result.ok) fillMembers(result.members); });
+    if (rows && render(rows.map((r) => ({ type: r.type, city: r.city, community: r.community, name: r.name, note: r.note })))) return;
+    return api({ action: 'members' }).then((result) => {
+      if (result.ok && render(result.members)) return;
+      if (statusLine) statusLine.textContent = '名單暫時讀不到，請稍後再試，或加 LINE「寓委聯小幫手」詢問。';
+    });
+  });
+}
+
+// ── 查我的會員編號（姓名＋手機都對才回傳自己那一筆）──
+const lookupForm = document.getElementById('lookupForm');
+
+if (lookupForm) {
+  const result = document.getElementById('lookupResult');
+  const error = document.getElementById('lookupError');
+  const button = lookupForm.querySelector('button[type="submit"]');
+  const messages = {
+    not_found: '查不到符合的會員。姓名與手機號碼要和入會時登記的一致；若已更換手機，請加 LINE「寓委聯小幫手」協助。',
+    missing_fields: '請把姓名與手機號碼都填上。',
+    too_many: '查詢次數過多，請一小時後再試，或直接加 LINE「寓委聯小幫手」詢問。',
+  };
+
+  lookupForm.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const name = document.getElementById('lookupName').value.trim();
+    const phone = document.getElementById('lookupPhone').value.trim();
+    if (!name || !phone) return;
+    result.hidden = true;
+    error.hidden = true;
+    button.disabled = true;
+    button.textContent = '查詢中…';
+    api({ action: 'memberLookup', name, phone })
+      .then((r) => {
+        button.disabled = false;
+        button.textContent = '查詢';
+        if (!r.ok) {
+          error.textContent = messages[r.error] || '查詢失敗，請稍後再試。';
+          error.hidden = false;
+          return;
+        }
+        const parts = ['你的會員編號是 ' + r.memberId];
+        if (r.type) parts.push('會員類別：' + r.type);
+        if (r.permanent) parts.push('會籍：永久會員');
+        else if (r.until) parts.push('會籍到期日：' + r.until);
+        if (r.status) parts.push('目前狀態：' + r.status);
+        result.textContent = parts.join('　');
+        result.hidden = false;
+        const idField = document.getElementById('memberId');
+        if (idField) idField.value = r.memberId;
+      })
+      .catch(() => {
+        button.disabled = false;
+        button.textContent = '查詢';
+        error.textContent = '連線失敗，請稍後再試。';
+        error.hidden = false;
+      });
   });
 }
 
