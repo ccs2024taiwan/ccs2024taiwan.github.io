@@ -4308,6 +4308,59 @@ async function viewTools() {
   });
   lockBar.append(who, lockBtn);
 
+  // 補齊會員的所在地區
+  const cityBar = card('補齊會員的所在地區',
+    '官網的會員分布頁照縣市分組。地區空白或寫法不統一（例如只寫「北屯區」）的會被歸到「其他地區」。按「先看看」會照「原本的所在地 → 地址 → 會員編號的縣市代碼 → 社區名稱」推斷，確認沒問題再按「寫進會員資料」。');
+  const cityCheck = el('button', 'btn');
+  cityCheck.type = 'button';
+  cityCheck.append(icon('find'), el('span', '', '先看看'));
+  const cityApply = el('button', 'btn pri');
+  cityApply.type = 'button';
+  cityApply.disabled = true;
+  cityApply.append(icon('check'), el('span', '', '寫進會員資料'));
+  const cityOut = el('div');
+  cityOut.style.cssText = 'width:100%';
+  const showCity = (r) => {
+    cityOut.replaceChildren();
+    const head = el('p', 'hint', r.text);
+    cityOut.append(head);
+    if ((r.changes || []).length) {
+      cityOut.append(finTable([
+        { label: '會員編號', get: (x) => x.memberId },
+        { label: '類別', get: (x) => x.type },
+        { label: '社區／團體', get: (x) => x.community },
+        { label: '原本', get: (x) => x.from || '（空白）' },
+        { label: '要改成', strong: 1, get: (x) => x.to },
+        { label: '依據', get: (x) => x.why },
+      ], r.changes, 'member.city'));
+    }
+    if ((r.unknown || []).length) {
+      cityOut.append(el('p', 'err', '這幾位推斷不出來，請到「會員」頁直接填「社區所在地」（例：臺中市西屯區）：'));
+      cityOut.append(finTable([
+        { label: '會員編號', get: (x) => x.memberId },
+        { label: '類別', get: (x) => x.type },
+        { label: '社區／團體', get: (x) => x.community },
+        { label: '目前填的', get: (x) => x.now || '（空白）' },
+      ], r.unknown, 'member.city.unknown'));
+    }
+  };
+  cityCheck.addEventListener('click', async () => {
+    const r = await run({ tool: 'member_city', apply: false }, cityCheck);
+    if (!r) return;
+    showCity(r);
+    cityApply.disabled = !(r.changes || []).length;
+    say(true, r.text + '（還沒寫入）');
+  });
+  cityApply.addEventListener('click', async () => {
+    if (!window.confirm('要把上面那些地區寫進會員資料嗎？（只會改「社區所在地」這一欄）')) return;
+    const r = await run({ tool: 'member_city', apply: true }, cityApply);
+    if (!r) return;
+    showCity(r);
+    cityApply.disabled = true;
+    say(true, r.text + ' 官網的會員分布頁重新整理後就會跟著分好。');
+  });
+  cityBar.append(cityCheck, cityApply, cityOut);
+
   // 重新整理官網名單
   const freshBar = card('重新整理官網名單',
     '官網的公開會員名單與榮譽志工是每小時更新一次的快取。剛改完資料想馬上在官網看到，就按這個。');
