@@ -640,6 +640,7 @@ export const menus = [
   { id: 'g_event', area: 'admin', label: '課程活動', icon: 'cal', kind: 'group', sort: 24 },
   { id: 'adm_event', area: 'admin', parent_id: 'g_event', label: '活動與環節', icon: 'cal', kind: 'object', target: 'event', sort: 24 },
   { id: 'adm_signup', area: 'admin', parent_id: 'g_event', label: '報名名單', icon: 'rows', kind: 'object', target: 'registration', sort: 25 },
+  { id: 'ev_sheet', area: 'admin', parent_id: 'g_event', label: '簽到表', icon: 'doc', kind: 'page', target: 'event_sheet', sort: 26, roles: ['staff', 'admin'] },
   { id: 'adm_task', area: 'admin', label: '任務', icon: 'check', kind: 'object', target: 'task', sort: 25 },
   { id: 'adm_meeting', area: 'admin', label: '會議', icon: 'cal', kind: 'object', target: 'meeting', sort: 26 },
   { id: 'adm_asset', area: 'admin', label: '器材', icon: 'mic', kind: 'object', target: 'asset', sort: 27 },

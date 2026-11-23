@@ -225,6 +225,7 @@ function go(key) {
   if (key === 'pay_in') return viewLedgerEntry('in');
   if (key === 'pay_out') return viewLedgerEntry('out');
   if (key === 'dues_remind') return viewDuesRemind();
+  if (key === 'event_sheet') return viewEventSheet();
   if (key === 'permits') return viewPermits();
   if (key === 'audit') return viewAudit();
   if (key === 'audit_old') return viewSoon('留痕', '誰在什麼時候改了什麼，連改前改後都留著，刪掉的東西可以還原。要等管理台開放「寫入」之後才會有內容，和寫入功能同一批。');
@@ -3533,6 +3534,136 @@ async function viewDuesRemind() {
     });
     listBox.append(table);
   };
+  paint();
+}
+
+
+// ── 課程簽到表 ──────────────────────────────────────────
+// 一場活動一張簽到表，分環節列出報名的人（含待繳費的，現場收款也要簽到）
+async function viewEventSheet() {
+  $('crumb').textContent = '課程活動 › 簽到表';
+  const main = $('main');
+  main.replaceChildren();
+  const head = el('div', 'head');
+  const box = el('div');
+  const info = el('p', '', '讀取中…');
+  box.append(el('h1', 'page', '簽到表'), info);
+  head.append(box, el('span', 'sp'));
+  main.append(head);
+  const sheet = el('div', 'sheet');
+  sheet.style.borderRadius = 'var(--r)';
+  main.append(sheet);
+  sheet.append(hint('選一場活動就會列出簽到表，按「列印」直接印出來帶去現場。取消的不列；待繳費的會列出來並標「未繳」，現場收款後請到「報名名單」按確認收款。'));
+
+  const got = await loadFinance(['registration', 'event']);
+  if (!got.registration) { sheet.append(el('p', 'err', '讀不到報名名單')); return; }
+  const regs = got.registration.map((r) => r.data || {});
+  const events = (got.event || []).map((r) => r.data || {});
+
+  // 活動清單：以課程活動表為主，報名資料裡有但活動表沒有的也補進來
+  const byId = {};
+  const touch = (id, title) => {
+    if (!id) return null;
+    if (!byId[id]) byId[id] = { id: id, title: title || id, date: '', sessions: [] };
+    if (title && (!byId[id].title || byId[id].title === id)) byId[id].title = title;
+    return byId[id];
+  };
+  events.forEach((e) => {
+    const b = touch(String(e.id || '').trim(), String(e.title || '').trim());
+    if (!b) return;
+    const d = String(e.date || '').slice(0, 10);
+    if (d && (!b.date || d < b.date)) b.date = d;
+    b.sessions.push({ name: String(e.session || '').trim() || b.title, time: String(e.time || '').trim(), place: String(e.place || '').trim(), date: d, seats: Number(e.seats) || 0 });
+  });
+  regs.forEach((r) => touch(String(r.event_id || '').trim(), String(r.event_title || '').trim()));
+  const list = Object.keys(byId).map((k) => byId[k]).sort((a, b) => String(b.date || b.id).localeCompare(String(a.date || a.id)));
+  if (!list.length) { info.textContent = '還沒有活動'; return; }
+  let eventId = list[0].id;
+
+  const bar = el('div');
+  bar.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 14px';
+  const pickLabel = el('span', '', '活動：');
+  pickLabel.style.cssText = 'font-size:12.5px;color:var(--muted)';
+  const pick = el('select');
+  pick.style.cssText = 'font:inherit;font-size:13px;padding:4px 10px;border:1px solid var(--line);border-radius:8px;background:var(--sub);color:var(--ink);max-width:420px';
+  list.forEach((e) => { const o = el('option', '', (e.date ? e.date + '　' : '') + e.title + '（' + e.id + '）'); o.value = e.id; pick.append(o); });
+  bar.append(pickLabel, pick);
+  const printBtn = el('button', 'btn quiet');
+  printBtn.type = 'button';
+  printBtn.append(icon('doc'), el('span', '', '列印'));
+  printBtn.addEventListener('click', () => window.print());
+  const remindBtn = el('button', 'btn');
+  remindBtn.type = 'button';
+  remindBtn.append(icon('doc'), el('span', '', '寄行前提醒'));
+  bar.append(printBtn, remindBtn);
+  sheet.append(bar);
+  const out = el('p', 'hint');
+  out.hidden = true;
+  sheet.append(out);
+  const body = el('div');
+  sheet.append(body);
+
+  remindBtn.addEventListener('click', async () => {
+    const e = byId[eventId];
+    const ok = (byId[eventId].people || []).filter((p) => p.ok && p.email).length;
+    if (!ok) return alert('這場沒有報名成功又有 Email 的人，請用 LINE 通知。');
+    if (!window.confirm('要寄行前提醒給「' + e.title + '」報名成功的 ' + ok + ' 位嗎？（同一個人只會收到一封）')) return;
+    remindBtn.disabled = true;
+    const r = await appsScript({ action: 'adminTool', token: sessionStorageToken(), tool: 'event_remind', id: eventId });
+    remindBtn.disabled = false;
+    out.hidden = false;
+    out.className = r && r.ok ? 'hint' : 'err';
+    out.textContent = r && r.ok ? r.text : '沒有成功：' + ((r && (r.message || r.error)) || '未知原因');
+  });
+
+  const paint = () => {
+    const e = byId[eventId];
+    body.replaceChildren();
+    const people = regs.filter((r) => String(r.event_id || '').trim() === eventId && String(r.status || '').trim() !== '取消')
+      .map((r) => ({
+        name: String(r.name || '').trim(), kind: String(r.kind || '').trim(), memberId: String(r.member_id || '').trim(),
+        session: String(r.session || '').trim() || e.title, seats: Number(r.seats) || 1, fee: Number(r.fee) || 0,
+        status: String(r.status || '').trim(), email: String(r.email || '').trim(), id: String(r.id || '').trim(),
+        ok: String(r.status || '').trim() === '報名成功',
+      }));
+    e.people = people;
+    const seats = people.reduce((t, p) => t + p.seats, 0);
+    const unpaid = people.filter((p) => !p.ok && p.fee);
+    info.textContent = e.title + '　' + (e.date || '日期未定') + '　報名 ' + people.length + ' 筆、合計 ' + seats + ' 人' +
+      (unpaid.length ? '　待繳費 ' + unpaid.length + ' 筆（' + nt(unpaid.reduce((t, p) => t + p.fee, 0)) + ' 元）' : '');
+    if (!people.length) {
+      body.append(el('p', 'hint', '這場活動還沒有人報名。'));
+      return;
+    }
+    const title = el('h2', '', e.title + '　簽到表');
+    title.style.cssText = 'font-size:17px;margin:6px 0 2px';
+    const sub = el('p', 'hint', (e.date || '') + '　' + e.sessions.map((x) => x.name + (x.time ? '　' + x.time : '') + (x.place ? '　' + x.place : '')).join('｜'));
+    body.append(title, sub);
+
+    const groups = {};
+    const order = [];
+    people.forEach((p) => { if (!groups[p.session]) { groups[p.session] = []; order.push(p.session); } groups[p.session].push(p); });
+    order.forEach((name) => {
+      const rows = groups[name];
+      const h = el('h3', '', name + '（' + rows.length + ' 筆、' + rows.reduce((t, p) => t + p.seats, 0) + ' 人）');
+      h.style.cssText = 'font-size:14.5px;margin:18px 0 6px';
+      body.append(h);
+      const table = finTable([
+        { label: '序', right: 1, get: (p) => String(rows.indexOf(p) + 1) },
+        { label: '姓名', get: (p) => p.name },
+        { label: '身分', get: (p) => p.kind },
+        { label: '會員編號', get: (p) => p.memberId },
+        { label: '人數', right: 1, get: (p) => String(p.seats) },
+        { label: '繳費', get: (p) => (p.fee ? (p.ok ? '已繳 ' + nt(p.fee) : '未繳 ' + nt(p.fee)) : '免費') },
+        { label: '報名編號', get: (p) => p.id },
+        { label: '簽到', get: () => '' },
+      ], rows, 'event.sheet');
+      const last = table.querySelector('thead th:last-child');
+      if (last && !last.style.width) last.style.width = '150px';
+      body.append(table);
+    });
+  };
+  pick.addEventListener('change', () => { eventId = pick.value; out.hidden = true; paint(); });
   paint();
 }
 
