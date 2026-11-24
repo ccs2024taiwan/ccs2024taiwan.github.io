@@ -737,7 +737,7 @@ async function viewObject(objectId) {
 
     const unit = obj.id === 'order' ? ' 筆' : ' 位';
     const count = el('span', '', picked.length ? '已勾選 ' + picked.length + unit
-      : (obj.id === 'order' ? '勾選後可以產生信封、交貨便匯入表、填收據編號' : '勾選後可以複製聯絡方式'));
+      : (obj.id === 'order' ? (activeStatus === '已備貨' ? '勾選後可以一次出貨（寄通知、銷庫存）' : '勾選後可以產生信封、交貨便匯入表、填收據編號') : '勾選後可以複製聯絡方式'));
     count.style.cssText = 'font-size:12.5px;color:var(--muted)';
     pickBar.append(count);
 
@@ -795,13 +795,29 @@ async function viewObject(objectId) {
         viewObject(obj.id);
       }));
 
-      pickBar.append(shipBtn('標記已備貨', 'check', async (ids) => {
-        if (!window.confirm('把勾選的 ' + ids.length + ' 筆標成「已備貨」？（只有已付款的會改）')) return;
-        const r = await orderBulkDo('prepared', ids);
-        if (!r || !r.ok) return alert('沒有成功：' + ((r && (r.message || r.error)) || '未知原因'));
-        alert('已標記 ' + r.marked + ' 筆為已備貨。');
-        viewObject(obj.id);
-      }));
+      // 在「已備貨」那一頁，這顆按鈕就是「出貨」：改狀態、寄出貨通知、庫存從預留改已出；
+      // 其他分頁還是「標記已備貨」。面交的訂單會自動標成「已面交」並寄感謝信。
+      if (activeStatus === '已備貨') {
+        pickBar.append(shipBtn('出貨', 'shop', async (ids) => {
+          const tracking = window.prompt('物流單號或交貨便代碼（可留空；一次出好幾筆時會每一筆都填一樣的，面交的訂單不會用到）', '');
+          if (tracking === null) return;
+          if (!window.confirm('把勾選的 ' + ids.length + ' 筆出貨嗎？會寄出貨通知給客人，庫存那幾本也會從「預留」改成「已出」。')) return;
+          const r = await orderBulkDo('ship', ids, { tracking: tracking.trim() });
+          if (!r || !r.ok) return alert('沒有成功：' + ((r && (r.message || r.error)) || '未知原因'));
+          const skipped = (r.skipped || []).map((x) => '・' + x.id + '：' + x.why).join('\n');
+          alert(r.text + (skipped ? '\n\n這幾筆沒有動：\n' + skipped : ''));
+          dropRowsCache();
+          viewObject(obj.id);
+        }));
+      } else {
+        pickBar.append(shipBtn('標記已備貨', 'check', async (ids) => {
+          if (!window.confirm('把勾選的 ' + ids.length + ' 筆標成「已備貨」？（只有已付款的會改）')) return;
+          const r = await orderBulkDo('prepared', ids);
+          if (!r || !r.ok) return alert('沒有成功：' + ((r && (r.message || r.error)) || '未知原因'));
+          alert('已標記 ' + r.marked + ' 筆為已備貨。');
+          viewObject(obj.id);
+        }));
+      }
     }
 
     if (picked.length) {
