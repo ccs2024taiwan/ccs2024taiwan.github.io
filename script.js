@@ -682,6 +682,60 @@ if (vendorSearch && vendorResults) {
   });
 }
 
+
+// ── 關於我們：組織圖的各組名單（即時帶出，顯示綽號）──
+// 資料是 D1 的「公開組別名單」：只有組別、職務與綽號，沒有本名與聯絡方式。
+const orgTeamsBox = document.getElementById('orgTeams');
+
+if (orgTeamsBox) {
+  const TEAM_ORDER = ['公關組', '活動組', '教務組', '文書組', '總務組'];
+  const paintTeams = (rows) => {
+    const byTeam = new Map();
+    (rows || []).forEach((r) => {
+      const team = (r.team || '').trim();
+      const nickname = (r.nickname || '').trim();
+      if (!team || !nickname) return;
+      if (!byTeam.has(team)) byTeam.set(team, []);
+      byTeam.get(team).push({ role: (r.role || '組員').trim(), nickname });
+    });
+    if (!byTeam.size) return false;
+    const teams = Array.from(byTeam.keys()).sort((a, b) => {
+      const ia = TEAM_ORDER.indexOf(a);
+      const ib = TEAM_ORDER.indexOf(b);
+      return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || a.localeCompare(b, 'zh-Hant');
+    });
+    orgTeamsBox.replaceChildren(
+      ...teams.map((team) => {
+        const box = document.createElement('div');
+        box.className = 'org-team';
+        const h = document.createElement('h4');
+        h.textContent = team;
+        const ul = document.createElement('ul');
+        byTeam.get(team)
+          .sort((a, b) => (a.role === '組長' ? -1 : b.role === '組長' ? 1 : 0) || a.nickname.localeCompare(b.nickname, 'zh-Hant'))
+          .forEach((p) => {
+            const li = document.createElement('li');
+            const role = document.createElement('span');
+            role.textContent = p.role;
+            li.append(role, document.createTextNode(p.nickname));
+            ul.append(li);
+          });
+        box.append(h, ul);
+        return box;
+      })
+    );
+    return true;
+  };
+
+  dbList('public_team').then((rows) => {
+    if (paintTeams(rows)) return;
+    const note = document.createElement('p');
+    note.className = 'org-team-note';
+    note.textContent = '各組名單整理中，稍後再看看；想加入我們可以到「加入志工」。';
+    orgTeamsBox.replaceChildren(note);
+  });
+}
+
 // ── 會員分布：哪些地區、哪些社區加入了我們（官網不公開姓名與會員編號）──
 // 地圖只是概覽：顏色深淺＝會員多寡，點一下看該縣市的社區。真正好按的是地圖下面那排縣市按鈕
 // （手機上小縣市只有幾個像素，不能只靠地圖）。
@@ -843,7 +897,7 @@ if (memberCities) {
         title.textContent = box.city;
         const count = document.createElement('span');
         count.className = 'city-count';
-        count.textContent = box.count + ' 位會員・' + box.communities.size + ' 個社區';
+        count.textContent = box.count + ' 位會員・' + box.communities.size + ' 個社區或團體';
         const list = document.createElement('div');
         list.className = 'community-list';
         Array.from(box.communities.keys()).sort((a, b) => a.localeCompare(b, 'zh-Hant')).forEach((name) => {
@@ -865,12 +919,13 @@ if (memberCities) {
     if (statusLine) {
       statusLine.textContent = selected
         ? '目前只看「' + selected + '」。再按一次同一個縣市，或按「全部地區」就看全部。'
-        : '依地區排列，同一個社區只列一次。點地圖或下面的縣市按鈕可以只看某一個地區。';
+        : '依地區排列：個人會員顯示社區名稱、團體會員顯示團體名稱，同一個社區只列一次（同一個社區有兩位會員也只會出現一次）。選擇不公開社區的會員只算進人數。點地圖或縣市按鈕可以只看某一個地區。';
     }
   };
 
   const render = (rows) => {
     if (!rows?.length) return false;
+    // 個人會員與團體會員都算進地區（團體會員在卡片上顯示團體名稱，不另外分區）
     const people = rows.filter((r) => r.type !== '榮譽會員');
     const groups = rows.filter((r) => r.type === '團體會員');
     const honors = rows.filter((r) => r.type === '榮譽會員');
@@ -882,7 +937,8 @@ if (memberCities) {
       if (!byCity.has(city)) byCity.set(city, { city, count: 0, communities: new Map() });
       const box = byCity.get(city);
       box.count++;
-      const community = (r.community || '').trim();
+      // 個人會員放社區名稱；團體會員放團體名稱（後面加「（團體會員）」）
+      const community = (r.community || '').trim() || ((r.name || '').trim() && r.type === '團體會員' ? r.name.trim() + '（團體會員）' : '');
       if (community) box.communities.set(community, (box.communities.get(community) || 0) + 1);
     });
     cities = Array.from(byCity.values()).sort((a, b) => b.count - a.count || a.city.localeCompare(b.city, 'zh-Hant'));
@@ -896,11 +952,13 @@ if (memberCities) {
     paintChips();
     paintCards();
 
+    // 團體會員已經併進各地區的卡片，這一區只在「沒有地區」的團體會員身上用到
     const groupList = document.getElementById('memberGroups');
-    if (groupList && groups.length) {
+    const strayGroups = groups.filter((r) => !(r.city || '').trim());
+    if (groupList && strayGroups.length) {
       groupBox.hidden = false;
       groupList.replaceChildren(
-        ...groups.filter((r) => (r.name || '').trim()).map((r) => {
+        ...strayGroups.filter((r) => (r.name || '').trim()).map((r) => {
           const tag = document.createElement('span');
           tag.className = 'community-tag';
           tag.textContent = r.name.trim() + (r.city ? '（' + r.city + '）' : '');
@@ -960,6 +1018,7 @@ if (lookupForm) {
     const phone = document.getElementById('lookupPhone').value.trim();
     if (!name || !phone) return;
     result.hidden = true;
+    result.classList.remove('visible');
     error.hidden = true;
     button.disabled = true;
     button.textContent = '查詢中…';
@@ -979,6 +1038,7 @@ if (lookupForm) {
         if (r.status) parts.push('目前狀態：' + r.status);
         result.textContent = parts.join('　');
         result.hidden = false;
+        result.classList.add('visible'); // .form-success 預設是 display:none，要加這個才看得到
         const idField = document.getElementById('memberId');
         if (idField) idField.value = r.memberId;
       })

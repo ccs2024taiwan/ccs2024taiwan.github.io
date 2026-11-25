@@ -106,6 +106,19 @@ export const objects = [
     ],
   },
   {
+    // 官網「關於我們」的組織圖用的公開名單：只有組別、職務與綽號，沒有本名與聯絡方式。
+    // 由 Apps Script 的 volunteerTeams() 算好推上來，志工一分配組別就會跟著更新。
+    id: 'public_team', label: '公開組別名單', icon: 'user', sort: 12,
+    title_field: 'nickname', sync: { compute: 'volunteerTeams' },
+    acl: { list: ['guest'], read: ['guest'], create: ['staff'], update: ['staff'], delete: ['admin'] },
+    fields: [
+      F('team', '組別', 'text', { ...pub, ...list, from: 'team' }),
+      F('role', '職務', 'text', { ...pub, ...list, from: 'role' }),
+      F('nickname', '綽號', 'text', { ...pub, ...list, from: 'nickname' }),
+      F('seq', '排序', 'number', { ...pub, from: 'seq' }),
+    ],
+  },
+  {
     id: 'dues', label: '會費繳納', icon: 'coin', sort: 20,
     id_rule: 'D{member}{roc}{plan}', title_field: 'member_name', source: 'd1',
     acl: { list: ['staff'], read: ['member', 'staff'], create: ['staff'], update: ['staff'], delete: ['admin'] },
@@ -517,6 +530,9 @@ export const objects = [
         main: ['在職'],
         groups: { '已離隊': ['退出', '退隊', '暫停', '暫停服務'] } } }),
       F('joined', '加入日期', 'date', { ...stf, ...list, from: '加入日期' }),
+      F('team', '組別', 'select', { ...stf, ...list, from: '組別', options: { items: ['公關組', '活動組', '教務組', '文書組', '總務組'], facet: 1 },
+        help: '官網的組織圖會照這一欄顯示（只顯示綽號）' }),
+      F('role', '職務', 'select', { ...stf, ...list, from: '職務', options: { items: ['組長', '副組長', '組員'] } }),
       F('skills', '專長', 'text', { ...stf, from: '專長' }),
       F('email', 'Email', 'email', { ...stf, from: 'Email', options: { contact: 1 } }),
       F('phone', '手機', 'phone', { ...sec, from: '手機', options: { contact: 1 }, help: '登入時比對末三碼。只有管理台看得到' }),
