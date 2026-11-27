@@ -4325,6 +4325,50 @@ async function viewTools() {
   });
   lockBar.append(who, lockBtn);
 
+  // 照舊的組織圖補登志工組別
+  const teamBar = card('補登志工組別（照官網舊的組織圖）',
+    '官網「關於我們」的組織圖現在是從志工資料即時帶出的（只顯示綽號）。這一支會照舊版組織圖的名單，把現有志工的組別與職務填回去；之後新進志工請在「志工」頁點開那個人按「分配組別」。');
+  const teamCheck = el('button', 'btn');
+  teamCheck.type = 'button';
+  teamCheck.append(icon('find'), el('span', '', '先看看'));
+  const teamApply = el('button', 'btn pri');
+  teamApply.type = 'button';
+  teamApply.disabled = true;
+  teamApply.append(icon('user'), el('span', '', '補登組別'));
+  const teamOut = el('div');
+  teamOut.style.cssText = 'width:100%';
+  const showTeam = (r) => {
+    teamOut.replaceChildren();
+    teamOut.append(el('p', 'hint', r.text));
+    if ((r.changes || []).length) {
+      teamOut.append(finTable([
+        { label: '綽號', get: (x) => x.nickname },
+        { label: '本名', get: (x) => x.name },
+        { label: '原本', get: (x) => x.from },
+        { label: '要改成', strong: 1, get: (x) => x.team + ' ' + x.role },
+      ], r.changes, 'vol.team'));
+    }
+    if ((r.missing || []).length) {
+      teamOut.append(el('p', 'err', '舊組織圖上有、但志工名冊裡找不到的：' + r.missing.map((m) => m.name + '（' + m.team + '）').join('、') + '。這幾位請確認是不是已經離隊，或名字寫法不一樣。'));
+    }
+  };
+  teamCheck.addEventListener('click', async () => {
+    const r = await run({ tool: 'volunteer_team_seed', apply: false }, teamCheck);
+    if (!r) return;
+    showTeam(r);
+    teamApply.disabled = !(r.changes || []).length;
+    say(true, r.text + '（還沒寫入）');
+  });
+  teamApply.addEventListener('click', async () => {
+    if (!window.confirm('要把這些組別寫進志工資料嗎？')) return;
+    const r = await run({ tool: 'volunteer_team_seed', apply: true }, teamApply);
+    if (!r) return;
+    showTeam(r);
+    teamApply.disabled = true;
+    say(true, r.text + ' 接著按「同步 → 立刻同步」，官網的組織圖就會更新。');
+  });
+  teamBar.append(teamCheck, teamApply, teamOut);
+
   // 停權 → 退出
   const quitBar = card('把停權會員改成「退出」',
     '每年 2 月 1 日系統會把到期沒繳會費的會員標成「停權」。一直沒補繳的就視同退出：按下去會把狀態改成「退出」，他們不再列入官網的地區統計、不會收到催繳、也不能登入，但資料與繳費紀錄都留著（會計要追溯）。');
